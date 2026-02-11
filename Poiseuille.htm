@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bomba + Mangueira — Fluxo por Poiseuille</title>
+  <style>
+    :root{
+      --bg1:#0b1020;
+      --bg2:#0b1633;
+      --card:#0f1c3d;
+      --card2:#0c1734;
+      --text:#eaf0ff;
+      --muted:#9fb2e6;
+      --accent:#6ee7ff;
+      --accent2:#7c5cff;
+      --ok:#46ffa6;
+      --warn:#ffcb6e;
+      --bad:#ff6e7a;
+      --shadow: 0 18px 60px rgba(0,0,0,.45);
+      --shadow2: 0 10px 30px rgba(0,0,0,.35);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 70% 15%, rgba(124,92,255,.20), transparent 60%),
+        radial-gradient(900px 600px at 15% 30%, rgba(110,231,255,.18), transparent 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      min-height:100vh;
+      padding:20px;
+    }
+    .wrap{
+      max-width:1200px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:18px;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .wrap{grid-template-columns:1fr}
+    }
+    .title{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      margin:0 0 14px 0;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow2);
+      font-size:12px;
+      color: var(--muted);
+    }
+    .badge b{color:var(--text); font-weight:600}
+    .card{
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding:16px 16px 12px 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), transparent);
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .card .hd h1{
+      font-size:16px;
+      margin:0;
+      letter-spacing:.2px;
+    }
+    .card .bd{
+      padding:16px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px 12px;
+      align-items:center;
+    }
+    label{
+      font-size:12px;
+      color:var(--muted);
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--accent);
+    }
+    input[type="number"]{
+      width:120px;
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.25);
+      color: var(--text);
+      outline:none;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      margin-top:12px;
+      flex-wrap:wrap;
+    }
+    button{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      cursor:pointer;
+      box-shadow: var(--shadow2);
+    }
+    button:hover{ background: rgba(255,255,255,.10); }
+    .kpis{
+      margin-top:14px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .kpi{
+      padding:12px;
+      border-radius:16px;
+      background: rgba(0,0,0,.20);
+      border:1px solid rgba(255,255,255,.10);
+    }
+    .kpi .k{font-size:11px; color:var(--muted); margin-bottom:6px}
+    .kpi .v{font-size:16px; font-weight:650; letter-spacing:.2px}
+    .kpi .s{font-size:11px; color:var(--muted); margin-top:4px}
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:11px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--muted);
+    }
+    .note{
+      margin-top:12px;
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.35;
+    }
+    .viz{
+      position:relative;
+      height: 560px;
+    }
+    @media (max-width: 980px){
+      .viz{height: 520px;}
+    }
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      background:
+        radial-gradient(800px 500px at 75% 25%, rgba(110,231,255,.10), transparent 60%),
+        radial-gradient(900px 650px at 10% 45%, rgba(124,92,255,.10), transparent 65%),
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.15));
+    }
+    .legend{
+      position:absolute;
+      right:14px;
+      top:14px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding:12px;
+      border-radius:16px;
+      background: rgba(0,0,0,.28);
+      border:1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow2);
+      min-width: 240px;
+    }
+    .legend .t{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .legend .t b{color:var(--text); font-weight:650}
+    .bar{
+      height:8px;
+      border-radius:999px;
+      background: rgba(255,255,255,.08);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .bar > i{
+      display:block;
+      height:100%;
+      width:50%;
+      background: linear-gradient(90deg, rgba(110,231,255,.95), rgba(124,92,255,.95));
+      border-radius:999px;
+      box-shadow: 0 0 18px rgba(110,231,255,.25);
+    }
+    .foot{
+      margin-top:10px;
+      font-size:11px;
+      color: rgba(159,178,230,.85);
+    }
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;}
+  </style>
+</head>
+<body>
+
+<div class="title">
+  <div class="badge">Modelo: <b>Poiseuille (laminar)</b> • ΔP fixo <b>100 mmHg</b></div>
+  <div class="badge">Água: <b>μ = 1 mPa·s</b> • ρ = <b>1000 kg/m³</b></div>
+</div>
+
+<div class="wrap">
+  <div class="card">
+    <div class="hd">
+      <h1>Configuração da mangueira</h1>
+    </div>
+    <div class="bd">
+      <div class="grid">
+        <label>Pressão da bomba (fixa)</label>
+        <div class="pill"><span class="mono">100 mmHg</span></div>
+
+        <label for="d">Diâmetro interno (mm)</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="d" type="range" min="1" max="30" step="0.1" value="8">
+          <input id="dN" type="number" min="1" max="30" step="0.1" value="8">
+        </div>
+
+        <label for="L">Comprimento (m)</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="L" type="range" min="0.1" max="20" step="0.1" value="2">
+          <input id="LN" type="number" min="0.1" max="20" step="0.1" value="2">
+        </div>
+
+        <label for="mu">Viscosidade μ (mPa·s)</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="mu" type="range" min="0.6" max="3.0" step="0.05" value="1.00">
+          <input id="muN" type="number" min="0.6" max="3.0" step="0.05" value="1.00">
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="preset1">Padrão</button>
+        <button id="preset2">“Estreita”</button>
+        <button id="preset3">“Longa”</button>
+        <button id="random">Aleatório</button>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="k">Fluxo volumétrico</div>
+          <div class="v" id="Q">—</div>
+          <div class="s" id="Q2">—</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Velocidade média</div>
+          <div class="v" id="v">—</div>
+          <div class="s" id="A">—</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Resistência hidráulica (R = ΔP/Q)</div>
+          <div class="v" id="R">—</div>
+          <div class="s mono" id="poise">—</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Reynolds (indicativo)</div>
+          <div class="v" id="Re">—</div>
+          <div class="s" id="regime">—</div>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>Hipóteses:</b> tubo rígido, escoamento laminar, água Newtoniana, sem perdas locais (curvas, conexões),
+        sem gravidade/carga estática, ΔP constante na mangueira inteira. Se <span class="mono">Re</span> ficar alto,
+        esse modelo tende a superestimar o fluxo.
+      </div>
+    </div>
+  </div>
+
+  <div class="card viz">
+    <canvas id="cv" width="1100" height="700"></canvas>
+
+    <div class="legend">
+      <div class="t"><span>Intensidade visual do fluxo</span><b id="flowTag">—</b></div>
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="t"><span>ΔP</span><b class="mono">100 mmHg</b></div>
+      <div class="t"><span>Diâmetro</span><b class="mono" id="dTag">—</b></div>
+      <div class="t"><span>Comprimento</span><b class="mono" id="LTag">—</b></div>
+      <div class="foot">
+        Partículas representam o escoamento. A espessura da mangueira escala com o diâmetro.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // --- Constantes físicas ---
+  const mmHg_to_Pa = 133.322;
+  const deltaP = 100 * mmHg_to_Pa;     // 100 mmHg fixo
+  const rho = 1000;                    // kg/m³ (água)
+  // mu é controlável (mPa·s no UI) -> converte para Pa·s: mPa·s * 1e-3
+
+  // --- UI ---
+  const d = document.getElementById('d');
+  const dN = document.getElementById('dN');
+  const L = document.getElementById('L');
+  const LN = document.getElementById('LN');
+  const mu = document.getElementById('mu');
+  const muN = document.getElementById('muN');
+
+  const Qel = document.getElementById('Q');
+  const Q2el = document.getElementById('Q2');
+  const velEl = document.getElementById('v');
+  const Ael = document.getElementById('A');
+  const Rel = document.getElementById('R');
+  const ReEl = document.getElementById('Re');
+  const regimeEl = document.getElementById('regime');
+  const poiseEl = document.getElementById('poise');
+
+  const dTag = document.getElementById('dTag');
+  const LTag = document.getElementById('LTag');
+  const flowTag = document.getElementById('flowTag');
+  const barFill = document.getElementById('barFill');
+
+  function sync(rangeEl, numberEl) {
+    rangeEl.addEventListener('input', () => {
+      numberEl.value = rangeEl.value;
+      update();
+    });
+    numberEl.addEventListener('input', () => {
+      let v = Number(numberEl.value);
+      if (!Number.isFinite(v)) return;
+      v = Math.max(Number(rangeEl.min), Math.min(Number(rangeEl.max), v));
+      rangeEl.value = v;
+      numberEl.value = v;
+      update();
+    });
+  }
+  sync(d, dN);
+  sync(L, LN);
+  sync(mu, muN);
+
+  // Presets
+  document.getElementById('preset1').onclick = () => { setVals(8, 2, 1.0); };
+  document.getElementById('preset2').onclick = () => { setVals(3, 2, 1.0); };
+  document.getElementById('preset3').onclick = () => { setVals(8, 12, 1.0); };
+  document.getElementById('random').onclick  = () => {
+    const dd = (1 + Math.random()*29).toFixed(1);
+    const LL = (0.1 + Math.random()*19.9).toFixed(1);
+    const mm = (0.6 + Math.random()*2.4).toFixed(2);
+    setVals(dd, LL, mm);
+  };
+
+  function setVals(dd, LL, mm){
+    d.value = dd; dN.value = dd;
+    L.value = LL; LN.value = LL;
+    mu.value = mm; muN.value = mm;
+    update();
+  }
+
+  // --- Modelo de Poiseuille ---
+  // Q = ΔP * π r^4 / (8 μ L)
+  function compute(d_mm, L_m, mu_mPa_s) {
+    const r = (d_mm/1000)/2;           // m
+    const mu_Pa_s = mu_mPa_s * 1e-3;   // Pa·s
+    const Q = (deltaP * Math.PI * Math.pow(r,4)) / (8 * mu_Pa_s * L_m); // m³/s
+    const A = Math.PI * r * r;         // m²
+    const v = Q / A;                   // m/s
+    const Re = (rho * v * (d_mm/1000)) / mu_Pa_s;
+    const R = deltaP / Q;              // Pa·s/m³ (equiv. resistência hidráulica)
+    return { Q, A, v, Re, R, r, mu_Pa_s };
+  }
+
+  function fmtSI(x){
+    if (!Number.isFinite(x)) return '—';
+    const ax = Math.abs(x);
+    if (ax >= 1e9) return (x/1e9).toFixed(2) + ' G';
+    if (ax >= 1e6) return (x/1e6).toFixed(2) + ' M';
+    if (ax >= 1e3) return (x/1e3).toFixed(2) + ' k';
+    if (ax >= 1) return x.toFixed(2);
+    if (ax >= 1e-3) return (x*1e3).toFixed(2) + ' m';
+    if (ax >= 1e-6) return (x*1e6).toFixed(2) + ' µ';
+    return x.toExponential(2);
+  }
+
+  // --- Visual (canvas) ---
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+
+  // Resize canvas for crispness on HiDPI while keeping CSS sizing
+  function resizeCanvas(){
+    const rect = cv.getBoundingClientRect();
+    const dpr = Math.max(1, Math.min(2.2, window.devicePixelRatio || 1));
+    cv.width  = Math.floor(rect.width * dpr);
+    cv.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS pixels
+  }
+  window.addEventListener('resize', () => { resizeCanvas(); });
+
+  // Bezier path (mangueira)
+  function bezier(p0,p1,p2,p3,t){
+    const u=1-t;
+    const tt=t*t, uu=u*u;
+    const uuu=uu*u, ttt=tt*t;
+    return {
+      x: uuu*p0.x + 3*uu*t*p1.x + 3*u*tt*p2.x + ttt*p3.x,
+      y: uuu*p0.y + 3*uu*t*p1.y + 3*u*tt*p2.y + ttt*p3.y
+    };
+  }
+
+  function bezierDeriv(p0,p1,p2,p3,t){
+    const u=1-t;
+    return {
+      x: 3*u*u*(p1.x-p0.x) + 6*u*t*(p2.x-p1.x) + 3*t*t*(p3.x-p2.x),
+      y: 3*u*u*(p1.y-p0.y) + 6*u*t*(p2.y-p1.y) + 3*t*t*(p3.y-p2.y)
+    };
+  }
+
+  // Partículas (água)
+  const particles = [];
+  const N = 220;
+  for (let i=0;i<N;i++){
+    particles.push({ t: Math.random(), lane: (Math.random()*2-1), seed: Math.random() });
+  }
+
+  let last = performance.now();
+  let impeller = 0;
+  let state = { Q:0, v:0, Re:0, dmm:8, Lm:2, mu:1.0 };
+
+  function draw(){
+    const now = performance.now();
+    const dt = Math.min(0.04, (now-last)/1000);
+    last = now;
+
+    const w = cv.getBoundingClientRect().width;
+    const h = cv.getBoundingClientRect().height;
+
+    // Layout: bomba à esquerda, saída à direita
+    const pump = { x: 140, y: h*0.56, r: 74 };
+    const out  = { x: w-120, y: h*0.52 };
+
+    const p0 = { x: pump.x + pump.r + 18, y: pump.y - 10 };
+    const p1 = { x: w*0.38, y: h*0.30 };
+    const p2 = { x: w*0.58, y: h*0.78 };
+    const p3 = { x: out.x - 22, y: out.y };
+
+    // Espessura da mangueira em pixels ~ diâmetro
+    const hosePx = clamp(map(state.dmm, 1, 30, 10, 44), 10, 48);
+    const innerPx = Math.max(6, hosePx - 10);
+
+    // Intensidade visual do fluxo (não é unidade física; só “bonito”)
+    // Normaliza por faixa típica e limita.
+    const Q_Lmin = state.Q * 60000; // m³/s -> L/min (porque 1 m³ = 1000 L, 1000*60=60000)
+    const intensity = clamp(Q_Lmin / 80, 0, 1); // 80 L/min ~ "muito"
+    const speedVis = 0.20 + 1.90 * intensity;   // velocidade de partículas (em t/s)
+    impeller += dt * (1.3 + 5.0*intensity);
+
+    // Fundo
+    ctx.clearRect(0,0,w,h);
+
+    // Glow suave ao redor da mangueira
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = hosePx + 18;
+    ctx.strokeStyle = 'rgba(110,231,255,.10)';
+    ctx.beginPath();
+    traceBezier(ctx,p0,p1,p2,p3);
+    ctx.stroke();
+    ctx.restore();
+
+    // Mangueira (camada externa)
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = hosePx;
+    const hoseGrad = ctx.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
+    hoseGrad.addColorStop(0, 'rgba(255,255,255,.18)');
+    hoseGrad.addColorStop(0.30, 'rgba(255,255,255,.07)');
+    hoseGrad.addColorStop(0.70, 'rgba(255,255,255,.10)');
+    hoseGrad.addColorStop(1, 'rgba(255,255,255,.22)');
+    ctx.strokeStyle = hoseGrad;
+    ctx.shadowColor = 'rgba(0,0,0,.35)';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    traceBezier(ctx,p0,p1,p2,p3);
+    ctx.stroke();
+    ctx.restore();
+
+    // Lúmen (água dentro)
+    ctx.save();
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+    ctx.lineWidth = innerPx;
+    const waterGrad = ctx.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
+    waterGrad.addColorStop(0, 'rgba(110,231,255,.70)');
+    waterGrad.addColorStop(0.5, 'rgba(124,92,255,.65)');
+    waterGrad.addColorStop(1, 'rgba(110,231,255,.75)');
+    ctx.strokeStyle = waterGrad;
+    ctx.shadowColor = 'rgba(110,231,255,.18)';
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    traceBezier(ctx,p0,p1,p2,p3);
+    ctx.stroke();
+    ctx.restore();
+
+    // Partículas (escoamento)
+    ctx.save();
+    for (const p of particles){
+      p.t = (p.t + dt * speedVis * (0.65 + 0.70*p.seed)) % 1.0;
+
+      const pos = bezier(p0,p1,p2,p3,p.t);
+      const der = bezierDeriv(p0,p1,p2,p3,p.t);
+      const ang = Math.atan2(der.y, der.x);
+
+      // deslocamento lateral "lane" pra dar volume
+      const nx = -Math.sin(ang);
+      const ny =  Math.cos(ang);
+      const laneAmp = (innerPx*0.34) * p.lane * (0.35 + 0.65*Math.sin(2*Math.PI*(p.t + p.seed)));
+      const x = pos.x + nx*laneAmp;
+      const y = pos.y + ny*laneAmp;
+
+      const r = 1.2 + 1.8*intensity*(0.3 + p.seed);
+      ctx.globalAlpha = 0.25 + 0.55*intensity;
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.beginPath();
+      ctx.arc(x,y,r,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Saída (jato)
+    drawJet(out.x, out.y, innerPx, intensity);
+
+    // Bomba
+    drawPump(pump.x, pump.y, pump.r, intensity, impeller);
+
+    // Textos
+    ctx.save();
+    ctx.font = '600 14px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillStyle = 'rgba(234,240,255,.92)';
+    ctx.fillText('BOMBA', pump.x - 26, pump.y - pump.r - 20);
+    ctx.font = '12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillStyle = 'rgba(159,178,230,.92)';
+    ctx.fillText('ΔP = 100 mmHg', pump.x - 48, pump.y - pump.r - 4);
+
+    // rótulo do fluxo
+    const mid = bezier(p0,p1,p2,p3,0.52);
+    ctx.fillStyle = 'rgba(0,0,0,.40)';
+    roundRect(ctx, mid.x - 88, mid.y - 26, 176, 24, 10, true, false);
+    ctx.fillStyle = 'rgba(234,240,255,.95)';
+    ctx.font = '600 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillText(`Q ≈ ${fmtFlow(state.Q)}  |  v ≈ ${state.v.toFixed(2)} m/s`, mid.x - 80, mid.y - 10);
+
+    ctx.restore();
+
+    requestAnimationFrame(draw);
+  }
+
+  function traceBezier(ctx,p0,p1,p2,p3){
+    ctx.moveTo(p0.x,p0.y);
+    ctx.bezierCurveTo(p1.x,p1.y,p2.x,p2.y,p3.x,p3.y);
+  }
+
+  function drawPump(x,y,r,intensity,theta){
+    ctx.save();
+
+    // Corpo
+    const bodyGrad = ctx.createRadialGradient(x-r*0.25,y-r*0.25, r*0.2, x,y,r*1.1);
+    bodyGrad.addColorStop(0,'rgba(255,255,255,.12)');
+    bodyGrad.addColorStop(0.35,'rgba(255,255,255,.06)');
+    bodyGrad.addColorStop(1,'rgba(0,0,0,.25)');
+
+    ctx.fillStyle = bodyGrad;
+    ctx.strokeStyle = 'rgba(255,255,255,.12)';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(0,0,0,.45)';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+
+    // Anel interno
+    ctx.strokeStyle = 'rgba(110,231,255,.25)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x,y,r*0.72,0,Math.PI*2);
+    ctx.stroke();
+
+    // Impulsor (pás)
+    const blades = 6;
+    ctx.translate(x,y);
+    ctx.rotate(theta * (0.8 + 1.7*intensity));
+    for(let i=0;i<blades;i++){
+      ctx.rotate((Math.PI*2)/blades);
+      ctx.fillStyle = 'rgba(234,240,255,.16)';
+      ctx.beginPath();
+      ctx.moveTo(r*0.12, -r*0.06);
+      ctx.quadraticCurveTo(r*0.42, 0, r*0.62, r*0.12);
+      ctx.quadraticCurveTo(r*0.40, r*0.06, r*0.12, r*0.06);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Hub
+    ctx.fillStyle = 'rgba(110,231,255,.18)';
+    ctx.beginPath();
+    ctx.arc(0,0,r*0.18,0,Math.PI*2);
+    ctx.fill();
+
+    // Manômetro estilizado
+    ctx.setTransform(1,0,0,1,0,0);
+    const gx = x, gy = y + r + 52;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    roundRect(ctx, gx - 78, gy - 22, 156, 42, 14, true, false);
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, gx - 78, gy - 22, 156, 42, 14, false, true);
+
+    ctx.fillStyle = 'rgba(159,178,230,.95)';
+    ctx.font = '12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillText('PRESSÃO', gx - 58, gy - 4);
+
+    ctx.fillStyle = 'rgba(234,240,255,.95)';
+    ctx.font = '700 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    ctx.fillText('100 mmHg', gx - 40, gy + 14);
+
+    // Brilho
+    ctx.globalAlpha = 0.20 + 0.35*intensity;
+    ctx.fillStyle = 'rgba(110,231,255,.25)';
+    ctx.beginPath();
+    ctx.arc(x - r*0.25, y - r*0.28, r*0.22, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  function drawJet(x,y,innerPx,intensity){
+    ctx.save();
+    const jetW = innerPx * (0.85 + 0.35*intensity);
+    const jetL = 70 + 130*intensity;
+
+    // bocal
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    roundRect(ctx, x-16, y-18, 34, 36, 12, true, false);
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.strokeRect(x-14, y-16, 30, 32);
+
+    // jato (triângulo suavizado)
+    const grad = ctx.createLinearGradient(x, y, x+jetL, y);
+    grad.addColorStop(0, 'rgba(110,231,255,.85)');
+    grad.addColorStop(0.55,'rgba(124,92,255,.70)');
+    grad.addColorStop(1, 'rgba(110,231,255,.00)');
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = 0.35 + 0.55*intensity;
+
+    ctx.beginPath();
+    ctx.moveTo(x+10, y-jetW/2);
+    ctx.quadraticCurveTo(x+jetL*0.45, y-jetW*0.65, x+jetL, y);
+    ctx.quadraticCurveTo(x+jetL*0.45, y+jetW*0.65, x+10, y+jetW/2);
+    ctx.closePath();
+    ctx.fill();
+
+    // gotículas
+    const drops = 20 + Math.floor(30*intensity);
+    ctx.globalAlpha = 0.12 + 0.30*intensity;
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    for(let i=0;i<drops;i++){
+      const px = x + 18 + Math.random()*jetL*0.92;
+      const py = y + (Math.random()*2-1)*jetW*0.9;
+      const rr = 0.8 + Math.random()*1.6;
+      ctx.beginPath(); ctx.arc(px,py,rr,0,Math.PI*2); ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function roundRect(ctx, x, y, w, h, r, fill, stroke){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+  function map(x, a1,a2, b1,b2){
+    const t = (x-a1)/(a2-a1);
+    return b1 + t*(b2-b1);
+  }
+
+  function fmtFlow(Q_m3s){
+    if (!Number.isFinite(Q_m3s) || Q_m3s<=0) return '—';
+    const mL_s = Q_m3s * 1e6;      // 1 m³ = 1e6 mL
+    const L_min = Q_m3s * 60000;   // 1 m³/s = 60000 L/min
+    if (mL_s < 1000) return `${mL_s.toFixed(1)} mL/s`;
+    if (L_min < 10) return `${L_min.toFixed(2)} L/min`;
+    return `${L_min.toFixed(1)} L/min`;
+  }
+
+  function fmtRes(R){
+    // R em Pa·s/m³. Só formatar com prefixos.
+    if (!Number.isFinite(R)) return '—';
+    return `${fmtSI(R)} Pa·s/m³`;
+  }
+
+  function update(){
+    const dmm = Number(d.value);
+    const Lm = Number(L.value);
+    const mu_mPa = Number(mu.value);
+
+    const {Q, A, v, Re, R} = compute(dmm, Lm, mu_mPa);
+    state = { Q, v, Re, dmm, Lm, mu: mu_mPa };
+
+    // Outputs
+    Qel.textContent  = fmtFlow(Q);
+    const Q_Lmin = Q * 60000;
+    const Q_mLmin = Q * 60e6;
+    Q2el.textContent = `≈ ${Q_Lmin.toFixed(2)} L/min  (=${Q_mLmin.toFixed(0)} mL/min)`;
+
+    velEl.textContent = Number.isFinite(v) ? `${v.toFixed(2)} m/s` : '—';
+    const A_mm2 = A * 1e6; // m² -> mm²
+    Ael.textContent = `Área: ${A_mm2.toFixed(1)} mm²`;
+
+    Rel.textContent = fmtRes(R);
+    poiseEl.textContent = `R ∝ (L / d⁴)`;
+
+    ReEl.textContent = Number.isFinite(Re) ? Re.toFixed(0) : '—';
+    let regime = '—';
+    let col = 'var(--muted)';
+    if (Number.isFinite(Re)){
+      if (Re < 2000) { regime = 'Laminar (OK p/ Poiseuille)'; col='var(--ok)'; }
+      else if (Re < 4000) { regime = 'Transição (modelo começa a falhar)'; col='var(--warn)'; }
+      else { regime = 'Turbulento provável (Poiseuille superestima Q)'; col='var(--bad)'; }
+    }
+    regimeEl.textContent = regime;
+    regimeEl.style.color = col;
+
+    // Tags
+    dTag.textContent = `${dmm.toFixed(1)} mm`;
+    LTag.textContent = `${Lm.toFixed(1)} m`;
+
+    // Barra de “intensidade” (visual)
+    const intensity = clamp(Q_Lmin / 80, 0, 1);
+    barFill.style.width = `${Math.round(100*intensity)}%`;
+    const tag = intensity < 0.25 ? 'baixo' : intensity < 0.6 ? 'médio' : 'alto';
+    flowTag.textContent = `${tag} (${Math.round(100*intensity)}%)`;
+  }
+
+  // init
+  resizeCanvas();
+  update();
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
