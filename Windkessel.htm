@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Windkessel 2 Elementos (R-C) — Real-time (sem reset)</title>
+  <style>
+    :root{
+      --bg1:#f6f8ff;
+      --bg2:#eef3ff;
+      --card:#ffffffcc;
+      --border:#d9e1ff;
+      --text:#0e1633;
+      --muted:#42507a;
+      --accent:#2f7bff;
+      --accent2:#7a5cff;
+      --ok:#12b981;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --shadow: 0 18px 50px rgba(25,45,110,.12);
+      --shadow2: 0 10px 24px rgba(25,45,110,.10);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 80% 20%, rgba(122,92,255,.18), transparent 60%),
+        radial-gradient(900px 600px at 15% 30%, rgba(47,123,255,.16), transparent 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      min-height:100vh;
+      padding:18px;
+    }
+    .top{
+      max-width:1280px;
+      margin:0 auto 14px auto;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      background: rgba(255,255,255,.75);
+      border:1px solid var(--border);
+      box-shadow: var(--shadow2);
+      font-size:12px;
+      color: var(--muted);
+    }
+    .badge b{color:var(--text); font-weight:800}
+    .wrap{
+      max-width:1280px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns: 450px 1fr;
+      gap:16px;
+      align-items:start;
+    }
+    @media (max-width: 1000px){
+      .wrap{grid-template-columns:1fr}
+    }
+    .card{
+      border-radius: var(--radius);
+      background: var(--card);
+      border:1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+    .hd{
+      padding:14px 16px 10px 16px;
+      background: linear-gradient(180deg, rgba(47,123,255,.06), transparent);
+      border-bottom:1px solid rgba(217,225,255,.9);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .hd h1{ margin:0; font-size:15px; letter-spacing:.2px; }
+    .bd{ padding:16px; }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px 12px;
+      align-items:center;
+    }
+    label{ font-size:12px; color:var(--muted); line-height:1.25; }
+    input[type="range"]{ width:100%; accent-color: var(--accent); }
+    input[type="number"]{
+      width:122px;
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.9);
+      color: var(--text);
+      outline:none;
+    }
+    select{
+      width:100%;
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.9);
+      color: var(--text);
+      outline:none;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      margin-top:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    button{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.9);
+      color: var(--text);
+      cursor:pointer;
+      box-shadow: var(--shadow2);
+      font-weight:700;
+    }
+    button:hover{ background:#fff; }
+    .kpis{
+      margin-top:14px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .kpi{
+      padding:12px;
+      border-radius:16px;
+      background: rgba(47,123,255,.05);
+      border:1px solid rgba(217,225,255,.95);
+    }
+    .kpi .k{font-size:11px; color:var(--muted); margin-bottom:6px}
+    .kpi .v{font-size:16px; font-weight:900; letter-spacing:.2px}
+    .kpi .s{font-size:11px; color:var(--muted); margin-top:4px}
+    .note{
+      margin-top:12px;
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.35;
+    }
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;}
+    .plotWrap{ position:relative; height: 610px; }
+    @media (max-width: 1000px){ .plotWrap{height: 520px;} }
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      background:
+        radial-gradient(900px 700px at 75% 25%, rgba(47,123,255,.10), transparent 60%),
+        radial-gradient(900px 650px at 10% 45%, rgba(122,92,255,.09), transparent 65%),
+        linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,.65));
+    }
+    .legend{
+      position:absolute;
+      left:14px;
+      top:14px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      padding:10px 12px;
+      border-radius:16px;
+      background: rgba(255,255,255,.78);
+      border:1px solid var(--border);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow2);
+      font-size:12px;
+      color:var(--muted);
+      flex-wrap:wrap;
+    }
+    .dot{ width:10px;height:10px;border-radius:999px; background: rgba(47,123,255,.95); box-shadow:0 0 12px rgba(47,123,255,.20); display:inline-block;}
+    .dot2{ width:10px;height:10px;border-radius:999px; background: rgba(122,92,255,.95); box-shadow:0 0 12px rgba(122,92,255,.18); display:inline-block;}
+    .dot3{ width:10px;height:10px;border-radius:999px; background: rgba(0,0,0,.30); display:inline-block;}
+    .overlay{
+      position:absolute;
+      right:14px;
+      top:14px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding:12px;
+      border-radius:16px;
+      background: rgba(255,255,255,.78);
+      border:1px solid var(--border);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow2);
+      min-width: 320px;
+    }
+    .overlay .t{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .overlay .t b{color:var(--text); font-weight:900}
+    .bar{
+      height:8px;
+      border-radius:999px;
+      background: rgba(0,0,0,.06);
+      overflow:hidden;
+      border:1px solid rgba(0,0,0,.08);
+    }
+    .bar > i{
+      display:block;
+      height:100%;
+      width:40%;
+      background: linear-gradient(90deg, rgba(47,123,255,.95), rgba(122,92,255,.95));
+      border-radius:999px;
+    }
+    .small{ font-size:11px; color:var(--muted); line-height:1.25; }
+  </style>
+</head>
+
+<body>
+  <div class="top">
+    <div class="badge">
+      Modelo: <b>Windkessel 2 elementos</b> (R–C) • coração = <b>fonte de corrente</b> Qin(t)
+    </div>
+    <div class="badge">
+      Pressão fixa: <b>50–200 mmHg</b> • Qin fixo: <b>0–800 mL/s</b> • barra DC: <b>0–15 L/min</b>
+    </div>
+    <div class="badge">
+      Alterar parâmetros: <b>não reinicia</b> (continua “em voo”)
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="hd">
+        <h1>Parâmetros</h1>
+        <span class="badge" style="box-shadow:none;">ODE: <span class="mono">C dP/dt = Qin − P/R</span></span>
+      </div>
+      <div class="bd">
+        <div class="grid">
+          <label for="hr">Frequência cardíaca Fc (bpm)</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="hr" type="range" min="30" max="180" step="1" value="75">
+            <input id="hrN" type="number" min="30" max="180" step="1" value="75">
+          </div>
+
+          <label for="sv">Stroke Volume SV (mL)</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="sv" type="range" min="20" max="140" step="1" value="70">
+            <input id="svN" type="number" min="20" max="140" step="1" value="70">
+          </div>
+
+          <label for="R">Resistência periférica total R (mmHg·s/mL)</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="R" type="range" min="0.4" max="3.0" step="0.02" value="1.0">
+            <input id="RN" type="number" min="0.4" max="3.0" step="0.02" value="1.0">
+          </div>
+
+          <label for="C">Complacência arterial C (mL/mmHg)</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="C" type="range" min="0.5" max="5.0" step="0.05" value="2.0">
+            <input id="CN" type="number" min="0.5" max="5.0" step="0.05" value="2.0">
+          </div>
+
+          <label for="ejFrac">Duração ejeção (fração do ciclo)</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="ejFrac" type="range" min="0.15" max="0.5" step="0.01" value="0.33">
+            <input id="ejFracN" type="number" min="0.15" max="0.5" step="0.01" value="0.33">
+          </div>
+
+          <label for="shape">Forma de Qin(t)</label>
+          <div>
+            <select id="shape">
+              <option value="halfSine">Meia-senoide (suave)</option>
+              <option value="tri">Triangular</option>
+              <option value="rect">Retangular (abrupta)</option>
+            </select>
+          </div>
+
+          <label for="tShow">Janela no gráfico (s)</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="tShow" type="range" min="4" max="20" step="1" value="10">
+            <input id="tShowN" type="number" min="4" max="20" step="1" value="10">
+          </div>
+
+          <label for="dt">Passo de simulação Δt (ms)</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="dt" type="range" min="0.2" max="5.0" step="0.1" value="1.0">
+            <input id="dtN" type="number" min="0.2" max="5.0" step="0.1" value="1.0">
+          </div>
+
+          <label for="speed">Velocidade da simulação</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="speed" type="range" min="0.25" max="3.0" step="0.05" value="1.0">
+            <input id="speedN" type="number" min="0.25" max="3.0" step="0.05" value="1.0">
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="play">▶️ Rodar</button>
+          <button id="pause">⏸️ Pausar</button>
+          <button id="reset">↩️ Reset (opcional)</button>
+        </div>
+
+        <div class="row">
+          <button id="presetNorm">Típico</button>
+          <button id="presetHypo">Hipotenso</button>
+          <button id="presetStiff">Arterial rígida</button>
+          <button id="presetHTN">Hipertenso</button>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="k">Débito cardíaco (DC)</div>
+            <div class="v" id="CO">—</div>
+            <div class="s" id="CO2">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Pressão arterial média (PAM)</div>
+            <div class="v" id="MAP">—</div>
+            <div class="s" id="MAP2">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Pressão sistólica / diastólica</div>
+            <div class="v" id="SYS_DIA">—</div>
+            <div class="s" id="PP">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Constante de tempo</div>
+            <div class="v" id="TAU">—</div>
+            <div class="s" id="TAU2">—</div>
+          </div>
+        </div>
+
+        <div class="note">
+          <b>Como está agora:</b> mexer em <b>HR/SV/R/C</b> muda a dinâmica imediatamente, sem apagar histórico.
+          <br/>
+          <b>Obs:</b> mudar Δt muda o integrador (e pode alterar artefatos). Eu não reseto nem aí — só limito “saltos” no acumulador.
+        </div>
+      </div>
+    </div>
+
+    <div class="card plotWrap">
+      <canvas id="cv"></canvas>
+
+      <div class="legend">
+        <span class="dot"></span> P(t) (mmHg) &nbsp;|&nbsp;
+        <span class="dot2"></span> Qin(t) (mL/s) &nbsp;|&nbsp;
+        <span class="dot3"></span> MAP
+      </div>
+
+      <div class="overlay">
+        <div class="t"><span>τ = R·C</span><b class="mono" id="tauTag">—</b></div>
+        <div class="t"><span>Qualidade numérica</span><b id="numTag">—</b></div>
+        <div class="t"><span>Clipping pressão</span><b id="clipTag">—</b></div>
+
+        <div class="t"><span>DC (0–15 L/min)</span><b class="mono" id="coTag">—</b></div>
+        <div class="bar"><i id="coBar"></i></div>
+
+        <div class="small">
+          Dica: para ver artefatos, aumente Δt e/ou reduza τ (C pequena e/ou R pequena).
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
+
+  // UI
+  const hr = $('hr'), hrN = $('hrN');
+  const sv = $('sv'), svN = $('svN');
+  const R  = $('R'),  RN  = $('RN');
+  const C  = $('C'),  CN  = $('CN');
+  const ejFrac = $('ejFrac'), ejFracN = $('ejFracN');
+  const shape = $('shape');
+  const tShow = $('tShow'), tShowN = $('tShowN');
+  const dt = $('dt'), dtN = $('dtN');
+  const speed = $('speed'), speedN = $('speedN');
+
+  const COEl = $('CO'), CO2El = $('CO2');
+  const MAPEl = $('MAP'), MAP2El = $('MAP2');
+  const SYSDIAEl = $('SYS_DIA'), PPEl = $('PP');
+  const TAUEl = $('TAU'), TAU2El = $('TAU2');
+
+  const tauTag = $('tauTag');
+  const numTag = $('numTag');
+  const clipTag = $('clipTag');
+  const coTag = $('coTag');
+  const coBar = $('coBar');
+
+  const playBtn = $('play');
+  const pauseBtn = $('pause');
+  const resetBtn = $('reset');
+
+  // Model: Windkessel 2 elementos
+  function Qin(t, HR, SV, ejFrac, shapeType){
+    const T = 60 / HR;
+    const Tej = ejFrac * T;
+    const phase = t % T;
+    if (phase > Tej) return 0;
+    const u = phase / Tej; // 0..1
+
+    if (shapeType === 'rect'){
+      return SV / Tej;
+    }
+    if (shapeType === 'tri'){
+      const Ap = 2*SV/Tej;
+      return u < 0.5 ? (Ap*(u/0.5)) : (Ap*((1-u)/0.5));
+    }
+    const A = SV * (Math.PI/2) / Tej;
+    return A * Math.sin(Math.PI * u);
+  }
+
+  // State
+  let running = true;
+  let simT = 0;
+  let P = 80;
+  let acc = 0;
+  let lastWall = performance.now();
+
+  // buffers
+  let tBuf = [], pBuf = [], qBuf = [];
+  let clipLow = 0, clipHigh = 0;
+
+  // Canvas
+  const cv = $('cv');
+  const ctx = cv.getContext('2d');
+
+  function resizeCanvas(){
+    const rect = cv.getBoundingClientRect();
+    const dpr = Math.max(1, Math.min(2.2, window.devicePixelRatio || 1));
+    cv.width  = Math.floor(rect.width * dpr);
+    cv.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', () => resizeCanvas());
+
+  function roundRect(ctx, x, y, w, h, r, fill, stroke){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  function readParams(){
+    return {
+      HR: Number(hr.value),
+      SV: Number(sv.value),
+      R:  Number(R.value),
+      C:  Number(C.value),
+      ejFrac: Number(ejFrac.value),
+      shape: shape.value,
+      tShow: Number(tShow.value),
+      dt: Number(dt.value)/1000,
+      speed: Number(speed.value)
+    };
+  }
+
+  function trimWindow(params){
+    const tMin = simT - params.tShow;
+    while (tBuf.length && tBuf[0] < tMin){
+      tBuf.shift(); pBuf.shift(); qBuf.shift();
+    }
+  }
+
+  function stepSim(params){
+    const qin = Qin(simT, params.HR, params.SV, params.ejFrac, params.shape);
+    const dPdt = (qin - P/params.R) / params.C;
+    P = P + params.dt * dPdt;
+    simT += params.dt;
+
+    tBuf.push(simT);
+    pBuf.push(P);
+    qBuf.push(qin);
+
+    trimWindow(params);
+
+    if (P < 50) clipLow++;
+    if (P > 200) clipHigh++;
+  }
+
+  // KPIs
+  function updateKPI(params){
+    const CO_mLmin = params.HR * params.SV;
+    const CO_Lmin  = CO_mLmin / 1000;
+
+    let MAP = NaN;
+    if (pBuf.length){
+      let s = 0;
+      for (const v of pBuf) s += v;
+      MAP = s / pBuf.length;
+    }
+
+    // Psys/Pdia no último ciclo (se disponível)
+    const T = 60/params.HR;
+    const tEnd = simT, tStart = tEnd - T;
+    let pmin = Infinity, pmax = -Infinity;
+    for (let i=pBuf.length-1; i>=0; i--){
+      if (tBuf[i] < tStart) break;
+      const pp = pBuf[i];
+      if (pp < pmin) pmin = pp;
+      if (pp > pmax) pmax = pp;
+    }
+    if (!Number.isFinite(pmin) || !Number.isFinite(pmax)){
+      if (pBuf.length){
+        pmin = Math.min(...pBuf);
+        pmax = Math.max(...pBuf);
+      } else { pmin = 0; pmax = 0; }
+    }
+
+    const tau = params.R * params.C;
+
+    // MAP teórica (aprox. em regime): R * CO(mL/s)
+    const CO_mLs = CO_mLmin/60;
+    const MAP_th = params.R * CO_mLs;
+
+    COEl.textContent = `${CO_Lmin.toFixed(2)} L/min`;
+    CO2El.textContent = `${CO_mLmin.toFixed(0)} mL/min`;
+
+    MAPEl.textContent = Number.isFinite(MAP) ? `${MAP.toFixed(1)} mmHg` : '—';
+    MAP2El.textContent = `aprox. R·CO = ${MAP_th.toFixed(1)} mmHg`;
+
+    SYSDIAEl.textContent = `${pmax.toFixed(0)} / ${pmin.toFixed(0)} mmHg`;
+    PPEl.textContent = `PP = ${(pmax - pmin).toFixed(0)} mmHg`;
+
+    TAUEl.textContent = `${tau.toFixed(2)} s`;
+    TAU2El.textContent = `τ = R·C`;
+
+    tauTag.textContent = `${tau.toFixed(2)} s`;
+
+    const ref = Math.min(T, tau);
+    const ratio = params.dt / ref;
+    let quality = 'OK', col = 'var(--ok)';
+    if (ratio > 0.04) { quality='atenção'; col='var(--warn)'; }
+    if (ratio > 0.10) { quality='ruim'; col='var(--bad)'; }
+    numTag.textContent = `${quality} (dt/ref=${ratio.toFixed(3)})`;
+    numTag.style.color = col;
+
+    const clipTxt = (clipLow || clipHigh) ? `sim (${clipLow}↓ / ${clipHigh}↑)` : 'não';
+    clipTag.textContent = clipTxt;
+    clipTag.style.color = (clipLow||clipHigh) ? 'var(--bad)' : 'var(--ok)';
+
+    const coNorm = clamp(CO_Lmin/15, 0, 1);
+    coBar.style.width = `${Math.round(100*coNorm)}%`;
+    coTag.textContent = `${CO_Lmin.toFixed(2)} L/min`;
+  }
+
+  // Plot settings (fixed axes)
+  const P_MIN = 50, P_MAX = 200;
+  const Q_MIN = 0,  Q_MAX = 800;
+
+  function draw(params){
+    const w = cv.getBoundingClientRect().width;
+    const h = cv.getBoundingClientRect().height;
+    ctx.clearRect(0,0,w,h);
+
+    const ml=62, mr=22, mt=22, mb=44;
+    const W = w - ml - mr;
+    const H = h - mt - mb;
+
+    const x0=ml, y0=mt, x1=ml+W, y1=mt+H;
+
+    const t0 = simT - params.tShow;
+    const t1 = simT;
+
+    const mapX  = (t) => x0 + (t - t0) * W / (t1 - t0);
+    const mapYP = (PmmHg) => y0 + (1 - (PmmHg - P_MIN)/(P_MAX-P_MIN)) * H;
+
+    const yBase = y0 + H*0.92;
+    const amp   = H*0.22;
+    const mapYQ = (Qmls) => {
+      const qn = clamp((Qmls - Q_MIN)/(Q_MAX - Q_MIN), 0, 1);
+      return yBase - qn * amp;
+    };
+
+    // Grid
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,.08)';
+    ctx.lineWidth = 1;
+
+    const xticks = 6;
+    for (let i=0;i<=xticks;i++){
+      const tt = t0 + (t1-t0)*i/xticks;
+      const x = mapX(tt);
+      ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke();
+    }
+    const yticks = 6;
+    for (let i=0;i<=yticks;i++){
+      const PP = P_MIN + (P_MAX-P_MIN)*i/yticks;
+      const y = mapYP(PP);
+      ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke();
+    }
+
+    // Axes
+    ctx.strokeStyle = 'rgba(0,0,0,.18)';
+    ctx.beginPath();
+    ctx.moveTo(x0,y0); ctx.lineTo(x0,y1); ctx.lineTo(x1,y1);
+    ctx.stroke();
+
+    // Labels
+    ctx.fillStyle = 'rgba(66,80,122,.95)';
+    ctx.font = '12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+
+    for (let i=0;i<=xticks;i++){
+      const tt = t0 + (t1-t0)*i/xticks;
+      const x = mapX(tt);
+      const rel = tt - t1;
+      ctx.fillText(`${rel.toFixed(1)}`, x-12, y1+18);
+    }
+    for (let i=0;i<=yticks;i++){
+      const PP = P_MIN + (P_MAX-P_MIN)*i/yticks;
+      const y = mapYP(PP);
+      ctx.fillText(PP.toFixed(0), 12, y+4);
+    }
+
+    ctx.fillStyle = 'rgba(14,22,51,.92)';
+    ctx.font = '700 13px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillText('Pressão (mmHg)', 12, 16);
+
+    ctx.fillStyle = 'rgba(66,80,122,.92)';
+    ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    ctx.fillText('tempo (s) relativo ao “agora” (0.0)', x0 + W/2 - 120, h-10);
+
+    // MAP line (window mean)
+    let MAP = 0;
+    if (pBuf.length){
+      for (const v of pBuf) MAP += v;
+      MAP /= pBuf.length;
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,.35)';
+    ctx.setLineDash([6,6]);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x0, mapYP(MAP));
+    ctx.lineTo(x1, mapYP(MAP));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(0,0,0,.50)';
+    ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    ctx.fillText(`MAP ${MAP.toFixed(1)} mmHg`, x1 - 150, mapYP(MAP) - 8);
+
+    ctx.restore();
+
+    // P(t) clamped to fixed axis
+    ctx.save();
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = 'rgba(47,123,255,.96)';
+    ctx.shadowColor = 'rgba(47,123,255,.16)';
+    ctx.shadowBlur = 12;
+
+    ctx.beginPath();
+    let started = false;
+    for (let i=0;i<tBuf.length;i++){
+      const x = mapX(tBuf[i]);
+      const p = clamp(pBuf[i], P_MIN, P_MAX);
+      const y = mapYP(p);
+      if (!started){ ctx.moveTo(x,y); started=true; }
+      else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Qin(t) fixed scale
+    ctx.lineWidth = 2.0;
+    ctx.strokeStyle = 'rgba(122,92,255,.92)';
+    ctx.shadowColor = 'rgba(122,92,255,.12)';
+    ctx.shadowBlur = 10;
+
+    ctx.beginPath();
+    started = false;
+    for (let i=0;i<tBuf.length;i++){
+      const x = mapX(tBuf[i]);
+      const y = mapYQ(qBuf[i]);
+      if (!started){ ctx.moveTo(x,y); started=true; }
+      else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = 'rgba(122,92,255,.95)';
+    ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    ctx.fillText(`Qin (0–800 mL/s)`, x0+8, y0 + H*0.94);
+
+    ctx.restore();
+
+    // Status box
+    ctx.save();
+    const bx = x1 - 340, by = y1 - 92;
+    ctx.fillStyle = 'rgba(255,255,255,.78)';
+    roundRect(ctx, bx, by, 330, 80, 14, true, false);
+    ctx.strokeStyle = 'rgba(217,225,255,.95)';
+    roundRect(ctx, bx, by, 330, 80, 14, false, true);
+
+    ctx.fillStyle = 'rgba(14,22,51,.95)';
+    ctx.font = '700 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillText(running ? 'Rodando (tempo real)' : 'Pausado', bx+12, by+22);
+
+    const CO_Lmin = (params.HR * params.SV)/1000;
+    ctx.fillStyle = 'rgba(66,80,122,.95)';
+    ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    ctx.fillText(`HR=${params.HR} bpm  SV=${params.SV} mL  CO=${CO_Lmin.toFixed(2)} L/min`, bx+12, by+44);
+    ctx.fillText(`R=${params.R.toFixed(2)}  C=${params.C.toFixed(2)}  τ=${(params.R*params.C).toFixed(2)} s`, bx+12, by+62);
+    ctx.fillText(`Δt=${(params.dt*1000).toFixed(1)} ms  speed=${params.speed.toFixed(2)}x`, bx+12, by+80);
+    ctx.restore();
+  }
+
+  // Reset (botão) — opcional
+  function hardReset(){
+    simT = 0;
+    P = 80;
+    acc = 0;
+    tBuf = [];
+    pBuf = [];
+    qBuf = [];
+    clipLow = 0;
+    clipHigh = 0;
+    lastWall = performance.now();
+  }
+
+  // Controls
+  playBtn.onclick  = () => { running = true; };
+  pauseBtn.onclick = () => { running = false; };
+  resetBtn.onclick = () => { hardReset(); };
+
+  // Sync helpers (sem reset!)
+  function syncRangeNumber(rangeEl, numberEl, onAnyChange){
+    rangeEl.addEventListener('input', () => { numberEl.value = rangeEl.value; onAnyChange(); });
+    numberEl.addEventListener('input', () => {
+      let v = Number(numberEl.value);
+      if (!Number.isFinite(v)) return;
+      v = Math.max(Number(rangeEl.min), Math.min(Number(rangeEl.max), v));
+      rangeEl.value = v;
+      numberEl.value = v;
+      onAnyChange();
+    });
+  }
+
+  function onParamChange(){
+    // não faz reset: só redesenha e atualiza KPIs
+    const p = readParams();
+    trimWindow(p);
+    updateKPI(p);
+    draw(p);
+
+    // evita salto grande se a interação travar o frame
+    lastWall = performance.now();
+    // e limita acumulador (principalmente se dt diminuir bastante)
+    acc = Math.min(acc, 0.05);
+  }
+
+  syncRangeNumber(hr, hrN, onParamChange);
+  syncRangeNumber(sv, svN, onParamChange);
+  syncRangeNumber(R, RN, onParamChange);
+  syncRangeNumber(C, CN, onParamChange);
+  syncRangeNumber(ejFrac, ejFracN, onParamChange);
+  syncRangeNumber(tShow, tShowN, onParamChange);
+  syncRangeNumber(dt, dtN, onParamChange);
+  syncRangeNumber(speed, speedN, onParamChange);
+  shape.addEventListener('change', onParamChange);
+
+  // Presets (sem reset do histórico; aplica "em voo")
+  function setVals(HR, SV, Rv, Cv, ej, sh, Tshow, dms, sp){
+    hr.value=HR; hrN.value=HR;
+    sv.value=SV; svN.value=SV;
+    R.value=Rv;  RN.value=Rv;
+    C.value=Cv;  CN.value=Cv;
+    ejFrac.value=ej; ejFracN.value=ej;
+    shape.value=sh;
+    tShow.value=Tshow; tShowN.value=Tshow;
+    dt.value=dms; dtN.value=dms;
+    speed.value=sp; speedN.value=sp;
+    onParamChange();
+  }
+  $('presetNorm').onclick  = () => setVals(75,70,1.0,2.0,0.33,'halfSine',10,1.0,1.0);
+  $('presetHypo').onclick  = () => setVals(95,60,0.65,2.8,0.30,'halfSine',10,1.0,1.0);
+  $('presetStiff').onclick = () => setVals(75,70,1.0,0.9,0.33,'halfSine',10,1.0,1.0);
+  $('presetHTN').onclick   = () => setVals(75,70,1.8,1.2,0.33,'halfSine',10,1.0,1.0);
+
+  // Main loop
+  function tick(){
+    const now = performance.now();
+    let dtWall = (now - lastWall)/1000;
+    lastWall = now;
+    dtWall = Math.min(dtWall, 0.050);
+
+    const params = readParams();
+
+    if (running){
+      acc += dtWall * params.speed;
+
+      // Proteção: se dt mudar muito e acc ficar enorme, limita.
+      acc = Math.min(acc, 0.20);
+
+      while (acc >= params.dt){
+        stepSim(params);
+        acc -= params.dt;
+      }
+    } else {
+      // parado, mas mantém a janela coerente se tShow mudar
+      trimWindow(params);
+    }
+
+    updateKPI(params);
+    draw(params);
+    requestAnimationFrame(tick);
+  }
+
+  // init
+  resizeCanvas();
+  onParamChange();
+  running = true;
+  lastWall = performance.now();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
