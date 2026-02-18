@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Roleta de Alunos</title>
+  <style>
+    :root{
+      --bg1:#0b1020;
+      --bg2:#070a14;
+      --card:#0e1730cc;
+      --stroke:#ffffff1f;
+      --text:#eaf0ff;
+      --muted:#a9b7dd;
+      --accent:#7c5cff;
+      --accent2:#00d4ff;
+      --danger:#ff4d6d;
+      --ok:#2ee59d;
+      --shadow: 0 16px 50px rgba(0,0,0,.45);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color:var(--text);
+      min-height:100vh;
+      background:
+        radial-gradient(1200px 800px at 20% 10%, rgba(124,92,255,.22), transparent 55%),
+        radial-gradient(900px 600px at 80% 20%, rgba(0,212,255,.18), transparent 55%),
+        radial-gradient(900px 800px at 50% 90%, rgba(46,229,157,.12), transparent 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .wrap{
+      width:min(1100px, 100%);
+      display:grid;
+      grid-template-columns: 430px 1fr;
+      gap:22px;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .wrap{grid-template-columns:1fr; }
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--stroke);
+      border-radius:var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .panel{
+      padding:18px 18px 16px;
+    }
+    h1{
+      font-size:18px;
+      letter-spacing:.2px;
+      margin:0 0 8px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .badge{
+      font-size:12px;
+      padding:4px 10px;
+      border:1px solid var(--stroke);
+      border-radius:999px;
+      color:var(--muted);
+      background:rgba(255,255,255,.04);
+    }
+    .sub{
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.45;
+      margin:0 0 14px;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      margin:10px 0;
+    }
+    button{
+      appearance:none;
+      border:none;
+      cursor:pointer;
+      border-radius:14px;
+      padding:12px 14px;
+      font-weight:650;
+      color:var(--text);
+      background: linear-gradient(90deg, var(--accent), #5b8bff);
+      box-shadow: 0 10px 24px rgba(124,92,255,.22);
+      transition: transform .08s ease, filter .2s ease, opacity .2s ease;
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      user-select:none;
+    }
+    button:active{ transform: translateY(1px) scale(.99); }
+    button.secondary{
+      background: linear-gradient(90deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+      border:1px solid var(--stroke);
+      box-shadow:none;
+      color:var(--text);
+    }
+    button.danger{
+      background: linear-gradient(90deg, var(--danger), #ff7a90);
+      box-shadow: 0 10px 24px rgba(255,77,109,.18);
+    }
+    button:disabled{
+      cursor:not-allowed;
+      opacity:.55;
+      filter:saturate(.6);
+    }
+    .filepill{
+      flex: 1 1 auto;
+      min-width: 220px;
+      padding:11px 12px;
+      border-radius:14px;
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.04);
+      color:var(--muted);
+      font-size:13px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .filepill strong{ color:var(--text); font-weight:650; }
+    .stat{
+      margin-top:12px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .stat .box{
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.03);
+      border-radius:14px;
+      padding:10px 12px;
+    }
+    .stat .k{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+    .stat .v{ font-size:14px; font-weight:700; }
+    .list{
+      margin-top:12px;
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      background: rgba(255,255,255,.03);
+      overflow:hidden;
+    }
+    .listhead{
+      padding:10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom:1px solid var(--stroke);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .names{
+      max-height:240px;
+      overflow:auto;
+      padding:10px 12px;
+      font-size:13px;
+      color:var(--text);
+      line-height:1.55;
+    }
+    .names span{
+      display:inline-block;
+      padding:4px 10px;
+      margin:4px 6px 0 0;
+      border:1px solid var(--stroke);
+      border-radius:999px;
+      background: rgba(255,255,255,.03);
+      color: var(--text);
+      white-space:nowrap;
+    }
+
+    /* Wheel area */
+    .wheelCard{
+      position:relative;
+      padding:18px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      align-items:center;
+      justify-content:center;
+      min-height:520px;
+    }
+    .stage{
+      position:relative;
+      width:min(520px, 100%);
+      aspect-ratio:1/1;
+      display:grid;
+      place-items:center;
+    }
+    canvas{
+      width:100%;
+      height:100%;
+      border-radius:999px;
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.09), rgba(255,255,255,.03) 55%, rgba(255,255,255,.02));
+      border:1px solid var(--stroke);
+      box-shadow: 0 18px 60px rgba(0,0,0,.55);
+    }
+    .pointer{
+      position:absolute;
+      top:-6px;
+      left:50%;
+      transform:translateX(-50%);
+      width:0; height:0;
+      border-left:18px solid transparent;
+      border-right:18px solid transparent;
+      border-top:34px solid rgba(255,255,255,.94);
+      filter: drop-shadow(0 10px 10px rgba(0,0,0,.35));
+      z-index:3;
+    }
+    .hub{
+      position:absolute;
+      width:22%;
+      aspect-ratio:1/1;
+      border-radius:999px;
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.92), rgba(255,255,255,.55));
+      border: 1px solid rgba(255,255,255,.35);
+      box-shadow: 0 16px 34px rgba(0,0,0,.30);
+      display:grid;
+      place-items:center;
+      z-index:2;
+    }
+    .hub .dot{
+      width:26%;
+      aspect-ratio:1/1;
+      border-radius:999px;
+      background: rgba(20,28,56,.9);
+      border:1px solid rgba(255,255,255,.22);
+    }
+
+    .result{
+      width:min(520px, 100%);
+      border-radius:16px;
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.04);
+      padding:12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .result .label{
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:4px;
+    }
+    .result .name{
+      font-size:18px;
+      font-weight:800;
+      letter-spacing:.2px;
+    }
+    .glow{
+      position:absolute;
+      inset:-40px;
+      background:
+        radial-gradient(300px 300px at 50% 40%, rgba(124,92,255,.18), transparent 60%),
+        radial-gradient(280px 260px at 40% 60%, rgba(0,212,255,.14), transparent 60%),
+        radial-gradient(260px 260px at 60% 65%, rgba(46,229,157,.10), transparent 60%);
+      pointer-events:none;
+      z-index:0;
+    }
+    .footerHint{
+      color:var(--muted);
+      font-size:12px;
+      text-align:center;
+      line-height:1.35;
+      max-width:520px;
+      opacity:.95;
+    }
+    .sep{ height:1px; background:var(--stroke); margin:14px 0; }
+    input[type="file"]{ display:none; }
+    .okDot{
+      width:10px;height:10px;border-radius:99px;background:var(--ok); display:inline-block; box-shadow:0 0 0 3px rgba(46,229,157,.15);
+      vertical-align:middle;
+    }
+    .warnDot{
+      width:10px;height:10px;border-radius:99px;background:var(--danger); display:inline-block; box-shadow:0 0 0 3px rgba(255,77,109,.15);
+      vertical-align:middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Left: Controls -->
+    <section class="card">
+      <div class="panel">
+        <h1>Roleta de Alunos <span class="badge">CSV 1 coluna</span></h1>
+        <p class="sub">
+          Carregue um CSV com <strong>uma única coluna</strong> contendo nomes (um por linha).
+          Depois clique em <strong>Sortear</strong> para girar a roleta.
+        </p>
+
+        <div class="row">
+          <label for="file" style="display:inline-flex;">
+            <button class="secondary" id="btnPick" type="button">📄 Carregar CSV</button>
+          </label>
+          <input id="file" type="file" accept=".csv,text/csv" />
+          <button id="btnSpin" type="button" disabled>🎯 Sortear</button>
+          <button id="btnReset" class="danger" type="button" disabled>♻️ Limpar</button>
+        </div>
+
+        <div class="filepill" id="filePill">
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:2px;">Arquivo</div>
+            <strong id="fileName">nenhum</strong>
+          </div>
+          <div id="fileStatus"><span class="warnDot"></span></div>
+        </div>
+
+        <div class="stat">
+          <div class="box">
+            <div class="k">Qtd. de alunos</div>
+            <div class="v" id="count">0</div>
+          </div>
+          <div class="box">
+            <div class="k">Duração do giro</div>
+            <div class="v"><span id="duration">~6</span> s</div>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <div class="list">
+          <div class="listhead">
+            <span>Prévia dos nomes</span>
+            <span id="previewNote">—</span>
+          </div>
+          <div class="names" id="names"></div>
+        </div>
+
+        <p class="sub" style="margin-top:12px;">
+          Dica: o CSV pode estar separado por <strong>vírgula</strong> ou <strong>ponto-e-vírgula</strong>.
+          Se vier com cabeçalho, tudo bem — ele é ignorado automaticamente se parecer um título.
+        </p>
+      </div>
+    </section>
+
+    <!-- Right: Wheel -->
+    <section class="card wheelCard">
+      <div class="glow"></div>
+      <div class="stage" aria-label="Roleta">
+        <div class="pointer" title="Indicador"></div>
+        <canvas id="wheel" width="900" height="900"></canvas>
+        <div class="hub" aria-hidden="true"><div class="dot"></div></div>
+      </div>
+
+      <div class="result">
+        <div>
+          <div class="label">Sorteado</div>
+          <div class="name" id="winner">—</div>
+        </div>
+        <div style="text-align:right; color:var(--muted); font-size:12px;">
+          <div>Modo: desaceleração suave</div>
+          <div id="spinState">Aguardando CSV</div>
+        </div>
+      </div>
+
+      <div class="footerHint">
+        A roleta para exatamente no nome sorteado (seleção uniforme) e só então exibe o resultado.
+      </div>
+    </section>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('wheel');
+  const ctx = canvas.getContext('2d');
+
+  const fileInput = document.getElementById('file');
+  const btnPick = document.getElementById('btnPick');
+  const btnSpin = document.getElementById('btnSpin');
+  const btnReset = document.getElementById('btnReset');
+
+  const fileNameEl = document.getElementById('fileName');
+  const fileStatusEl = document.getElementById('fileStatus');
+  const countEl = document.getElementById('count');
+  const namesEl = document.getElementById('names');
+  const winnerEl = document.getElementById('winner');
+  const spinStateEl = document.getElementById('spinState');
+  const previewNoteEl = document.getElementById('previewNote');
+  const durationEl = document.getElementById('duration');
+
+  let names = [];
+  let rotation = 0; // rad
+  let spinning = false;
+
+  // ---------- Helpers ----------
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+  // Easing: easeOutCubic
+  function easeOutCubic(t){
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function normalizeName(s){
+    return (s ?? "")
+      .toString()
+      .replace(/^\uFEFF/, "") // remove BOM
+      .trim();
+  }
+
+  function parseCSVOneColumn(text){
+    // Aceita: linhas com 1 coluna, ou com separador (pega a primeira coluna).
+    // Trata vírgula ou ponto-e-vírgula.
+    const lines = text
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map(l => l.trim())
+      .filter(l => l.length > 0);
+
+    if (!lines.length) return [];
+
+    // tenta detectar separador mais frequente
+    const commaCount = lines.reduce((a,l) => a + (l.split(",").length - 1), 0);
+    const semiCount  = lines.reduce((a,l) => a + (l.split(";").length - 1), 0);
+    const sep = semiCount > commaCount ? ";" : ",";
+
+    let out = lines.map(l => {
+      // remove aspas externas
+      const raw = l;
+      const first = raw.split(sep)[0];
+      return normalizeName(first.replace(/^"(.*)"$/,'$1').replace(/^'(.*)'$/,'$1'));
+    }).filter(Boolean);
+
+    // Heurística simples pra ignorar cabeçalho:
+    // se a 1ª linha tem palavras tipo "nome", "aluno" etc e a 2ª parece um nome, remove 1ª.
+    if (out.length >= 2) {
+      const h = out[0].toLowerCase();
+      const headerLike = /^(nome|aluno|alunos|name|student|students)$/i.test(h);
+      const secondLooksName = out[1].length >= 2 && /[a-zA-ZÀ-ÿ]/.test(out[1]);
+      if (headerLike && secondLooksName) out = out.slice(1);
+    }
+
+    // remove duplicados vazios e aparas
+    out = out.map(normalizeName).filter(Boolean);
+
+    return out;
+  }
+
+  function setFileStatus(ok){
+    fileStatusEl.innerHTML = ok ? '<span class="okDot"></span>' : '<span class="warnDot"></span>';
+  }
+
+  function updateUI(){
+    countEl.textContent = names.length.toString();
+    btnSpin.disabled = (names.length < 2) || spinning;
+    btnReset.disabled = (names.length === 0) || spinning;
+    previewNoteEl.textContent = names.length ? `${Math.min(names.length, 80)} exibidos` : '—';
+    setFileStatus(names.length > 0);
+    spinStateEl.textContent = spinning ? 'Girando…' : (names.length ? 'Pronto para sortear' : 'Aguardando CSV');
+  }
+
+  function renderNamesPreview(){
+    namesEl.innerHTML = '';
+    const maxShow = 80;
+    names.slice(0, maxShow).forEach(n => {
+      const s = document.createElement('span');
+      s.textContent = n;
+      namesEl.appendChild(s);
+    });
+    if (names.length > maxShow){
+      const s = document.createElement('span');
+      s.style.opacity = ".7";
+      s.textContent = `+${names.length - maxShow}…`;
+      namesEl.appendChild(s);
+    }
+  }
+
+  // ---------- Wheel drawing ----------
+  function segmentColor(i, total){
+    // paleta HSL distribuída
+    const hue = (i * (360 / total) + 10) % 360;
+    return {
+      fill: `hsl(${hue} 85% 55%)`,
+      stroke: `hsl(${hue} 85% 40%)`
+    };
+  }
+
+  function drawWheel(){
+    const W = canvas.width, H = canvas.height;
+    const cx = W/2, cy = H/2;
+    const r = Math.min(W,H)*0.46;
+
+    ctx.clearRect(0,0,W,H);
+
+    // background subtle ring
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    ctx.arc(0,0,r*1.02,0,Math.PI*2);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(255,255,255,0.02)";
+    ctx.fill();
+    ctx.restore();
+
+    if (!names.length){
+      // placeholder
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.fillStyle = "rgba(255,255,255,0.10)";
+      ctx.beginPath();
+      ctx.arc(0,0,r,0,Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,0.78)";
+      ctx.font = "700 34px ui-sans-serif, system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Carregue um CSV", 0, -10);
+
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.font = "500 18px ui-sans-serif, system-ui";
+      ctx.fillText("para montar a roleta", 0, 26);
+      ctx.restore();
+      return;
+    }
+
+    const N = names.length;
+    const arc = (Math.PI * 2) / N;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation);
+
+    for (let i = 0; i < N; i++){
+      const a0 = i * arc;
+      const a1 = a0 + arc;
+
+      const { fill, stroke } = segmentColor(i, N);
+
+      // segment
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.arc(0,0,r,a0,a1,false);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+
+      // border
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "rgba(255,255,255,0.10)";
+      ctx.stroke();
+
+      // highlight inner
+      ctx.beginPath();
+      ctx.arc(0,0,r*0.86,a0,a1,false);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(0,0,0,0.15)";
+      ctx.stroke();
+
+      // text
+      const label = names[i];
+      const mid = (a0 + a1) / 2;
+      ctx.save();
+      ctx.rotate(mid);
+
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+
+      // Ajuste simples de tamanho conforme comprimento
+      const len = label.length;
+      const fontSize = clamp(28 - Math.max(0, len - 10) * 0.9, 14, 28);
+
+      ctx.font = `800 ${fontSize}px ui-sans-serif, system-ui`;
+      ctx.fillStyle = "rgba(255,255,255,0.93)";
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 5;
+
+      const tx = r * 0.90;
+
+      // sombra leve
+      ctx.shadowColor = "rgba(0,0,0,0.25)";
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 2;
+
+      // contorno + preenchimento
+      ctx.strokeText(label, tx, 0);
+      ctx.shadowBlur = 0;
+      ctx.fillText(label, tx, 0);
+
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  function currentIndexAtPointer(){
+    // Ponteiro está em "cima" (ângulo -90° no sistema do canvas).
+    // A roleta foi desenhada com rotação 'rotation' aplicada.
+    // Queremos o índice do segmento que fica no ângulo do ponteiro (topo).
+    const N = names.length;
+    if (!N) return -1;
+
+    const arc = (Math.PI * 2) / N;
+
+    // ângulo do ponteiro em relação ao eixo +x do canvas é -90° = -PI/2.
+    const pointerAngle = -Math.PI / 2;
+
+    // compensar rotação atual
+    let ang = pointerAngle - rotation;
+
+    // normaliza para [0, 2pi)
+    ang = ((ang % (Math.PI*2)) + (Math.PI*2)) % (Math.PI*2);
+
+    // Como o segmento i ocupa [i*arc, (i+1)*arc)
+    const idx = Math.floor(ang / arc);
+    return clamp(idx, 0, N-1);
+  }
+
+  // ---------- Spin logic ----------
+  function spin(){
+    if (spinning || names.length < 2) return;
+
+    spinning = true;
+    winnerEl.textContent = "—";
+    updateUI();
+
+    // Escolha uniforme do índice vencedor
+    const N = names.length;
+    const winnerIndex = Math.floor(Math.random() * N);
+
+    // Definir quanto tempo demora: ~5.5s a ~7.5s
+    const duration = 5500 + Math.random() * 2000;
+    durationEl.textContent = Math.round(duration/1000).toString();
+
+    // Quantas voltas completas antes de parar
+    const spins = 6 + Math.floor(Math.random() * 4); // 6..9 voltas
+
+    // Precisamos achar a rotação final para alinhar winnerIndex no ponteiro.
+    // Para um dado "rotationFinal", o índice no ponteiro é currentIndexAtPointer().
+    // Vamos derivar rotação final alvo:
+    const arc = (Math.PI * 2) / N;
+
+    // Queremos: winnerIndex = floor( ang / arc ), onde ang = (pointerAngle - rotationFinal) mod 2pi
+    // Podemos mirar o centro do segmento vencedor:
+    // centro do segmento vencedor no sistema "não rotacionado": mid = winnerIndex*arc + arc/2
+    // Queremos esse mid coincidir com ang = (pointerAngle - rotationFinal) mod 2pi
+    // => rotationFinal ≡ pointerAngle - mid (mod 2pi)
+    const pointerAngle = -Math.PI/2;
+    const mid = winnerIndex * arc + arc/2;
+
+    // alvo base (mod 2pi)
+    let target = pointerAngle - mid;
+
+    // adiciona voltas completas e também parte da rotação atual (continuidade)
+    // Vamos escolher um target absoluto "mais à frente" do rotation atual:
+    // rotation deve crescer positivamente. Ajustamos target para ser >= rotation.
+    // Primeiro, traga target para a mesma faixa de rotation.
+    const twoPi = Math.PI * 2;
+
+    // Escolha "targetAbs" = rotation + (spins*2pi) + delta,
+    // onde delta é o deslocamento necessário para chegar no target (mod 2pi).
+    let delta = ((target - rotation) % twoPi + twoPi) % twoPi; // [0,2pi)
+    const targetAbs = rotation + spins*twoPi + delta;
+
+    const start = performance.now();
+    const startRot = rotation;
+    const totalRot = targetAbs - startRot;
+
+    // Pequena vibração visual no final (micro overshoot)
+    const overshoot = (Math.random() * 0.10 + 0.06) * arc; // fração de um segmento
+    const overshootAt = 0.92; // quando inicia o overshoot
+    const overshootBackAt = 0.985;
+
+    function frame(now){
+      const t = clamp((now - start) / duration, 0, 1);
+      const e = easeOutCubic(t);
+
+      // base
+      let rot = startRot + totalRot * e;
+
+      // overshoot suave
+      if (t > overshootAt && t < overshootBackAt){
+        const tt = (t - overshootAt) / (overshootBackAt - overshootAt); // 0..1
+        const bump = Math.sin(tt * Math.PI); // 0..1..0
+        rot += overshoot * bump;
+      }
+
+      rotation = rot;
+      drawWheel();
+
+      if (t < 1){
+        requestAnimationFrame(frame);
+      } else {
+        // Ajuste final: garante alinhamento exato ao vencedor
+        rotation = targetAbs;
+        drawWheel();
+
+        const idx = currentIndexAtPointer(); // deve bater com winnerIndex
+        const winner = names[idx] ?? names[winnerIndex];
+
+        winnerEl.textContent = winner;
+        spinStateEl.textContent = "Sorteio concluído";
+        spinning = false;
+        updateUI();
+
+        // feedback sutil
+        try { navigator.vibrate?.(40); } catch(_) {}
+      }
+    }
+
+    spinStateEl.textContent = "Girando…";
+    requestAnimationFrame(frame);
+  }
+
+  function resetAll(){
+    names = [];
+    rotation = 0;
+    winnerEl.textContent = "—";
+    fileNameEl.textContent = "nenhum";
+    namesEl.innerHTML = "";
+    durationEl.textContent = "~6";
+    setFileStatus(false);
+    updateUI();
+    drawWheel();
+  }
+
+  // ---------- Events ----------
+  btnPick.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async (ev) => {
+    const file = ev.target.files?.[0];
+    if (!file) return;
+
+    fileNameEl.textContent = file.name;
+
+    const text = await file.text();
+    const parsed = parseCSVOneColumn(text);
+
+    // Proteções mínimas
+    const cleaned = parsed
+      .map(normalizeName)
+      .filter(n => n.length > 0);
+
+    names = cleaned;
+    rotation = 0;
+    winnerEl.textContent = "—";
+
+    renderNamesPreview();
+    updateUI();
+    drawWheel();
+  });
+
+  btnSpin.addEventListener('click', spin);
+
+  btnReset.addEventListener('click', () => {
+    if (spinning) return;
+    fileInput.value = "";
+    resetAll();
+  });
+
+  // Initial paint
+  resetAll();
+})();
+</script>
+</body>
+</html>
