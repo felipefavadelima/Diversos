@@ -1,0 +1,1174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HH — elegante</title>
+  <style>
+    :root{
+      --bg:#0b0c10;
+      --panel:#11131a;
+      --panel2:#0f1117;
+      --text:#e7e9ee;
+      --muted:#a9afbd;
+      --line:#2a2e3a;
+      --accent:#7c5cff;
+      --accent2:#22c55e;
+      --warn:#f59e0b;
+      --err:#ef4444;
+      --shadow: 0 18px 60px rgba(0,0,0,.45);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color-scheme: dark;
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg:#f6f7fb;
+        --panel:#ffffff;
+        --panel2:#fbfbfe;
+        --text:#111827;
+        --muted:#6b7280;
+        --line:#e5e7eb;
+        --shadow: 0 18px 60px rgba(17,24,39,.12);
+        color-scheme: light;
+      }
+    }
+
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 16px;
+      background: radial-gradient(1200px 600px at 20% 0%, rgba(124,92,255,.14), transparent 55%),
+                  radial-gradient(1200px 600px at 90% 15%, rgba(34,197,94,.10), transparent 60%),
+                  var(--bg);
+      color: var(--text);
+    }
+
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:14px; margin-bottom: 14px;
+    }
+    h1{
+      margin:0;
+      font-size: 16px;
+      letter-spacing:.2px;
+      font-weight: 650;
+    }
+    .subtitle{ color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 430px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .card{
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), transparent 24%), var(--panel);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    button{
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 60%), var(--panel2);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 650;
+      font-size: 13px;
+      transition: transform .04s ease, border-color .12s ease, background .12s ease;
+    }
+    button:hover{ border-color: rgba(124,92,255,.55); }
+    button:active{ transform: translateY(1px); }
+
+    .primary{
+      border-color: rgba(124,92,255,.55);
+      background: linear-gradient(180deg, rgba(124,92,255,.22), rgba(124,92,255,.10)), var(--panel2);
+    }
+    .good{
+      border-color: rgba(34,197,94,.50);
+      background: linear-gradient(180deg, rgba(34,197,94,.18), rgba(34,197,94,.08)), var(--panel2);
+    }
+    .danger{
+      border-color: rgba(239,68,68,.55);
+      background: linear-gradient(180deg, rgba(239,68,68,.16), rgba(239,68,68,.06)), var(--panel2);
+    }
+    .ghost{
+      background: transparent;
+    }
+
+    /* left buttons: vertical groups */
+    .btnstack{
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .group{
+      border: 1px solid var(--line);
+      background: var(--panel2);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .gtitle{
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: .2px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .gbuttons{
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .gbuttons button{ width: 100%; }
+
+    canvas{
+      width:100%;
+      height: 520px;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    .small{ font-size: 12px; color: var(--muted); line-height: 1.35; }
+    .mono{ font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+    .statusline{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel2);
+    }
+    .status{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      font-size: 12px;
+      color: var(--text);
+      font-family: var(--mono);
+    }
+    .dot{
+      width:8px; height:8px; border-radius:999px;
+      background: var(--muted);
+    }
+    .dot.on{ background: var(--accent2); }
+    .dot.off{ background: var(--muted); }
+
+    .warn{ color: var(--warn); font-weight: 750; }
+    .err{ color: var(--err); font-weight: 750; }
+
+    .kpi{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .box{
+      border: 1px solid var(--line);
+      background: var(--panel2);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .box .label{ font-size: 12px; color: var(--muted); }
+    .box .value{ font-size: 18px; margin-top: 4px; font-family: var(--mono); }
+
+    .legend{
+      display:flex; gap:12px; flex-wrap:wrap;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .sw{ width: 12px; height: 12px; border-radius: 3px; display:inline-block; margin-right:6px; vertical-align: -2px; }
+
+    /* Modals (bigger + scroll-safe) */
+    .backdrop{
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55);
+      display:none;
+      align-items:center; justify-content:center;
+      z-index: 999;
+      padding: 16px;
+    }
+    .modal{
+      width: min(920px, 100%);
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 40%), var(--panel);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+    .modal header{
+      display:flex; align-items:flex-start; justify-content:space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      position: sticky;
+      top: 0;
+      background: linear-gradient(180deg, rgba(17,19,26,.95), rgba(17,19,26,.85));
+      backdrop-filter: blur(8px);
+      padding-bottom: 10px;
+      z-index: 2;
+    }
+    @media (prefers-color-scheme: light){
+      .modal header{
+        background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.90));
+      }
+    }
+    .modal h3{ margin:0; font-size: 14px; font-weight: 800; }
+    .modal .hint{ margin-top: 4px; font-size: 12px; color: var(--muted); }
+
+    .form{
+      margin-top: 10px;
+      display:grid;
+      gap: 12px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 1fr 240px; /* wider control so nothing cuts */
+      gap: 12px;
+      align-items:center;
+    }
+    label{ font-size: 13px; color: var(--text); }
+    input[type="number"], select{
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--panel2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 13px;
+      outline: none;
+    }
+    input[type="number"]:focus, select:focus{
+      border-color: rgba(124,92,255,.55);
+      box-shadow: 0 0 0 4px rgba(124,92,255,.12);
+    }
+
+    .actions{
+      display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap;
+      margin-top: 14px;
+    }
+
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .hr{ height: 1px; background: var(--line); margin: 12px 0; }
+
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      canvas{ height: 440px; }
+      .row{ grid-template-columns: 1fr; }
+      .grid2{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div>
+      <h1>Hodgkin–Huxley (HH)</h1>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT -->
+    <div class="card">
+
+      <div class="btnstack">
+        <div class="group">
+          <div class="gtitle">Simulação</div>
+          <div class="gbuttons">
+            <button id="start" class="good">Iniciar</button>
+            <button id="pause">Pausar</button>
+            <button id="resetCell" class="ghost">Reset (célula)</button>
+            <button id="cfgSim">Config. Simulação…</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="gtitle">Estimulação</div>
+          <div class="gbuttons">
+            <button id="pulseBtn" class="primary">Pulso</button>
+            <button id="pulseCfgBtn">Config. Pulso…</button>
+            <button id="holdBtn" class="ghost">Injetar</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="gtitle">Parâmetros</div>
+          <div class="gbuttons">
+            <button id="cfgMem">Membrana…</button>
+            <button id="cfgIons">Íons…</button>
+            <button id="cfgTemp">Temperatura…</button>
+            <button id="cfgBlocks">Bloqueios…</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="statusline">
+        <div class="status">
+          <span class="pill"><span class="dot off" id="runDot"></span><span id="runTxt">PAUSADO</span></span>
+          <span class="pill" id="pillSim">speed=0.01 • win=200</span>
+          <span class="pill" id="pillPulse">pulso: single</span>
+          <span class="pill" id="pillDt">dt_eff=— • dt_base=0.0100</span>
+        </div>
+      </div>
+
+      <div id="warnBox" class="small warn" style="margin-top:10px; display:none;"></div>
+      <div id="errBox" class="small err" style="margin-top:6px; display:none;"></div>
+
+      <div class="hr"></div>
+
+      <div class="small">
+        <b>Atalhos:</b> ESC fecha janelas • Clique fora fecha janela.
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="card">
+      <canvas id="plot" width="1200" height="520"></canvas>
+
+      <div class="legend">
+        <span><span class="sw" style="background:#1565c0;"></span>Vm (mV)</span>
+        <span><span class="sw" style="background:#ef6c00;"></span>gNa (mS/cm²)</span>
+        <span><span class="sw" style="background:#2e7d32;"></span>gK (mS/cm²)</span>
+        <span><span class="sw" style="background:#616161;"></span>gL (mS/cm²)</span>
+        <span><span class="sw" style="background:#8e24aa;"></span>Iext (µA/cm²)</span>
+      </div>
+
+      <div class="kpi">
+        <div class="box"><div class="label">Tempo (ms)</div><div id="k_t" class="value">0.00</div></div>
+        <div class="box"><div class="label">Vm (mV)</div><div id="k_v" class="value">-65.00</div></div>
+        <div class="box"><div class="label">gNa / gK</div><div id="k_g" class="value">0.00 / 0.00</div></div>
+        <div class="box"><div class="label">m / h / n</div><div id="k_mhn" class="value">0.053 / 0.596 / 0.318</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Simulação -->
+  <div class="backdrop" id="bdSim">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <h3>Configurações — Simulação</h3>
+          <div class="hint">dt é interno (0.01 ms) e o integrador usa dt_eff adaptativo para estabilidade.</div>
+        </div>
+        <button class="ghost" data-close="bdSim">Fechar</button>
+      </header>
+
+      <div class="form">
+        <div class="row">
+          <label>Velocidade (x) (0.01..1)</label>
+          <input id="m_speed" type="number" min="0.01" max="1" step="0.01">
+        </div>
+        <div class="row">
+          <label>Janela do gráfico (ms)</label>
+          <input id="m_win" type="number" min="50" step="50">
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="ghost" data-close="bdSim">Cancelar</button>
+        <button class="primary" id="applySim">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Membrana -->
+  <div class="backdrop" id="bdMem">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <h3>Configurações — Membrana e condutâncias</h3>
+          <div class="hint">Bloqueios multiplicam as condutâncias efetivas (ver “Bloqueios…”).</div>
+        </div>
+        <button class="ghost" data-close="bdMem">Fechar</button>
+      </header>
+
+      <div class="form">
+        <div class="row"><label>Cm (µF/cm²)</label><input id="m_Cm" type="number" step="0.01"></div>
+        <div class="row"><label>gNa_max (mS/cm²)</label><input id="m_gNa" type="number" step="1"></div>
+        <div class="row"><label>gK_max (mS/cm²)</label><input id="m_gK" type="number" step="1"></div>
+        <div class="row"><label>gL (mS/cm²)</label><input id="m_gL" type="number" step="0.01"></div>
+        <div class="row"><label>EL (mV) (leak)</label><input id="m_EL" type="number" step="0.1"></div>
+      </div>
+
+      <div class="actions">
+        <button class="ghost" data-close="bdMem">Cancelar</button>
+        <button class="primary" id="applyMem">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Íons -->
+  <div class="backdrop" id="bdIons">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <h3>Configurações — Concentrações iônicas</h3>
+          <div class="hint">ENa e EK por Nernst: E = (RT/zF) ln(Co/Ci) (mV). Usa T atual.</div>
+        </div>
+        <button class="ghost" data-close="bdIons">Fechar</button>
+      </header>
+
+      <div class="form">
+        <div class="grid2">
+          <div class="row" style="grid-template-columns: 1fr 220px;">
+            <label>[Na⁺]i (mM)</label><input id="m_Nai" type="number" step="1">
+          </div>
+          <div class="row" style="grid-template-columns: 1fr 220px;">
+            <label>[Na⁺]o (mM)</label><input id="m_Nao" type="number" step="1">
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="row" style="grid-template-columns: 1fr 220px;">
+            <label>[K⁺]i (mM)</label><input id="m_Ki" type="number" step="1">
+          </div>
+          <div class="row" style="grid-template-columns: 1fr 220px;">
+            <label>[K⁺]o (mM)</label><input id="m_Ko" type="number" step="0.1">
+          </div>
+        </div>
+
+        <div class="small mono" id="ionsPreview">ENa=… mV • EK=… mV</div>
+      </div>
+
+      <div class="actions">
+        <button class="ghost" data-close="bdIons">Cancelar</button>
+        <button class="primary" id="applyIons">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Temperatura -->
+  <div class="backdrop" id="bdTemp">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <h3>Configurações — Temperatura</h3>
+          <div class="hint">Acelera gates via φ = Q10^((T−6.3)/10). ENa/EK também dependem de T (Nernst).</div>
+        </div>
+        <button class="ghost" data-close="bdTemp">Fechar</button>
+      </header>
+
+      <div class="form">
+        <div class="row"><label>T (°C)</label><input id="m_T" type="number" step="0.5"></div>
+        <div class="row"><label>Q10 (gates)</label><input id="m_Q10" type="number" step="0.1"></div>
+      </div>
+
+      <div class="actions">
+        <button class="ghost" data-close="bdTemp">Cancelar</button>
+        <button class="primary" id="applyTemp">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Bloqueios -->
+  <div class="backdrop" id="bdBlocks">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <h3>Configurações — Bloqueio de canais</h3>
+          <div class="hint">Multiplicadores 0..1 para gNa, gK e gL (1 = sem bloqueio).</div>
+        </div>
+        <button class="ghost" data-close="bdBlocks">Fechar</button>
+      </header>
+
+      <div class="form">
+        <div class="row"><label>Na⁺ (0..1)</label><input id="m_bNa" type="number" min="0" max="1" step="0.05"></div>
+        <div class="row"><label>K⁺ (0..1)</label><input id="m_bK" type="number" min="0" max="1" step="0.05"></div>
+        <div class="row"><label>Leak (0..1)</label><input id="m_bL" type="number" min="0" max="1" step="0.05"></div>
+
+        <div class="grid2">
+          <button id="btnBlockNa" class="danger">Bloquear Na</button>
+          <button id="btnUnblockNa" class="ghost">Desbloquear Na</button>
+        </div>
+        <div class="grid2">
+          <button id="btnBlockK" class="danger">Bloquear K</button>
+          <button id="btnUnblockK" class="ghost">Desbloquear K</button>
+        </div>
+        <div class="grid2">
+          <button id="btnBlockL" class="danger">Bloquear Leak</button>
+          <button id="btnUnblockL" class="ghost">Desbloquear Leak</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="ghost" data-close="bdBlocks">Cancelar</button>
+        <button class="primary" id="applyBlocks">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Pulso -->
+  <div class="backdrop" id="bdPulse">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <h3>Configurações — Pulso</h3>
+          <div class="hint">O botão “Pulso” dispara conforme o modo selecionado aqui.</div>
+        </div>
+        <button class="ghost" data-close="bdPulse">Fechar</button>
+      </header>
+
+      <div class="form">
+        <div class="row">
+          <label>Modo</label>
+          <select id="m_pMode">
+            <option value="single">Pulso único</option>
+            <option value="double">2 pulsos</option>
+          </select>
+        </div>
+
+        <div id="singleBox">
+          <div class="row"><label>I (µA/cm²)</label><input id="m_pI" type="number" step="0.1"></div>
+          <div class="row"><label>Duração (ms)</label><input id="m_pPW" type="number" step="0.1"></div>
+        </div>
+
+        <div id="doubleBox" style="display:none;">
+          <div class="grid2">
+            <div class="row" style="grid-template-columns: 1fr 220px;"><label>I1 (µA/cm²)</label><input id="m_pI1" type="number" step="0.1"></div>
+            <div class="row" style="grid-template-columns: 1fr 220px;"><label>PW1 (ms)</label><input id="m_pPW1" type="number" step="0.1"></div>
+          </div>
+          <div class="row"><label>Δ entre pulsos (ms)</label><input id="m_pD" type="number" step="0.1"></div>
+          <div class="grid2">
+            <div class="row" style="grid-template-columns: 1fr 220px;"><label>I2 (µA/cm²)</label><input id="m_pI2" type="number" step="0.1"></div>
+            <div class="row" style="grid-template-columns: 1fr 220px;"><label>PW2 (ms)</label><input id="m_pPW2" type="number" step="0.1"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="ghost" data-close="bdPulse">Cancelar</button>
+        <button class="primary" id="applyPulse">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id)=>document.getElementById(id);
+
+  const warnBox = $("warnBox");
+  const errBox  = $("errBox");
+  const runDot  = $("runDot");
+  const runTxt  = $("runTxt");
+  const pillSim = $("pillSim");
+  const pillPulse = $("pillPulse");
+  const pillDt  = $("pillDt");
+  const holdBtn = $("holdBtn");
+
+  function clearMsg(){
+    warnBox.style.display="none"; warnBox.textContent="";
+    errBox.style.display="none"; errBox.textContent="";
+  }
+  function warn(msg){ warnBox.style.display="block"; warnBox.textContent = "AVISO: " + msg; }
+  function err(msg){ errBox.style.display="block"; errBox.textContent = "ERRO: " + msg; }
+
+  // ----- CONSTANTES -----
+  const DT_BASE = 0.01; // ms (interno)
+  const R = 8.314462618;   // J/(mol K)
+  const F = 96485.33212;   // C/mol
+  const Z_NA = 1;
+  const Z_K  = 1;
+
+  // ----- CONFIGS -----
+  const simCfg = { speed: 0.01, win: 200 };
+
+  const cellCfg = { Cm: 1, gNaMax: 120, gKMax: 36, gL: 0.3, EL: -54.4 };
+
+  const ionCfg = { Nai: 15, Nao: 145, Ki: 140, Ko: 4.0 };
+
+  const tempCfg = { T: 6.3, Q10: 3 };
+
+  const blockCfg = { bNa: 1.0, bK: 1.0, bL: 1.0 };
+
+  const pulseCfg = {
+    mode: "single",
+    single: { I: 10, PW: 1 },
+    double: { I1: 10, PW1: 1, D: 5, I2: 10, PW2: 1 }
+  };
+
+  const DEFAULTS = JSON.parse(JSON.stringify({ cellCfg, ionCfg, tempCfg, blockCfg, pulseCfg }));
+
+  function updatePills(dtEff){
+    pillSim.textContent = `speed=${simCfg.speed.toFixed(2)} • win=${simCfg.win.toFixed(0)}`;
+    pillPulse.textContent = `pulso: ${pulseCfg.mode}`;
+    const dtStr = Number.isFinite(dtEff) ? dtEff.toFixed(4) : "—";
+    pillDt.textContent = `dt_eff=${dtStr} • dt_base=${DT_BASE.toFixed(4)}`;
+  }
+
+  function setRunningUI(running){
+    runDot.classList.toggle("on", running);
+    runDot.classList.toggle("off", !running);
+    runTxt.textContent = running ? "RODANDO" : "PAUSADO";
+  }
+
+  // ----- MODALS -----
+  function openModal(id){ $(id).style.display = "flex"; }
+  function closeModal(id){ $(id).style.display = "none"; }
+
+  document.querySelectorAll("[data-close]").forEach(btn=>{
+    btn.addEventListener("click", ()=> closeModal(btn.getAttribute("data-close")));
+  });
+  document.querySelectorAll(".backdrop").forEach(bd=>{
+    bd.addEventListener("mousedown", (e)=>{ if(e.target===bd) bd.style.display="none"; });
+  });
+  window.addEventListener("keydown", (e)=>{
+    if(e.key==="Escape"){
+      ["bdSim","bdMem","bdIons","bdTemp","bdBlocks","bdPulse"].forEach(closeModal);
+    }
+  });
+
+  // ----- NERNST -----
+  function nernst_mV(Co, Ci, z, T_C){
+    const T = T_C + 273.15;
+    const ratio = Math.max(1e-12, Co) / Math.max(1e-12, Ci);
+    const E = (R * T) / (z * F) * Math.log(ratio);
+    return E * 1000;
+  }
+
+  // ----- HH rates -----
+  const clamp = (x,a,b)=> Math.max(a, Math.min(b, x));
+  const isFiniteNumber = (x)=> Number.isFinite(x) && !Number.isNaN(x);
+
+  function expSafe(x){
+    if (x > 700) return Math.exp(700);
+    if (x < -700) return Math.exp(-700);
+    return Math.exp(x);
+  }
+  function vtrap(x, y){
+    const z = x / y;
+    if (Math.abs(z) < 1e-7) return y * (1 - z/2);
+    return x / (expSafe(z) - 1);
+  }
+  function rates(V){
+    const am = 0.1 * vtrap(-(V + 40), 10);
+    const bm = 4 * expSafe(-(V + 65) / 18);
+
+    const ah = 0.07 * expSafe(-(V + 65) / 20);
+    const bh = 1 / (1 + expSafe(-(V + 35) / 10));
+
+    const an = 0.01 * vtrap(-(V + 55), 10);
+    const bn = 0.125 * expSafe(-(V + 65) / 80);
+    return {am,bm,ah,bh,an,bn};
+  }
+
+  function readParams(){
+    clearMsg();
+
+    simCfg.speed = clamp(simCfg.speed, 0.01, 1.0);
+    simCfg.win   = clamp(simCfg.win, 20, 2000);
+
+    cellCfg.Cm = Math.max(0.01, cellCfg.Cm);
+    cellCfg.gNaMax = Math.max(0, cellCfg.gNaMax);
+    cellCfg.gKMax  = Math.max(0, cellCfg.gKMax);
+    cellCfg.gL     = Math.max(0, cellCfg.gL);
+
+    tempCfg.Q10 = clamp(tempCfg.Q10, 1.0, 5.0);
+
+    let phi = Math.pow(tempCfg.Q10, (tempCfg.T - 6.3)/10);
+    if (!isFiniteNumber(phi) || phi <= 0) phi = 1;
+    const phiMax = 50;
+    if (phi > phiMax) { phi = phiMax; warn(`φ limitado a ${phiMax} para robustez.`); }
+
+    const ENa = nernst_mV(ionCfg.Nao, ionCfg.Nai, Z_NA, tempCfg.T);
+    const EK  = nernst_mV(ionCfg.Ko,  ionCfg.Ki,  Z_K,  tempCfg.T);
+
+    blockCfg.bNa = clamp(blockCfg.bNa, 0, 1);
+    blockCfg.bK  = clamp(blockCfg.bK,  0, 1);
+    blockCfg.bL  = clamp(blockCfg.bL,  0, 1);
+
+    return {
+      dtUser: DT_BASE,
+      speed: simCfg.speed,
+      win: simCfg.win,
+      Cm: cellCfg.Cm,
+      gNaMax: cellCfg.gNaMax,
+      gKMax:  cellCfg.gKMax,
+      gL:     cellCfg.gL,
+      EL:     cellCfg.EL,
+      ENa, EK,
+      phi,
+      bNa: blockCfg.bNa,
+      bK:  blockCfg.bK,
+      bL:  blockCfg.bL
+    };
+  }
+
+  // ----- Dynamics -----
+  function deriv(s, p, Iext){
+    const r = rates(s.V);
+
+    const am = r.am * p.phi, bm = r.bm * p.phi;
+    const ah = r.ah * p.phi, bh = r.bh * p.phi;
+    const an = r.an * p.phi, bn = r.bn * p.phi;
+
+    const gNa = (p.gNaMax * p.bNa) * (s.m**3) * s.h;
+    const gK  = (p.gKMax  * p.bK ) * (s.n**4);
+    const gL  = (p.gL     * p.bL );
+
+    const INa = gNa * (s.V - p.ENa);
+    const IK  = gK  * (s.V - p.EK);
+    const IL  = gL  * (s.V - p.EL);
+
+    const dV = (Iext - INa - IK - IL) / p.Cm;
+
+    const dm = am*(1 - s.m) - bm*s.m;
+    const dh = ah*(1 - s.h) - bh*s.h;
+    const dn = an*(1 - s.n) - bn*s.n;
+
+    const stiff = Math.max(am+bm, ah+bh, an+bn);
+    return {dV, dm, dh, dn, gNa, gK, gL, stiff};
+  }
+
+  function rk4(s, p, Iext, dt){
+    const k1 = deriv(s,p,Iext);
+    const s2 = { V: s.V+0.5*dt*k1.dV, m: s.m+0.5*dt*k1.dm, h: s.h+0.5*dt*k1.dh, n: s.n+0.5*dt*k1.dn };
+    const k2 = deriv(s2,p,Iext);
+    const s3 = { V: s.V+0.5*dt*k2.dV, m: s.m+0.5*dt*k2.dm, h: s.h+0.5*dt*k2.dh, n: s.n+0.5*dt*k2.dn };
+    const k3 = deriv(s3,p,Iext);
+    const s4 = { V: s.V+dt*k3.dV, m: s.m+dt*k3.dm, h: s.h+dt*k3.dh, n: s.n+dt*k3.dn };
+    const k4 = deriv(s4,p,Iext);
+
+    const V = s.V + (dt/6)*(k1.dV + 2*k2.dV + 2*k3.dV + k4.dV);
+    const m = s.m + (dt/6)*(k1.dm + 2*k2.dm + 2*k3.dm + k4.dm);
+    const h = s.h + (dt/6)*(k1.dh + 2*k2.dh + 2*k3.dh + k4.dh);
+    const n = s.n + (dt/6)*(k1.dn + 2*k2.dn + 2*k3.dn + k4.dn);
+
+    return { V, m: clamp(m,0,1), h: clamp(h,0,1), n: clamp(n,0,1) };
+  }
+
+  function initialState(){ return { V: -65, m: 0.0529, h: 0.5961, n: 0.3177 }; }
+
+  // ----- Pulsos agendados -----
+  const pulseWindows = [];
+  let holdInject = false;
+
+  function schedulePulse(t0, widthMs, amp){
+    const w = Math.max(0, widthMs);
+    pulseWindows.push({ t0, t1: t0 + w, amp });
+    pulseWindows.sort((a,b)=>a.t0-b.t0);
+  }
+  function cleanupPulses(t){
+    while(pulseWindows.length && pulseWindows[0].t1 < t - 5) pulseWindows.shift();
+  }
+  function I_of_t(t){
+    let I = 0;
+    if(holdInject){
+      I += pulseCfg.single.I; // usa I do single como “corrente contínua base”
+    }
+    for(const w of pulseWindows){
+      if(t >= w.t0 && t < w.t1) I += w.amp;
+    }
+    return I;
+  }
+
+  function firePulse(){
+    const t0 = sim.t;
+    if(pulseCfg.mode === "single"){
+      schedulePulse(t0, pulseCfg.single.PW, pulseCfg.single.I);
+    } else {
+      const d = pulseCfg.double;
+      schedulePulse(t0, d.PW1, d.I1);
+      schedulePulse(t0 + d.PW1 + d.D, d.PW2, d.I2);
+    }
+  }
+
+  // ----- Toggle Injetar -----
+  function updateInjectBtn(){
+    if (holdInject){
+      holdBtn.classList.add("primary");
+      holdBtn.classList.remove("ghost");
+      holdBtn.textContent = `Injetando (+${pulseCfg.single.I.toFixed(1)}) • clique p/ parar`;
+    } else {
+      holdBtn.classList.remove("primary");
+      holdBtn.classList.add("ghost");
+      holdBtn.textContent = "Injetar";
+    }
+  }
+
+  // ----- Plot / buffers -----
+  const canvas = $("plot");
+  const ctx = canvas.getContext("2d");
+
+  const buf = { t:[], V:[], gNa:[], gK:[], gL:[], I:[] };
+  function pushSample(o){
+    buf.t.push(o.t); buf.V.push(o.V); buf.gNa.push(o.gNa); buf.gK.push(o.gK); buf.gL.push(o.gL); buf.I.push(o.I);
+  }
+  function trim(windowMs, tNow){
+    const cut = tNow - windowMs;
+    while(buf.t.length && buf.t[0] < cut){
+      buf.t.shift(); buf.V.shift(); buf.gNa.shift(); buf.gK.shift(); buf.gL.shift(); buf.I.shift();
+    }
+  }
+
+  function draw(p){
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0,0,W,H);
+
+    const M = {l:60, r:20, t:18, b:34};
+    const PW = W - M.l - M.r;
+    const PH = H - M.t - M.b;
+
+    // grid
+    ctx.strokeStyle = "#d9d9d9";
+    ctx.lineWidth = 1;
+    for(let i=0;i<=10;i++){
+      const x = M.l + PW*i/10;
+      ctx.beginPath(); ctx.moveTo(x,M.t); ctx.lineTo(x,M.t+PH); ctx.stroke();
+    }
+    for(let i=0;i<=8;i++){
+      const y = M.t + PH*i/8;
+      ctx.beginPath(); ctx.moveTo(M.l,y); ctx.lineTo(M.l+PW,y); ctx.stroke();
+    }
+
+    ctx.strokeStyle = "#a0a0a0";
+    ctx.strokeRect(M.l,M.t,PW,PH);
+
+    const tNow = sim.t;
+    const tMin = Math.max(0, tNow - p.win);
+    const tMax = tMin + p.win;
+
+    const xMap = (tt)=> M.l + PW*(tt - tMin)/(tMax - tMin || 1);
+    const Vmin=-100, Vmax=60;
+    const yV = (V)=> M.t + PH*(1 - (V - Vmin)/(Vmax - Vmin));
+
+    const gMax = Math.max(1, p.gNaMax, p.gKMax);
+    const yG = (g)=>{
+      const top = M.t + 0.62*PH, h = 0.33*PH;
+      const u = clamp(g/gMax,0,1);
+      return top + h*(1-u);
+    };
+
+    const Iamp = Math.max(1, Math.abs(pulseCfg.single.I));
+    const yI = (I)=>{
+      const top = M.t + 0.06*PH, h = 0.20*PH;
+      const u = clamp((I + Iamp)/(2*Iamp),0,1);
+      return top + h*(1-u);
+    };
+
+    ctx.fillStyle="#202020";
+    ctx.font="12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.fillText(`Vm: ${Vmin}..${Vmax} mV`, 8, 16);
+    ctx.fillText(`g: 0..${gMax.toFixed(1)} mS/cm²`, 8, 32);
+    ctx.fillText(`I: ±${Iamp.toFixed(1)} µA/cm²`, 8, 48);
+    ctx.fillText(`t: ${tMin.toFixed(1)}..${tMax.toFixed(1)} ms`, 8, H-10);
+
+    function line(xs, ys, yMapFn, color, w){
+      if(xs.length<2) return;
+      ctx.strokeStyle=color; ctx.lineWidth=w;
+      ctx.beginPath();
+      ctx.moveTo(xMap(xs[0]), yMapFn(ys[0]));
+      for(let i=1;i<xs.length;i++) ctx.lineTo(xMap(xs[i]), yMapFn(ys[i]));
+      ctx.stroke();
+    }
+
+    line(buf.t, buf.I,  yI, "#8e24aa", 2);
+    line(buf.t, buf.V,  yV, "#1565c0", 2.5);
+    line(buf.t, buf.gNa, yG, "#ef6c00", 2);
+    line(buf.t, buf.gK,  yG, "#2e7d32", 2);
+    line(buf.t, buf.gL,  yG, "#616161", 1.5);
+  }
+
+  function updateKPIs(p){
+    $("k_t").textContent = sim.t.toFixed(2);
+    $("k_v").textContent = sim.s.V.toFixed(2);
+    const gNa = (p.gNaMax * p.bNa) * (sim.s.m**3) * sim.s.h;
+    const gK  = (p.gKMax  * p.bK ) * (sim.s.n**4);
+    $("k_g").textContent = `${gNa.toFixed(2)} / ${gK.toFixed(2)}`;
+    $("k_mhn").textContent = `${sim.s.m.toFixed(3)} / ${sim.s.h.toFixed(3)} / ${sim.s.n.toFixed(3)}`;
+  }
+
+  // ----- Sim core -----
+  const sim = { running:false, t:0, s: initialState(), last: performance.now(), accum: 0 };
+
+  function computeDtEff(p){
+    const I = I_of_t(sim.t);
+    const d0 = deriv(sim.s, p, I);
+    const stiff = Math.max(1e-6, d0.stiff);
+
+    let dtCap = 0.1 / stiff;
+    dtCap = clamp(dtCap, 0.0005, 0.05);
+    return Math.min(p.dtUser, dtCap);
+  }
+
+  function resetCellKeepRunning(){
+    Object.assign(cellCfg,  JSON.parse(JSON.stringify(DEFAULTS.cellCfg)));
+    Object.assign(ionCfg,   JSON.parse(JSON.stringify(DEFAULTS.ionCfg)));
+    Object.assign(tempCfg,  JSON.parse(JSON.stringify(DEFAULTS.tempCfg)));
+    Object.assign(blockCfg, JSON.parse(JSON.stringify(DEFAULTS.blockCfg)));
+    Object.assign(pulseCfg, JSON.parse(JSON.stringify(DEFAULTS.pulseCfg)));
+    updateInjectBtn(); // atualiza texto (corrente contínua usa pulseCfg.single.I)
+  }
+
+  function frame(now){
+    try{
+      const p = readParams();
+      const realDt = now - sim.last;
+      sim.last = now;
+
+      const dtEff = computeDtEff(p);
+
+      if(sim.running){
+        sim.accum += clamp(p.speed * realDt, 0, 30);
+
+        const maxStepsPerFrame = 5000;
+        let steps = 0;
+
+        while(sim.accum >= dtEff && steps < maxStepsPerFrame){
+          cleanupPulses(sim.t);
+          const I = I_of_t(sim.t);
+          const d = deriv(sim.s, p, I);
+
+          pushSample({ t: sim.t, V: sim.s.V, gNa: d.gNa, gK: d.gK, gL: d.gL, I });
+
+          sim.s = rk4(sim.s, p, I, dtEff);
+          sim.t += dtEff;
+          sim.accum -= dtEff;
+          steps++;
+        }
+
+        if(steps >= maxStepsPerFrame){
+          warn("Limite de passos por frame atingido (reduza velocidade).");
+          sim.accum = 0;
+        }
+
+        trim(p.win, sim.t);
+        updateKPIs(p);
+      }
+
+      updatePills(dtEff);
+      draw(p);
+      requestAnimationFrame(frame);
+    } catch(e){
+      sim.running = false;
+      err(e?.message || String(e));
+      setRunningUI(false);
+      requestAnimationFrame(frame);
+    }
+  }
+
+  // ----- UI wiring -----
+  $("start").addEventListener("click", ()=>{
+    sim.running = true;
+    sim.last = performance.now();
+    setRunningUI(true);
+  });
+  $("pause").addEventListener("click", ()=>{
+    sim.running = false;
+    setRunningUI(false);
+  });
+  $("resetCell").addEventListener("click", ()=>{
+    resetCellKeepRunning(); // NÃO para simulação
+  });
+
+  $("pulseBtn").addEventListener("click", firePulse);
+
+  // Injetar toggle (clique liga/desliga)
+  holdBtn.addEventListener("click", ()=>{
+    holdInject = !holdInject;
+    updateInjectBtn();
+  });
+
+  // ----- Open modals -----
+  $("cfgSim").addEventListener("click", ()=>{
+    $("m_speed").value = simCfg.speed.toFixed(2);
+    $("m_win").value   = String(simCfg.win);
+    openModal("bdSim");
+  });
+  $("cfgMem").addEventListener("click", ()=>{
+    $("m_Cm").value  = String(cellCfg.Cm);
+    $("m_gNa").value = String(cellCfg.gNaMax);
+    $("m_gK").value  = String(cellCfg.gKMax);
+    $("m_gL").value  = String(cellCfg.gL);
+    $("m_EL").value  = String(cellCfg.EL);
+    openModal("bdMem");
+  });
+  $("cfgIons").addEventListener("click", ()=>{
+    $("m_Nai").value = String(ionCfg.Nai);
+    $("m_Nao").value = String(ionCfg.Nao);
+    $("m_Ki").value  = String(ionCfg.Ki);
+    $("m_Ko").value  = String(ionCfg.Ko);
+    previewIons();
+    openModal("bdIons");
+  });
+  $("cfgTemp").addEventListener("click", ()=>{
+    $("m_T").value   = String(tempCfg.T);
+    $("m_Q10").value = String(tempCfg.Q10);
+    openModal("bdTemp");
+  });
+  $("cfgBlocks").addEventListener("click", ()=>{
+    $("m_bNa").value = String(blockCfg.bNa);
+    $("m_bK").value  = String(blockCfg.bK);
+    $("m_bL").value  = String(blockCfg.bL);
+    openModal("bdBlocks");
+  });
+  $("pulseCfgBtn").addEventListener("click", ()=>{
+    $("m_pMode").value = pulseCfg.mode;
+
+    $("m_pI").value  = String(pulseCfg.single.I);
+    $("m_pPW").value = String(pulseCfg.single.PW);
+
+    $("m_pI1").value  = String(pulseCfg.double.I1);
+    $("m_pPW1").value = String(pulseCfg.double.PW1);
+    $("m_pD").value   = String(pulseCfg.double.D);
+    $("m_pI2").value  = String(pulseCfg.double.I2);
+    $("m_pPW2").value = String(pulseCfg.double.PW2);
+
+    syncPulseModeUI();
+    openModal("bdPulse");
+  });
+
+  // ----- Apply modals -----
+  $("applySim").addEventListener("click", ()=>{
+    const sp = parseFloat($("m_speed").value);
+    const wn = parseFloat($("m_win").value);
+    if(isFiniteNumber(sp)) simCfg.speed = clamp(sp, 0.01, 1);
+    if(isFiniteNumber(wn)) simCfg.win   = clamp(wn, 20, 2000);
+    closeModal("bdSim");
+  });
+
+  $("applyMem").addEventListener("click", ()=>{
+    const Cm  = parseFloat($("m_Cm").value);
+    const gNa = parseFloat($("m_gNa").value);
+    const gK  = parseFloat($("m_gK").value);
+    const gL  = parseFloat($("m_gL").value);
+    const EL  = parseFloat($("m_EL").value);
+
+    if(isFiniteNumber(Cm))  cellCfg.Cm = Cm;
+    if(isFiniteNumber(gNa)) cellCfg.gNaMax = gNa;
+    if(isFiniteNumber(gK))  cellCfg.gKMax  = gK;
+    if(isFiniteNumber(gL))  cellCfg.gL     = gL;
+    if(isFiniteNumber(EL))  cellCfg.EL     = EL;
+
+    closeModal("bdMem");
+  });
+
+  function previewIons(){
+    const Nai = parseFloat($("m_Nai").value);
+    const Nao = parseFloat($("m_Nao").value);
+    const Ki  = parseFloat($("m_Ki").value);
+    const Ko  = parseFloat($("m_Ko").value);
+
+    const T = tempCfg.T;
+    const ENa = nernst_mV(isFiniteNumber(Nao)?Nao:ionCfg.Nao, isFiniteNumber(Nai)?Nai:ionCfg.Nai, Z_NA, T);
+    const EK  = nernst_mV(isFiniteNumber(Ko)?Ko:ionCfg.Ko,  isFiniteNumber(Ki)?Ki:ionCfg.Ki,   Z_K,  T);
+    $("ionsPreview").textContent = `ENa=${ENa.toFixed(2)} mV • EK=${EK.toFixed(2)} mV (T=${T.toFixed(1)}°C)`;
+  }
+  ["m_Nai","m_Nao","m_Ki","m_Ko"].forEach(id=>{
+    $(id).addEventListener("input", previewIons);
+  });
+
+  $("applyIons").addEventListener("click", ()=>{
+    const Nai = parseFloat($("m_Nai").value);
+    const Nao = parseFloat($("m_Nao").value);
+    const Ki  = parseFloat($("m_Ki").value);
+    const Ko  = parseFloat($("m_Ko").value);
+
+    if(isFiniteNumber(Nai)) ionCfg.Nai = Math.max(0.1, Nai);
+    if(isFiniteNumber(Nao)) ionCfg.Nao = Math.max(0.1, Nao);
+    if(isFiniteNumber(Ki))  ionCfg.Ki  = Math.max(0.1, Ki);
+    if(isFiniteNumber(Ko))  ionCfg.Ko  = Math.max(0.1, Ko);
+
+    closeModal("bdIons");
+  });
+
+  $("applyTemp").addEventListener("click", ()=>{
+    const T  = parseFloat($("m_T").value);
+    const Q10 = parseFloat($("m_Q10").value);
+
+    if(isFiniteNumber(T))  tempCfg.T = T;
+    if(isFiniteNumber(Q10)) tempCfg.Q10 = Q10;
+
+    if($("bdIons").style.display === "flex") previewIons();
+    closeModal("bdTemp");
+  });
+
+  $("applyBlocks").addEventListener("click", ()=>{
+    const bNa = parseFloat($("m_bNa").value);
+    const bK  = parseFloat($("m_bK").value);
+    const bL  = parseFloat($("m_bL").value);
+
+    if(isFiniteNumber(bNa)) blockCfg.bNa = clamp(bNa, 0, 1);
+    if(isFiniteNumber(bK))  blockCfg.bK  = clamp(bK,  0, 1);
+    if(isFiniteNumber(bL))  blockCfg.bL  = clamp(bL,  0, 1);
+
+    closeModal("bdBlocks");
+  });
+
+  // quick block buttons
+  $("btnBlockNa").addEventListener("click", ()=>{ blockCfg.bNa = 0; $("m_bNa").value="0"; });
+  $("btnUnblockNa").addEventListener("click", ()=>{ blockCfg.bNa = 1; $("m_bNa").value="1"; });
+
+  $("btnBlockK").addEventListener("click", ()=>{ blockCfg.bK = 0; $("m_bK").value="0"; });
+  $("btnUnblockK").addEventListener("click", ()=>{ blockCfg.bK = 1; $("m_bK").value="1"; });
+
+  $("btnBlockL").addEventListener("click", ()=>{ blockCfg.bL = 0; $("m_bL").value="0"; });
+  $("btnUnblockL").addEventListener("click", ()=>{ blockCfg.bL = 1; $("m_bL").value="1"; });
+
+  // pulse modal mode
+  function syncPulseModeUI(){
+    const mode = $("m_pMode").value;
+    $("singleBox").style.display = (mode === "single") ? "block" : "none";
+    $("doubleBox").style.display = (mode === "double") ? "block" : "none";
+  }
+  $("m_pMode").addEventListener("change", syncPulseModeUI);
+
+  $("applyPulse").addEventListener("click", ()=>{
+    const mode = $("m_pMode").value;
+    pulseCfg.mode = (mode === "double") ? "double" : "single";
+
+    const I  = parseFloat($("m_pI").value);
+    const PW = parseFloat($("m_pPW").value);
+    if(isFiniteNumber(I))  pulseCfg.single.I = I;
+    if(isFiniteNumber(PW)) pulseCfg.single.PW = Math.max(0, PW);
+
+    const I1  = parseFloat($("m_pI1").value);
+    const PW1 = parseFloat($("m_pPW1").value);
+    const D   = parseFloat($("m_pD").value);
+    const I2  = parseFloat($("m_pI2").value);
+    const PW2 = parseFloat($("m_pPW2").value);
+
+    if(isFiniteNumber(I1))  pulseCfg.double.I1 = I1;
+    if(isFiniteNumber(PW1)) pulseCfg.double.PW1 = Math.max(0, PW1);
+    if(isFiniteNumber(D))   pulseCfg.double.D   = Math.max(0, D);
+    if(isFiniteNumber(I2))  pulseCfg.double.I2  = I2;
+    if(isFiniteNumber(PW2)) pulseCfg.double.PW2 = Math.max(0, PW2);
+
+    updateInjectBtn(); // se estiver injetando, reflete novo I
+    closeModal("bdPulse");
+  });
+
+  // init
+  setRunningUI(false);
+  updateInjectBtn();
+  updatePills(NaN);
+
+  // start animation
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
