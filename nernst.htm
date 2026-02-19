@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nernst — Potencial de Equilíbrio Iônico</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --panel: rgba(255,255,255,.06);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.65);
+      --glow: rgba(116, 208, 255, .35);
+      --accent: #74d0ff;
+      --accent2:#a1ffce;
+      --warn:#ffd27d;
+      --shadow: 0 14px 50px rgba(0,0,0,.55);
+      --radius: 18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(900px 600px at 20% 20%, rgba(116,208,255,.12), transparent 60%),
+        radial-gradient(900px 700px at 80% 20%, rgba(161,255,206,.10), transparent 55%),
+        radial-gradient(1200px 900px at 50% 120%, rgba(255,210,125,.08), transparent 55%),
+        linear-gradient(180deg, #070a14, #0b1020 35%, #070a14);
+      overflow-x:hidden;
+    }
+    .wrap{ max-width: 1200px; margin: 0 auto; padding: 18px 16px 26px; }
+    header{ display:flex; align-items:flex-end; justify-content:space-between; gap: 12px; margin-bottom: 14px; }
+    .brand{ display:flex; flex-direction:column; gap:6px; }
+    .title{ font-size: 20px; letter-spacing:.2px; font-weight: 700; }
+    .subtitle{ font-size: 13px; color: var(--muted); }
+    .pill{
+      display:inline-flex; align-items:center; gap:10px;
+      padding: 10px 12px; border-radius: 999px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: 0 10px 28px rgba(0,0,0,.22);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .pill .label{ color: var(--muted); font-size: 12px; }
+    .pill .value{
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(116,208,255,.12);
+      border: 1px solid rgba(116,208,255,.20);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset;
+    }
+    .grid{ display:grid; grid-template-columns: 380px 1fr; gap: 14px; }
+    @media (max-width: 980px){ .grid{ grid-template-columns: 1fr; } }
+    .card{
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      background: radial-gradient(700px 240px at 15% 0%, rgba(116,208,255,.16), transparent 55%),
+                  radial-gradient(700px 240px at 85% 0%, rgba(161,255,206,.10), transparent 55%);
+      pointer-events:none;
+      opacity:.9;
+    }
+    .card > *{ position:relative; z-index:1; }
+    .controls{ padding: 14px 14px 12px; }
+    .row{ display:flex; gap: 10px; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+    select{
+      width: 100%;
+      appearance:none;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.12);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 600;
+      outline:none;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.18) inset;
+    }
+    .meter{
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      padding: 10px 12px;
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      margin-top: 10px;
+    }
+    .meter .big{
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing:.2px;
+      color: #dff6ff;
+      text-shadow: 0 0 18px rgba(116,208,255,.22);
+      white-space:nowrap;
+    }
+    .meter .small{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.25;
+      text-align:right;
+    }
+    .sliderBlock{
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.10);
+    }
+    .sliderTop{ display:flex; align-items:baseline; justify-content:space-between; gap: 10px; margin-bottom: 8px; }
+    .sliderTop .name{ font-size: 12px; color: var(--muted); letter-spacing:.2px; }
+    .sliderTop .val{
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(161,255,206,.10);
+      border: 1px solid rgba(161,255,206,.18);
+      white-space:nowrap;
+    }
+    input[type="range"]{ width:100%; accent-color: var(--accent); }
+    .btnRow{ display:flex; gap:10px; margin-top: 12px; }
+    button{
+      flex:1;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor:pointer;
+      transition: transform .05s ease, background .2s ease, border-color .2s ease;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.18) inset;
+    }
+    button:hover{ background: rgba(255,255,255,.09); border-color: rgba(116,208,255,.22); }
+    button:active{ transform: translateY(1px); }
+    button.primary{ background: rgba(116,208,255,.12); border-color: rgba(116,208,255,.25); }
+    button.primary:hover{ background: rgba(116,208,255,.16); }
+
+    .viz{ display:grid; grid-template-rows: 320px 1fr; gap: 14px; padding: 14px; }
+    .canvasCard{
+      background: rgba(0,0,0,.22);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      overflow:hidden;
+      position:relative;
+    }
+    .canvasCard .badge{
+      position:absolute;
+      top: 10px;
+      left: 10px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: rgba(255,255,255,.86);
+      background: rgba(0,0,0,.32);
+      border: 1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .canvasCard .badge.right{
+      left:auto; right:10px;
+      font-family: var(--mono);
+      color: #e8fbff;
+      border-color: rgba(116,208,255,.18);
+      box-shadow: 0 0 24px rgba(116,208,255,.12);
+    }
+    canvas{ width:100%; height:100%; display:block; }
+
+    .legend{
+      display:flex; gap: 10px; flex-wrap:wrap;
+      align-items:center; justify-content:space-between;
+      padding: 0 2px 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .legend .hint{ display:flex; align-items:center; gap:8px; }
+    .dot{ width:10px; height:10px; border-radius:999px; background: var(--accent); box-shadow: 0 0 18px rgba(116,208,255,.35); }
+    .dot.g{ background: var(--accent2); box-shadow: 0 0 18px rgba(161,255,206,.28); }
+    .dot.w{ background: var(--warn); box-shadow: 0 0 18px rgba(255,210,125,.22); }
+    .tiny{ font-family: var(--mono); font-size: 11px; opacity: .85; }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="title">Nernst (37 °C)</div>
+      <div class="subtitle">Íon • concentrações • potencial • dinâmica visual</div>
+    </div>
+    <div class="pill" aria-label="Temperatura">
+      <div class="label">T</div>
+      <div class="value">37 °C</div>
+      <div class="label">—</div>
+      <div class="value">±100 mV</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <div class="controls">
+        <div class="row">
+          <div style="width:100%">
+            <select id="ionSelect" aria-label="Seleção de íon">
+              <option value="Na">Na⁺</option>
+              <option value="K">K⁺</option>
+              <option value="Cl">Cl⁻</option>
+            </select>
+
+            <div class="meter" style="margin-top:12px;">
+              <div class="big" id="enValue">— mV</div>
+              <div class="small">
+                Potencial de equilíbrio<br/>
+                <span class="tiny" id="eqText">E = (RT/zF) ln(out/in)</span>
+              </div>
+            </div>
+
+            <div class="sliderBlock" style="margin-top:12px;">
+              <div class="sliderTop">
+                <div class="name">Extracelular (mM)</div>
+                <div class="val" id="outVal">—</div>
+              </div>
+              <input id="outSlider" type="range" min="1" max="200" step="1" value="145" />
+            </div>
+
+            <div class="sliderBlock">
+              <div class="sliderTop">
+                <div class="name">Intracelular (mM)</div>
+                <div class="val" id="inVal">—</div>
+              </div>
+              <input id="inSlider" type="range" min="1" max="200" step="1" value="12" />
+            </div>
+
+            <div class="btnRow">
+              <button class="primary" id="resetBtn">Reset fisiológico</button>
+              <button id="pauseBtn">Pausar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend" style="margin-top:12px;">
+          <div class="hint"><span class="dot"></span>Osciloscópio</div>
+          <div class="hint"><span class="dot g"></span>Partículas</div>
+          <div class="hint"><span class="dot w"></span>Membrana</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="viz">
+        <div class="canvasCard">
+          <div class="badge">Osciloscópio (Vm)</div>
+          <div class="badge right" id="scopeBadge">—</div>
+          <canvas id="scope"></canvas>
+        </div>
+
+        <div class="canvasCard">
+          <div class="badge">Browniano (out | membrana | in)</div>
+          <div class="badge right" id="particleBadge">—</div>
+          <canvas id="particles"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Constantes / Nernst ----------
+  const R = 8.314462618;       // J/(mol*K)
+  const F = 96485.33212;       // C/mol
+  const T = 310.15;            // K (37°C)
+
+  // Presets (apenas valores iniciais “bonitos”)
+  const presets = {
+    Na: { z:+1, out:145, in:12 },
+    K:  { z:+1, out:4,   in:140 },
+    Cl: { z:-1, out:110, in:10 }
+  };
+
+  // Nernst em mV: E = (RT/zF)*ln(Cout/Cin) * 1000
+  function nernst_mV(z, cout, cin){
+    cout = Math.max(cout, 0.0001);
+    cin  = Math.max(cin,  0.0001);
+    return (R*T/(z*F)) * Math.log(cout/cin) * 1000;
+  }
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  // ---------- UI ----------
+  const ionSelect = document.getElementById('ionSelect');
+  const outSlider = document.getElementById('outSlider');
+  const inSlider  = document.getElementById('inSlider');
+  const outVal = document.getElementById('outVal');
+  const inVal  = document.getElementById('inVal');
+  const enValue= document.getElementById('enValue');
+  const eqText = document.getElementById('eqText');
+  const resetBtn = document.getElementById('resetBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  const scopeCanvas = document.getElementById('scope');
+  const partCanvas  = document.getElementById('particles');
+  const scopeBadge  = document.getElementById('scopeBadge');
+  const particleBadge = document.getElementById('particleBadge');
+
+  let running = true;
+
+  // ---------- Estado do "osciloscópio" ----------
+  let Vm = 0;                  // mV medido
+  let targetE = 0;             // mV (Nernst)
+  const tau = 0.35;            // s
+  const noiseAmp = 0.12;       // mV
+
+  // Buffer
+  const secondsOnScreen = 6.5;
+  let scopeData = [];          // {t, v}
+  let t0 = performance.now() / 1000;
+
+  // Escala fixa do osciloscópio
+  const VMIN = -100;
+  const VMAX = +100;
+
+  // ---------- Partículas ----------
+  const particles = [];
+  const kParticlesPermM = 3.0; // 200 mM ~ 600 partículas (ok)
+
+  function getIonKey(){ return ionSelect.value; }
+
+  function updateEquationLabel(){
+    eqText.textContent = `E = (RT/zF) ln(out/in)`;
+  }
+
+  function refreshTargetE(){
+    const ionKey = getIonKey();
+    const z = presets[ionKey].z;
+
+    const cout = parseFloat(outSlider.value);
+    const cin  = parseFloat(inSlider.value);
+    targetE = nernst_mV(z, cout, cin);
+
+    outVal.textContent = `${cout.toFixed(0)} mM`;
+    inVal.textContent  = `${cin.toFixed(0)} mM`;
+
+    const sign = targetE >= 0 ? "+" : "−";
+    enValue.textContent = `${sign}${Math.abs(targetE).toFixed(1)} mV`;
+    scopeBadge.textContent = `Eₙ ${sign}${Math.abs(targetE).toFixed(1)} mV`;
+
+    updateParticleCounts(cout, cin);
+    particleBadge.textContent = `out ${cout.toFixed(0)} | in ${cin.toFixed(0)} mM`;
+  }
+
+  function resetPhys(){
+    const ionKey = getIonKey();
+    outSlider.value = presets[ionKey].out;
+    inSlider.value  = presets[ionKey].in;
+    refreshTargetE();
+  }
+
+  // ---------- Canvas helpers ----------
+  function fitCanvasToCSS(canvas){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(10, Math.floor(rect.width * dpr));
+    const h = Math.max(10, Math.floor(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h){
+      canvas.width = w; canvas.height = h;
+    }
+    return {w,h,dpr};
+  }
+
+  // ---------- Osciloscópio ----------
+  function drawScope(dt){
+    const ctx = scopeCanvas.getContext('2d');
+    const {w,h,dpr} = fitCanvasToCSS(scopeCanvas);
+
+    // Atualiza Vm -> targetE (1ª ordem)
+    const alpha = 1 - Math.exp(-dt / tau);
+    const noise = (Math.random()*2 - 1) * noiseAmp;
+    Vm = Vm + alpha*(targetE - Vm) + noise;
+
+    // Buffer
+    const now = performance.now()/1000;
+    const t = now - t0;
+    scopeData.push({t, v: Vm});
+    const tMin = t - secondsOnScreen;
+    while (scopeData.length && scopeData[0].t < tMin) scopeData.shift();
+
+    // Fundo
+    ctx.clearRect(0,0,w,h);
+    const g = ctx.createRadialGradient(w*0.25, h*0.25, 10, w*0.25, h*0.25, Math.max(w,h)*0.9);
+    g.addColorStop(0, 'rgba(116,208,255,0.10)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,h);
+
+    // Grade
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    const stepX = w/10, stepY = h/6;
+    for(let i=1;i<10;i++){
+      ctx.beginPath(); ctx.moveTo(i*stepX, 0); ctx.lineTo(i*stepX, h); ctx.stroke();
+    }
+    for(let j=1;j<6;j++){
+      ctx.beginPath(); ctx.moveTo(0, j*stepY); ctx.lineTo(w, j*stepY); ctx.stroke();
+    }
+    ctx.restore();
+
+    // Map fixo -100..+100 mV
+    function xOf(ti){
+      const frac = (ti - tMin) / secondsOnScreen;
+      return frac * w;
+    }
+    function yOf(v){
+      const vv = clamp(v, VMIN, VMAX);
+      const frac = (vv - VMIN) / (VMAX - VMIN);
+      return (1-frac) * h;
+    }
+
+    // Linha do E_nernst (também clipada ao range)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,210,125,0.26)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6,6]);
+    const yE = yOf(targetE);
+    ctx.beginPath();
+    ctx.moveTo(0, yE);
+    ctx.lineTo(w, yE);
+    ctx.stroke();
+    ctx.restore();
+
+    // Traço com glow
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(116,208,255,0.85)';
+    ctx.shadowColor = 'rgba(116,208,255,0.35)';
+    ctx.shadowBlur = 18;
+
+    ctx.beginPath();
+    for(let i=0;i<scopeData.length;i++){
+      const p = scopeData[i];
+      const x = xOf(p.t);
+      const y = yOf(p.v);
+      if(i===0) ctx.moveTo(x,y);
+      else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Leitura pequena
+    const sign = Vm >= 0 ? "+" : "−";
+    ctx.save();
+    ctx.scale(1/dpr, 1/dpr);
+    ctx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(`Vm ${sign}${Math.abs(Vm).toFixed(1)} mV`, 14, 44);
+    // Escala fixa (discreta)
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillText(`${VMAX} mV`, 14, 62);
+    ctx.fillText(`${VMIN} mV`, 14, (scopeCanvas.getBoundingClientRect().height - 10));
+    ctx.restore();
+  }
+
+  // ---------- Partículas ----------
+  function updateParticleCounts(cout, cin){
+    const outTarget = Math.round(cout * kParticlesPermM);
+    const inTarget  = Math.round(cin  * kParticlesPermM);
+
+    const addParticles = (count, side) => {
+      for(let i=0;i<count;i++) particles.push(makeParticle(side));
+    };
+    const removeParticles = (count, side) => {
+      let removed = 0;
+      for(let i=particles.length-1;i>=0 && removed<count;i--){
+        if(particles[i].side === side){
+          particles.splice(i,1);
+          removed++;
+        }
+      }
+    };
+
+    const outNow = particles.filter(p=>p.side==='out').length;
+    const inNow  = particles.filter(p=>p.side==='in').length;
+
+    const dOut = outTarget - outNow;
+    const dIn  = inTarget  - inNow;
+
+    if(dOut>0) addParticles(dOut, 'out'); else if(dOut<0) removeParticles(-dOut, 'out');
+    if(dIn>0)  addParticles(dIn,  'in'); else if(dIn<0)  removeParticles(-dIn,  'in');
+  }
+
+  function makeParticle(side){
+    const rect = partCanvas.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
+    const membraneX = W/2;
+    const pad = 16;
+
+    const xMin = side==='out' ? pad : membraneX + pad;
+    const xMax = side==='out' ? membraneX - pad : W - pad;
+    const x = xMin + Math.random()*(xMax-xMin);
+    const y = pad + Math.random()*(H-2*pad);
+
+    const r = 1.3 + Math.random()*1.6;
+    const vx = (Math.random()*2-1) * 18;
+    const vy = (Math.random()*2-1) * 18;
+
+    return { side, x, y, vx, vy, r, hueJitter: (Math.random()*14-7) };
+  }
+
+  function drawParticles(dt){
+    const ctx = partCanvas.getContext('2d');
+    const {w,h,dpr} = fitCanvasToCSS(partCanvas);
+
+    const membraneX = w/2;
+
+    ctx.clearRect(0,0,w,h);
+    const bg = ctx.createLinearGradient(0,0,w,0);
+    bg.addColorStop(0,'rgba(116,208,255,0.06)');
+    bg.addColorStop(0.48,'rgba(255,255,255,0.02)');
+    bg.addColorStop(0.52,'rgba(255,255,255,0.02)');
+    bg.addColorStop(1,'rgba(161,255,206,0.06)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,w,h);
+
+    // Membrana
+    const memW = Math.max(6, Math.floor(10*dpr));
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,210,125,0.10)';
+    ctx.fillRect(membraneX - memW*1.8, 0, memW*3.6, h);
+    ctx.fillStyle = 'rgba(255,210,125,0.26)';
+    ctx.fillRect(membraneX - memW/2, 0, memW, h);
+
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    const pores = 22;
+    for(let i=0;i<pores;i++){
+      const py = (i+0.5)*h/pores;
+      const pr = (2.0 + (i%3))*dpr;
+      ctx.beginPath();
+      ctx.ellipse(membraneX, py, pr, pr*0.55, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    const pad = 16*dpr;
+    const maxSpeed = 95*dpr;
+    const brown = 130*dpr;
+
+    const cOutBase = 200; // hue
+    const cInBase  = 140;
+
+    for(const p of particles){
+      p.vx += (Math.random()*2-1) * brown * dt;
+      p.vy += (Math.random()*2-1) * brown * dt;
+
+      const sp = Math.hypot(p.vx, p.vy);
+      if(sp > maxSpeed){
+        p.vx = p.vx/sp * maxSpeed;
+        p.vy = p.vy/sp * maxSpeed;
+      }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      const leftMin = pad;
+      const leftMax = membraneX - pad;
+      const rightMin= membraneX + pad;
+      const rightMax= w - pad;
+
+      const xMin = (p.side==='out') ? leftMin : rightMin;
+      const xMax = (p.side==='out') ? leftMax : rightMax;
+
+      if(p.x < xMin){ p.x = xMin; p.vx *= -0.85; }
+      if(p.x > xMax){ p.x = xMax; p.vx *= -0.85; }
+      if(p.y < pad){ p.y = pad; p.vy *= -0.85; }
+      if(p.y > h-pad){ p.y = h-pad; p.vy *= -0.85; }
+
+      const hue = (p.side==='out' ? cOutBase : cInBase) + p.hueJitter;
+      ctx.save();
+      ctx.beginPath();
+      ctx.fillStyle = `hsla(${hue}, 90%, 70%, 0.85)`;
+      ctx.shadowColor = `hsla(${hue}, 90%, 70%, 0.35)`;
+      ctx.shadowBlur = 12*dpr;
+      ctx.arc(p.x, p.y, p.r*dpr, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Rótulos mínimos
+    ctx.save();
+    ctx.scale(1/dpr, 1/dpr);
+    ctx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.fillText('out', 14, 24);
+    ctx.fillText('in', partCanvas.getBoundingClientRect().width - 26, 24);
+    ctx.restore();
+  }
+
+  // ---------- Loop ----------
+  let last = performance.now()/1000;
+  function tick(){
+    const now = performance.now()/1000;
+    const dt = Math.min(0.05, now - last);
+    last = now;
+
+    if(running){
+      drawScope(dt);
+      drawParticles(dt);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- Eventos ----------
+  ionSelect.addEventListener('change', () => {
+    resetPhys();
+    Vm = targetE + (Math.random()*2-1)*2.0;
+  });
+
+  outSlider.addEventListener('input', refreshTargetE);
+  inSlider.addEventListener('input', refreshTargetE);
+
+  resetBtn.addEventListener('click', () => resetPhys());
+
+  pauseBtn.addEventListener('click', () => {
+    running = !running;
+    pauseBtn.textContent = running ? 'Pausar' : 'Continuar';
+  });
+
+  // ---------- Init ----------
+  (function init(){
+    updateEquationLabel();
+    resetPhys();
+    Vm = targetE + (Math.random()*2-1)*4.0;
+
+    particles.length = 0;
+    updateParticleCounts(parseFloat(outSlider.value), parseFloat(inSlider.value));
+    refreshTargetE();
+
+    tick();
+  })();
+})();
+</script>
+</body>
+</html>
