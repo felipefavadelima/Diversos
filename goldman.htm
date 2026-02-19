@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Goldman (GHK) — Potencial de Membrana</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --panel: rgba(255,255,255,.06);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.65);
+      --accent: #74d0ff;
+      --shadow: 0 14px 50px rgba(0,0,0,.55);
+      --radius: 18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+
+      /* cores dos íons */
+      --na: #74d0ff;   /* azul */
+      --k:  #a1ffce;   /* verde */
+      --cl: #ffd27d;   /* âmbar */
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(900px 600px at 20% 20%, rgba(116,208,255,.12), transparent 60%),
+        radial-gradient(900px 700px at 80% 20%, rgba(161,255,206,.10), transparent 55%),
+        radial-gradient(1200px 900px at 50% 120%, rgba(255,210,125,.08), transparent 55%),
+        linear-gradient(180deg, #070a14, #0b1020 35%, #070a14);
+      overflow-x:hidden;
+    }
+
+    .wrap{ max-width: 1240px; margin:0 auto; padding: 18px 16px 26px; }
+
+    header{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .brand{ display:flex; flex-direction:column; gap:6px; }
+    .title{ font-size: 20px; font-weight: 800; letter-spacing:.2px; }
+    .subtitle{ font-size: 13px; color: var(--muted); }
+
+    .pill{
+      display:inline-flex; align-items:center; gap:10px;
+      padding: 10px 12px; border-radius: 999px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: 0 10px 28px rgba(0,0,0,.22);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .pill .label{ color: var(--muted); font-size: 12px; }
+    .pill .value{
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(116,208,255,.12);
+      border: 1px solid rgba(116,208,255,.20);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 440px 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 1060px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .card::before{
+      content:"";
+      position:absolute; inset:-2px;
+      background:
+        radial-gradient(700px 240px at 15% 0%, rgba(116,208,255,.16), transparent 55%),
+        radial-gradient(700px 240px at 85% 0%, rgba(161,255,206,.10), transparent 55%);
+      pointer-events:none;
+      opacity:.9;
+    }
+    .card > *{ position:relative; z-index:1; }
+
+    .controls{ padding: 14px; }
+    .meter{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding: 10px 12px;
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      margin-top: 10px;
+    }
+    .meter .big{
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 800;
+      color: #e8fbff;
+      text-shadow: 0 0 18px rgba(116,208,255,.22);
+      white-space:nowrap;
+    }
+    .meter .small{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.25;
+      text-align:right;
+      white-space:nowrap;
+    }
+
+    .sectionTitle{
+      margin-top: 12px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,.72);
+      letter-spacing: .14px;
+    }
+
+    .ionBlock{
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.10);
+      margin-top: 10px;
+    }
+    .ionHeader{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-bottom: 8px;
+    }
+    .ionName{
+      display:flex; align-items:center; gap:10px;
+      font-weight: 800;
+      letter-spacing:.2px;
+    }
+    .swatch{
+      width:10px; height:10px; border-radius:999px;
+      box-shadow: 0 0 18px rgba(255,255,255,.18);
+    }
+    .ionHint{
+      font-family: var(--mono);
+      font-size: 11px;
+      color: rgba(255,255,255,.55);
+      white-space:nowrap;
+    }
+
+    .twoCols{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .sliderBlock{
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(0,0,0,.14);
+      border: 1px solid rgba(255,255,255,.09);
+    }
+    .sliderTop{
+      display:flex; align-items:baseline; justify-content:space-between; gap: 10px;
+      margin-bottom: 6px;
+    }
+    .sliderTop .name{ font-size: 11px; color: var(--muted); }
+    .sliderTop .val{
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      white-space:nowrap;
+    }
+    input[type="range"]{ width:100%; accent-color: var(--accent); }
+
+    .permRow{
+      margin-top: 10px;
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 520px){
+      .permRow{ grid-template-columns: 1fr; }
+      .twoCols{ grid-template-columns: 1fr; }
+    }
+
+    .btnRow{ display:flex; gap:10px; margin-top: 12px; }
+    button{
+      flex:1;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 800;
+      cursor:pointer;
+      transition: transform .05s ease, background .2s ease, border-color .2s ease;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.18) inset;
+    }
+    button:hover{ background: rgba(255,255,255,.09); border-color: rgba(116,208,255,.22); }
+    button:active{ transform: translateY(1px); }
+    button.primary{ background: rgba(116,208,255,.12); border-color: rgba(116,208,255,.25); }
+    button.primary:hover{ background: rgba(116,208,255,.16); }
+
+    .viz{
+      display:grid;
+      grid-template-rows: 320px 1fr;
+      gap: 14px;
+      padding: 14px;
+    }
+    .canvasCard{
+      background: rgba(0,0,0,.22);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      overflow:hidden;
+      position:relative;
+    }
+    .badge{
+      position:absolute; top:10px; left:10px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: rgba(255,255,255,.86);
+      background: rgba(0,0,0,.32);
+      border: 1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .badge.right{
+      left:auto; right:10px;
+      font-family: var(--mono);
+      color: #e8fbff;
+      border-color: rgba(116,208,255,.18);
+      box-shadow: 0 0 24px rgba(116,208,255,.12);
+    }
+    canvas{ width:100%; height:100%; display:block; }
+
+    .legend{
+      margin-top: 10px;
+      display:flex; gap: 10px; flex-wrap:wrap;
+      align-items:center; justify-content:space-between;
+      padding: 0 2px 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .legend .hint{ display:flex; align-items:center; gap:8px; }
+    .dot{ width:10px; height:10px; border-radius:999px; }
+    .dot.na{ background: var(--na); box-shadow: 0 0 18px rgba(116,208,255,.35); }
+    .dot.k{  background: var(--k);  box-shadow: 0 0 18px rgba(161,255,206,.28); }
+    .dot.cl{ background: var(--cl); box-shadow: 0 0 18px rgba(255,210,125,.22); }
+    .dot.mem{ background: rgba(255,210,125,.9); box-shadow: 0 0 18px rgba(255,210,125,.22); }
+
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="title">Goldman–Hodgkin–Katz (37 °C)</div>
+      <div class="subtitle">Na⁺ • K⁺ • Cl⁻ • concentrações + permeabilidades</div>
+    </div>
+    <div class="pill" aria-label="Temperatura e escala">
+      <div class="label">T</div>
+      <div class="value">37 °C</div>
+      <div class="label">Vm</div>
+      <div class="value">±100 mV</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- CONTROLES -->
+    <section class="card">
+      <div class="controls">
+        <div class="meter">
+          <div class="big" id="vmValue">— mV</div>
+          <div class="small">
+            Potencial GHK<br/>
+            <span style="font-family:var(--mono); font-size:11px; opacity:.85;">ln( (PK[K]o+PNa[Na]o+PCl[Cl]i) / (PK[K]i+PNa[Na]i+PCl[Cl]o) )</span>
+          </div>
+        </div>
+
+        <div class="sectionTitle">Concentrações (1–200 mM)</div>
+
+        <!-- Na -->
+        <div class="ionBlock">
+          <div class="ionHeader">
+            <div class="ionName"><span class="swatch" style="background:var(--na)"></span>Na⁺</div>
+            <div class="ionHint" id="naHint">out 145 | in 12</div>
+          </div>
+          <div class="twoCols">
+            <div class="sliderBlock">
+              <div class="sliderTop"><div class="name">out</div><div class="val" id="naOutVal">145 mM</div></div>
+              <input id="naOut" type="range" min="1" max="200" step="1" value="145">
+            </div>
+            <div class="sliderBlock">
+              <div class="sliderTop"><div class="name">in</div><div class="val" id="naInVal">12 mM</div></div>
+              <input id="naIn" type="range" min="1" max="200" step="1" value="12">
+            </div>
+          </div>
+        </div>
+
+        <!-- K -->
+        <div class="ionBlock">
+          <div class="ionHeader">
+            <div class="ionName"><span class="swatch" style="background:var(--k)"></span>K⁺</div>
+            <div class="ionHint" id="kHint">out 4 | in 140</div>
+          </div>
+          <div class="twoCols">
+            <div class="sliderBlock">
+              <div class="sliderTop"><div class="name">out</div><div class="val" id="kOutVal">4 mM</div></div>
+              <input id="kOut" type="range" min="1" max="200" step="1" value="4">
+            </div>
+            <div class="sliderBlock">
+              <div class="sliderTop"><div class="name">in</div><div class="val" id="kInVal">140 mM</div></div>
+              <input id="kIn" type="range" min="1" max="200" step="1" value="140">
+            </div>
+          </div>
+        </div>
+
+        <!-- Cl -->
+        <div class="ionBlock">
+          <div class="ionHeader">
+            <div class="ionName"><span class="swatch" style="background:var(--cl)"></span>Cl⁻</div>
+            <div class="ionHint" id="clHint">out 110 | in 10</div>
+          </div>
+          <div class="twoCols">
+            <div class="sliderBlock">
+              <div class="sliderTop"><div class="name">out</div><div class="val" id="clOutVal">110 mM</div></div>
+              <input id="clOut" type="range" min="1" max="200" step="1" value="110">
+            </div>
+            <div class="sliderBlock">
+              <div class="sliderTop"><div class="name">in</div><div class="val" id="clInVal">10 mM</div></div>
+              <input id="clIn" type="range" min="1" max="200" step="1" value="10">
+            </div>
+          </div>
+        </div>
+
+        <div class="sectionTitle">Permeabilidades relativas</div>
+        <div class="permRow">
+          <div class="sliderBlock">
+            <div class="sliderTop"><div class="name">PNa</div><div class="val" id="pNaVal">0.04</div></div>
+            <input id="pNa" type="range" min="0" max="1" step="0.01" value="0.04">
+          </div>
+          <div class="sliderBlock">
+            <div class="sliderTop"><div class="name">PK</div><div class="val" id="pKVal">1.00</div></div>
+            <input id="pK" type="range" min="0" max="1" step="0.01" value="1.00">
+          </div>
+          <div class="sliderBlock">
+            <div class="sliderTop"><div class="name">PCl</div><div class="val" id="pClVal">0.45</div></div>
+            <input id="pCl" type="range" min="0" max="1" step="0.01" value="0.45">
+          </div>
+        </div>
+
+        <div class="btnRow">
+          <button class="primary" id="resetBtn">Reset “neurônio”</button>
+          <button id="pauseBtn">Pausar</button>
+        </div>
+
+        <div class="legend">
+          <div class="hint"><span class="dot na"></span>Na⁺</div>
+          <div class="hint"><span class="dot k"></span>K⁺</div>
+          <div class="hint"><span class="dot cl"></span>Cl⁻</div>
+          <div class="hint"><span class="dot mem"></span>membrana</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VISUAL -->
+    <section class="card">
+      <div class="viz">
+        <div class="canvasCard">
+          <div class="badge">Osciloscópio (Vm)</div>
+          <div class="badge right" id="scopeBadge">—</div>
+          <canvas id="scope"></canvas>
+        </div>
+
+        <div class="canvasCard">
+          <div class="badge">Browniano (out | membrana | in)</div>
+          <div class="badge right" id="particleBadge">—</div>
+          <canvas id="particles"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Constantes ----------
+  const R = 8.314462618;       // J/(mol*K)
+  const F = 96485.33212;       // C/mol
+  const T = 310.15;            // K (37°C)
+
+  // Osciloscópio fixo
+  const VMIN = -100;
+  const VMAX = +100;
+
+  // UI refs
+  const vmValue = document.getElementById('vmValue');
+  const scopeBadge = document.getElementById('scopeBadge');
+  const particleBadge = document.getElementById('particleBadge');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const scopeCanvas = document.getElementById('scope');
+  const partCanvas  = document.getElementById('particles');
+
+  const naOut = document.getElementById('naOut');
+  const naIn  = document.getElementById('naIn');
+  const kOut  = document.getElementById('kOut');
+  const kIn   = document.getElementById('kIn');
+  const clOut = document.getElementById('clOut');
+  const clIn  = document.getElementById('clIn');
+
+  const pNa = document.getElementById('pNa');
+  const pK  = document.getElementById('pK');
+  const pCl = document.getElementById('pCl');
+
+  const naOutVal = document.getElementById('naOutVal');
+  const naInVal  = document.getElementById('naInVal');
+  const kOutVal  = document.getElementById('kOutVal');
+  const kInVal   = document.getElementById('kInVal');
+  const clOutVal = document.getElementById('clOutVal');
+  const clInVal  = document.getElementById('clInVal');
+
+  const pNaVal = document.getElementById('pNaVal');
+  const pKVal  = document.getElementById('pKVal');
+  const pClVal = document.getElementById('pClVal');
+
+  const naHint = document.getElementById('naHint');
+  const kHint  = document.getElementById('kHint');
+  const clHint = document.getElementById('clHint');
+
+  let running = true;
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  // ---------- GHK ----------
+  // Forma clássica monovalente:
+  // Vm = (RT/F) ln( (PK[K]o + PNa[Na]o + PCl[Cl]i) / (PK[K]i + PNa[Na]i + PCl[Cl]o) )
+  // Observação: Cl- entra invertido (anions).
+  function ghk_mV({Na_o,Na_i,K_o,K_i,Cl_o,Cl_i,PNa,PK,PCl}){
+    const num = (PK*K_o) + (PNa*Na_o) + (PCl*Cl_i);
+    const den = (PK*K_i) + (PNa*Na_i) + (PCl*Cl_o);
+    const safeNum = Math.max(num, 1e-9);
+    const safeDen = Math.max(den, 1e-9);
+    return (R*T/F) * Math.log(safeNum/safeDen) * 1000;
+  }
+
+  // ---------- Estado do “instrumento” ----------
+  let Vm = 0;
+  let targetVm = 0;
+  const tau = 0.35;      // s
+  const noiseAmp = 0.12; // mV
+
+  // buffer do osciloscópio
+  const secondsOnScreen = 6.5;
+  let scopeData = [];
+  let t0 = performance.now()/1000;
+
+  // ---------- Partículas (3 tipos) ----------
+  // Para manter leve, usamos uma densidade moderada.
+  const particles = [];
+  const kParticlesPermM = 1.2; // 200 mM -> 240 partículas por íon/compartimento (visual ok)
+
+  const ION = {
+    Na: { hue: 200 }, // azul
+    K:  { hue: 140 }, // verde
+    Cl: { hue:  38 }  // âmbar
+  };
+
+  function fitCanvasToCSS(canvas){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(10, Math.floor(rect.width * dpr));
+    const h = Math.max(10, Math.floor(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h){
+      canvas.width = w; canvas.height = h;
+    }
+    return {w,h,dpr};
+  }
+
+  // ---------- UI refresh + targetVm ----------
+  function readState(){
+    const s = {
+      Na_o: +naOut.value, Na_i: +naIn.value,
+      K_o: +kOut.value,   K_i:  +kIn.value,
+      Cl_o:+clOut.value,  Cl_i: +clIn.value,
+      PNa: +pNa.value,    PK:   +pK.value,   PCl: +pCl.value
+    };
+    return s;
+  }
+
+  function refresh(){
+    const s = readState();
+    targetVm = ghk_mV(s);
+
+    // valores
+    naOutVal.textContent = `${s.Na_o.toFixed(0)} mM`;
+    naInVal.textContent  = `${s.Na_i.toFixed(0)} mM`;
+    kOutVal.textContent  = `${s.K_o.toFixed(0)} mM`;
+    kInVal.textContent   = `${s.K_i.toFixed(0)} mM`;
+    clOutVal.textContent = `${s.Cl_o.toFixed(0)} mM`;
+    clInVal.textContent  = `${s.Cl_i.toFixed(0)} mM`;
+
+    pNaVal.textContent = `${s.PNa.toFixed(2)}`;
+    pKVal.textContent  = `${s.PK.toFixed(2)}`;
+    pClVal.textContent = `${s.PCl.toFixed(2)}`;
+
+    naHint.textContent = `out ${s.Na_o.toFixed(0)} | in ${s.Na_i.toFixed(0)}`;
+    kHint.textContent  = `out ${s.K_o.toFixed(0)} | in ${s.K_i.toFixed(0)}`;
+    clHint.textContent = `out ${s.Cl_o.toFixed(0)} | in ${s.Cl_i.toFixed(0)}`;
+
+    const sign = targetVm >= 0 ? "+" : "−";
+    vmValue.textContent = `${sign}${Math.abs(targetVm).toFixed(1)} mV`;
+    scopeBadge.textContent = `GHK ${sign}${Math.abs(targetVm).toFixed(1)} mV`;
+
+    // partículas
+    updateParticlesToMatch(s);
+    particleBadge.textContent = `PNa ${s.PNa.toFixed(2)} | PK ${s.PK.toFixed(2)} | PCl ${s.PCl.toFixed(2)}`;
+  }
+
+  // ---------- Osciloscópio ----------
+  function drawScope(dt){
+    const ctx = scopeCanvas.getContext('2d');
+    const {w,h,dpr} = fitCanvasToCSS(scopeCanvas);
+
+    // Vm tende ao alvo
+    const alpha = 1 - Math.exp(-dt / tau);
+    const noise = (Math.random()*2 - 1) * noiseAmp;
+    Vm = Vm + alpha*(targetVm - Vm) + noise;
+
+    // buffer
+    const now = performance.now()/1000;
+    const t = now - t0;
+    scopeData.push({t, v: Vm});
+    const tMin = t - secondsOnScreen;
+    while (scopeData.length && scopeData[0].t < tMin) scopeData.shift();
+
+    // fundo
+    ctx.clearRect(0,0,w,h);
+    const g = ctx.createRadialGradient(w*0.25, h*0.25, 10, w*0.25, h*0.25, Math.max(w,h)*0.9);
+    g.addColorStop(0, 'rgba(116,208,255,0.10)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,h);
+
+    // grade
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    const stepX = w/10, stepY = h/6;
+    for(let i=1;i<10;i++){
+      ctx.beginPath(); ctx.moveTo(i*stepX, 0); ctx.lineTo(i*stepX, h); ctx.stroke();
+    }
+    for(let j=1;j<6;j++){
+      ctx.beginPath(); ctx.moveTo(0, j*stepY); ctx.lineTo(w, j*stepY); ctx.stroke();
+    }
+    ctx.restore();
+
+    function xOf(ti){
+      const frac = (ti - tMin) / secondsOnScreen;
+      return frac * w;
+    }
+    function yOf(v){
+      const vv = clamp(v, VMIN, VMAX);
+      const frac = (vv - VMIN) / (VMAX - VMIN);
+      return (1-frac) * h;
+    }
+
+    // linha do target (GHK)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,210,125,0.26)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6,6]);
+    const yT = yOf(targetVm);
+    ctx.beginPath(); ctx.moveTo(0, yT); ctx.lineTo(w, yT); ctx.stroke();
+    ctx.restore();
+
+    // traço
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(116,208,255,0.85)';
+    ctx.shadowColor = 'rgba(116,208,255,0.35)';
+    ctx.shadowBlur = 18;
+
+    ctx.beginPath();
+    for(let i=0;i<scopeData.length;i++){
+      const p = scopeData[i];
+      const x = xOf(p.t);
+      const y = yOf(p.v);
+      if(i===0) ctx.moveTo(x,y);
+      else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // leitura pequena
+    const sign = Vm >= 0 ? "+" : "−";
+    ctx.save();
+    ctx.scale(1/dpr, 1/dpr);
+    ctx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(`Vm ${sign}${Math.abs(Vm).toFixed(1)} mV`, 14, 44);
+    ctx.restore();
+  }
+
+  // ---------- Partículas: manter contagem por íon e compartimento ----------
+  function desiredCount(mM){
+    return Math.round(mM * kParticlesPermM);
+  }
+
+  function makeParticle(side, ionKey){
+    const rect = partCanvas.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
+    const membraneX = W/2;
+    const pad = 16;
+
+    const xMin = side==='out' ? pad : membraneX + pad;
+    const xMax = side==='out' ? membraneX - pad : W - pad;
+    const x = xMin + Math.random()*(xMax-xMin);
+    const y = pad + Math.random()*(H-2*pad);
+
+    const r = 1.2 + Math.random()*1.7;
+    const vx = (Math.random()*2-1) * 18;
+    const vy = (Math.random()*2-1) * 18;
+
+    return { side, ion: ionKey, x, y, vx, vy, r, hueJitter:(Math.random()*12-6) };
+  }
+
+  function updateParticlesToMatch(s){
+    const targets = {
+      out: { Na: desiredCount(s.Na_o), K: desiredCount(s.K_o), Cl: desiredCount(s.Cl_o) },
+      in:  { Na: desiredCount(s.Na_i), K: desiredCount(s.K_i), Cl: desiredCount(s.Cl_i) }
+    };
+
+    function count(side, ion){
+      let c=0;
+      for(const p of particles) if(p.side===side && p.ion===ion) c++;
+      return c;
+    }
+
+    function add(side, ion, n){
+      for(let i=0;i<n;i++) particles.push(makeParticle(side, ion));
+    }
+
+    function remove(side, ion, n){
+      let removed=0;
+      for(let i=particles.length-1;i>=0 && removed<n;i--){
+        const p = particles[i];
+        if(p.side===side && p.ion===ion){
+          particles.splice(i,1);
+          removed++;
+        }
+      }
+    }
+
+    for(const side of ["out","in"]){
+      for(const ion of ["Na","K","Cl"]){
+        const now = count(side, ion);
+        const tgt = targets[side][ion];
+        const d = tgt - now;
+        if(d>0) add(side, ion, d);
+        else if(d<0) remove(side, ion, -d);
+      }
+    }
+  }
+
+  function drawParticles(dt){
+    const ctx = partCanvas.getContext('2d');
+    const {w,h,dpr} = fitCanvasToCSS(partCanvas);
+    const membraneX = w/2;
+
+    // fundo
+    ctx.clearRect(0,0,w,h);
+    const bg = ctx.createLinearGradient(0,0,w,0);
+    bg.addColorStop(0,'rgba(116,208,255,0.05)');
+    bg.addColorStop(0.48,'rgba(255,255,255,0.02)');
+    bg.addColorStop(0.52,'rgba(255,255,255,0.02)');
+    bg.addColorStop(1,'rgba(161,255,206,0.05)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,w,h);
+
+    // membrana
+    const memW = Math.max(6, Math.floor(10*dpr));
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,210,125,0.10)';
+    ctx.fillRect(membraneX - memW*1.8, 0, memW*3.6, h);
+    ctx.fillStyle = 'rgba(255,210,125,0.26)';
+    ctx.fillRect(membraneX - memW/2, 0, memW, h);
+
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    const pores = 22;
+    for(let i=0;i<pores;i++){
+      const py = (i+0.5)*h/pores;
+      const pr = (2.0 + (i%3))*dpr;
+      ctx.beginPath();
+      ctx.ellipse(membraneX, py, pr, pr*0.55, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // dinâmica browniana
+    const pad = 16*dpr;
+    const maxSpeed = 95*dpr;
+    const brown = 130*dpr;
+
+    for(const p of particles){
+      p.vx += (Math.random()*2-1) * brown * dt;
+      p.vy += (Math.random()*2-1) * brown * dt;
+
+      const sp = Math.hypot(p.vx, p.vy);
+      if(sp > maxSpeed){
+        p.vx = p.vx/sp * maxSpeed;
+        p.vy = p.vy/sp * maxSpeed;
+      }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      const leftMin = pad;
+      const leftMax = membraneX - pad;
+      const rightMin= membraneX + pad;
+      const rightMax= w - pad;
+
+      const xMin = (p.side==='out') ? leftMin : rightMin;
+      const xMax = (p.side==='out') ? leftMax : rightMax;
+
+      if(p.x < xMin){ p.x = xMin; p.vx *= -0.85; }
+      if(p.x > xMax){ p.x = xMax; p.vx *= -0.85; }
+      if(p.y < pad){ p.y = pad; p.vy *= -0.85; }
+      if(p.y > h-pad){ p.y = h-pad; p.vy *= -0.85; }
+
+      const hueBase = ION[p.ion].hue;
+      const hue = hueBase + p.hueJitter;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.fillStyle = `hsla(${hue}, 90%, 70%, 0.85)`;
+      ctx.shadowColor = `hsla(${hue}, 90%, 70%, 0.30)`;
+      ctx.shadowBlur = 12*dpr;
+      ctx.arc(p.x, p.y, p.r*dpr, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // rótulos mínimos
+    ctx.save();
+    ctx.scale(1/dpr, 1/dpr);
+    ctx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.fillText('out', 14, 24);
+    ctx.fillText('in', partCanvas.getBoundingClientRect().width - 26, 24);
+    ctx.restore();
+  }
+
+  // ---------- Loop ----------
+  let last = performance.now()/1000;
+  function tick(){
+    const now = performance.now()/1000;
+    const dt = Math.min(0.05, now - last);
+    last = now;
+
+    if(running){
+      drawScope(dt);
+      drawParticles(dt);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- Eventos ----------
+  function hookAll(){
+    const all = [naOut,naIn,kOut,kIn,clOut,clIn,pNa,pK,pCl];
+    for(const el of all){
+      el.addEventListener('input', refresh);
+    }
+  }
+
+  pauseBtn.addEventListener('click', () => {
+    running = !running;
+    pauseBtn.textContent = running ? 'Pausar' : 'Continuar';
+  });
+
+  resetBtn.addEventListener('click', () => {
+    // “neurônio” típico: PK alto, PNa baixo, PCl moderado
+    naOut.value = 145; naIn.value = 12;
+    kOut.value  = 4;   kIn.value  = 140;
+    clOut.value = 110; clIn.value = 10;
+    pK.value = 1.00; pNa.value = 0.04; pCl.value = 0.45;
+
+    // reinicializar Vm perto do novo alvo
+    refresh();
+    Vm = targetVm + (Math.random()*2-1)*4.0;
+  });
+
+  // ---------- Init ----------
+  (function init(){
+    hookAll();
+    refresh();
+    Vm = targetVm + (Math.random()*2-1)*4.0;
+
+    // iniciar partículas coerentes
+    particles.length = 0;
+    updateParticlesToMatch(readState());
+
+    tick();
+  })();
+})();
+</script>
+</body>
+</html>
