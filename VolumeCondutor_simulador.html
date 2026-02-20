@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Simulador de Dipolo com Eletrodos (Osciloscópio ±5)</title>
+<style>
+  body {
+    background-color: #1a1a1a;
+    color: #f2f2f2;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    text-align: center;
+  }
+  #controls {
+    margin: 12px 0 6px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .control-group {
+    background: #2a2a2a;
+    padding: 10px 14px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  }
+  .control-group label { font-size: 0.95rem; opacity: 0.9; }
+  .control-group input[type="range"] { width: 220px; }
+
+  canvas {
+    border: 2px solid #444;
+    background-color: #0b0b0b;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  }
+
+  #fieldCanvas { margin-top: 10px; }
+  #oscCanvas {
+    display: block;
+    margin: 20px auto;
+    background-color: #000;
+  }
+
+  .readout { font-size: 1.05rem; margin-top: 8px; opacity: 0.95; }
+  h1 { margin: 12px 0 6px; }
+  p  { margin: 0 0 10px; opacity: 0.85; }
+  .small { font-size: 0.85rem; opacity: 0.8; }
+</style>
+</head>
+<body>
+
+<h1>Simulador de Dipolo Elétrico</h1>
+<p>Gire o dipolo e mova os eletrodos livremente para ver a diferença de potencial no osciloscópio (±5). Ajuste também a intensidade e a condutividade do meio.</p>
+
+<div id="controls">
+  <div class="control-group">
+    <label for="angleSlider">Ângulo do Dipolo (°)</label><br>
+    <input type="range" id="angleSlider" min="0" max="360" value="0">
+  </div>
+
+  <div class="control-group">
+    <label for="intensitySlider">Intensidade</label><br>
+    <input type="range" id="intensitySlider" min="1" max="20" value="9" step="0.5">
+    <div class="small" style="margin-top:4px;">
+      <span id="intensityValue">9.0</span>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label for="sigmaSlider">Condutividade</label><br>
+    <input type="range" id="sigmaSlider" min="0.10" max="20" value="1.50" step="0.05">
+    <div class="small" style="margin-top:4px;">
+      <span id="sigmaValue">1.50</span>
+    </div>
+  </div>
+</div>
+
+<!-- Campo de potencial -->
+<canvas id="fieldCanvas" width="900" height="450"></canvas>
+<div class="readout" id="reading"></div>
+
+<!-- Osciloscópio -->
+<canvas id="oscCanvas" width="900" height="240"></canvas>
+
+<script>
+const fieldCanvas = document.getElementById('fieldCanvas');
+const fieldCtx    = fieldCanvas.getContext('2d');
+const oscCanvas   = document.getElementById('oscCanvas');
+const oscCtx      = oscCanvas.getContext('2d');
+
+const angleSlider     = document.getElementById('angleSlider');
+const intensitySlider = document.getElementById('intensitySlider');
+const intensityValue  = document.getElementById('intensityValue');
+
+const sigmaSlider = document.getElementById('sigmaSlider');
+const sigmaValue  = document.getElementById('sigmaValue');
+
+const readingDiv  = document.getElementById('reading');
+
+const W = fieldCanvas.width, H = fieldCanvas.height;
+const cx = W/2, cy = H/2;
+
+let V0 = parseFloat(intensitySlider.value);
+
+function mSpercm_to_Sperm(mScm) { return mScm * 0.1; }
+
+const sigma_ref_mScm = parseFloat(sigmaSlider.value);
+const sigma_ref_Spm  = mSpercm_to_Sperm(sigma_ref_mScm);
+
+const COLOR_FS_VOLTS = parseFloat(intensitySlider.max);
+const decayLength = 230;
+
+let electrodes = [
+  {x: 8,    y: H/2, color: 'red',  label: '+'},
+  {x: W-8,  y: H/2, color: 'blue', label: '−'}
+];
+let dragging = null;
+
+const yFullScaleVolts = 5;
+const samplesOnScreen = 600;
+let oscData = [];
+let lastDeltaV = 0;
+
+intensitySlider.addEventListener('input', () => {
+  V0 = parseFloat(intensitySlider.value);
+  intensityValue.textContent = V0.toFixed(1);
+});
+
+sigmaSlider.addEventListener('input', () => {
+  sigmaValue.textContent = parseFloat(sigmaSlider.value).toFixed(2);
+});
+
+function potentialFarField(x, y, angleDeg) {
+  const dx = x - cx, dy = y - cy;
+  const r   = Math.hypot(dx, dy) + 1e-3;
+  const phi = Math.atan2(dy, dx);
+  const a   = angleDeg * Math.PI/180;
+
+  const angular = Math.cos(phi - a);
+  const radial  = Math.exp(-r / decayLength);
+
+  const sigma_mScm = parseFloat(sigmaSlider.value);
+  const sigma_Spm  = mSpercm_to_Sperm(sigma_mScm);
+
+  const condGain = sigma_ref_Spm / sigma_Spm;
+
+  return (V0 * condGain) * angular * radial;
+}
+
+function redBlueColorFromV(V, Vmin, Vmax) {
+  const VabsMax = Math.max(Math.abs(Vmin), Math.abs(Vmax), 1e-9);
+  let x = V / VabsMax;
+  x = Math.max(-1, Math.min(1, x));
+  const t = Math.abs(x);
+  const whiteMix = 0.25 * (1 - t);
+  let r=0,g=0,b=0;
+  if (x >= 0) { r = 255*t; b = 0; }
+  else        { r = 0;     b = 255*t; }
+  r = Math.round(r + 255*whiteMix);
+  g = Math.round(255*whiteMix);
+  b = Math.round(b + 255*whiteMix);
+  return [r,g,b,255];
+}
+
+function drawField(angleDeg) {
+  const img = fieldCtx.createImageData(W, H);
+  const buf = img.data;
+
+  const Vmin = -COLOR_FS_VOLTS, Vmax = COLOR_FS_VOLTS;
+
+  for (let y=0; y<H; y++) {
+    for (let x=0; x<W; x++) {
+      const V = potentialFarField(x, y, angleDeg);
+      const [r,g,b,a] = redBlueColorFromV(V, Vmin, Vmax);
+      const i = (y*W + x)*4;
+      buf[i]=r; buf[i+1]=g; buf[i+2]=b; buf[i+3]=a;
+    }
+  }
+  fieldCtx.putImageData(img, 0, 0);
+
+  fieldCtx.beginPath();
+  fieldCtx.arc(cx, cy, 5, 0, 2*Math.PI);
+  fieldCtx.fillStyle = "white";
+  fieldCtx.fill();
+
+  electrodes.forEach(e => {
+    fieldCtx.beginPath();
+    fieldCtx.arc(e.x, e.y, 9, 0, 2*Math.PI);
+    fieldCtx.fillStyle = e.color;
+    fieldCtx.fill();
+    fieldCtx.fillStyle = "white";
+    fieldCtx.font = "bold 13px Arial";
+    fieldCtx.textAlign = "center";
+    fieldCtx.textBaseline = "middle";
+    fieldCtx.fillText(e.label, e.x, e.y);
+  });
+}
+
+function measureDeltaV(angleDeg) {
+  const Vp = potentialFarField(electrodes[0].x, electrodes[0].y, angleDeg);
+  const Vm = potentialFarField(electrodes[1].x, electrodes[1].y, angleDeg);
+  return Vp - Vm;
+}
+
+function drawOscilloscope() {
+  const Wc = oscCanvas.width, Hc = oscCanvas.height;
+  const midY = Hc/2;
+
+  oscCtx.fillStyle = "#000";
+  oscCtx.fillRect(0,0,Wc,Hc);
+
+  oscCtx.strokeStyle = "#222";
+  oscCtx.lineWidth = 1;
+  oscCtx.beginPath();
+  for (let x=0; x<=Wc; x+=75) { oscCtx.moveTo(x,0); oscCtx.lineTo(x,Hc); }
+  for (let y=0; y<=Hc; y+=60) { oscCtx.moveTo(0,y); oscCtx.lineTo(Wc,y); }
+  oscCtx.stroke();
+
+  const vToY = v => midY - (v / yFullScaleVolts) * (Hc/2);
+  oscCtx.strokeStyle = "#444";
+  oscCtx.beginPath();
+  oscCtx.moveTo(0, vToY( 5));
+  oscCtx.lineTo(Wc, vToY( 5));
+  oscCtx.moveTo(0, vToY( 0));
+  oscCtx.lineTo(Wc, vToY( 0));
+  oscCtx.moveTo(0, vToY(-5));
+  oscCtx.lineTo(Wc, vToY(-5));
+  oscCtx.stroke();
+
+  oscCtx.fillStyle = "#ccc";
+  oscCtx.font = "12px Arial";
+  oscCtx.fillText("+5", 8, vToY(5) - 6);
+  oscCtx.fillText("0",   8, vToY(0) - 6);
+  oscCtx.fillText("−5",  8, vToY(-5) - 6);
+
+  oscCtx.strokeStyle = "lime";
+  oscCtx.lineWidth = 2;
+  oscCtx.beginPath();
+  for (let i=0; i<oscData.length; i++) {
+    const x = (i / (samplesOnScreen-1)) * Wc;
+    const y = vToY(oscData[i]);
+    if (i===0) oscCtx.moveTo(x,y); else oscCtx.lineTo(x,y);
+  }
+  oscCtx.stroke();
+
+  oscCtx.fillStyle = "#ddd";
+  oscCtx.font = "14px Arial";
+  oscCtx.fillText(`Osciloscópio — Δ: ${(lastDeltaV).toFixed(3)}`, 12, 20);
+}
+
+function clampToCanvas(e) {
+  const m = 1;
+  e.x = Math.min(Math.max(e.x, m), W - m);
+  e.y = Math.min(Math.max(e.y, m), H - m);
+}
+
+fieldCanvas.addEventListener('mousedown', (ev) => {
+  const r = fieldCanvas.getBoundingClientRect();
+  const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  electrodes.forEach((e, idx) => {
+    if (Math.hypot(mx - e.x, my - e.y) <= 12) dragging = idx;
+  });
+});
+
+fieldCanvas.addEventListener('mousemove', (ev) => {
+  if (dragging === null) return;
+  const r = fieldCanvas.getBoundingClientRect();
+  electrodes[dragging].x = ev.clientX - r.left;
+  electrodes[dragging].y = ev.clientY - r.top;
+  clampToCanvas(electrodes[dragging]);
+});
+
+["mouseup","mouseleave"].forEach(evt =>
+  fieldCanvas.addEventListener(evt, () => dragging = null)
+);
+
+function tick() {
+  const ang = parseFloat(angleSlider.value);
+  drawField(ang);
+  const dV = measureDeltaV(ang);
+  lastDeltaV = dV;
+  oscData.push(dV);
+  if (oscData.length > samplesOnScreen) oscData.shift();
+  drawOscilloscope();
+  const sigma_mScm = parseFloat(sigmaSlider.value);
+  readingDiv.innerHTML = `Δ instantâneo: <strong>${(dV).toFixed(3)}</strong> &nbsp;|&nbsp; σ = ${sigma_mScm.toFixed(2)}`;
+  requestAnimationFrame(tick);
+}
+
+intensityValue.textContent = V0.toFixed(1);
+sigmaValue.textContent = parseFloat(sigmaSlider.value).toFixed(2);
+tick();
+</script>
+
+</body>
+</html>
