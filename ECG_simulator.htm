@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simulador de ECG (I, II, III + Vetor Cardíaco)</title>
+  <style>
+    :root{
+      --bg0:#070A12; --bg1:#0B1024;
+      --accent:#46f3ff; --accent2:#b7ff5a;
+      --warn:#ffd36a;
+      --text:#e9f1ff; --muted:#9db4ffcc;
+      --shadow: 0 18px 55px rgba(0,0,0,.55);
+      --radius: 18px;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; min-height:100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 15% 20%, #1d2b73 0%, transparent 55%),
+        radial-gradient(1000px 700px at 80% 30%, #0e5cad 0%, transparent 60%),
+        radial-gradient(900px 600px at 50% 95%, #1c0f42 0%, transparent 55%),
+        linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 100%);
+      overflow-x:hidden;
+    }
+    .wrap{ max-width:1250px; margin:0 auto; padding:22px; }
+    header{ display:flex; gap:16px; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .title{ display:flex; flex-direction:column; gap:4px; }
+    h1{ font-size:20px; margin:0; letter-spacing:.4px; display:flex; align-items:center; gap:10px; }
+    .pill{
+      font-size:12px; padding:4px 10px; border-radius:999px;
+      background: linear-gradient(90deg, #1b2a62, #123a72);
+      border:1px solid #2b4ca1; color:var(--muted);
+    }
+    .subtitle{ font-size:12.5px; color: var(--muted); max-width: 100ch; line-height:1.35; }
+    .grid{ display:grid; grid-template-columns: 1.05fr 1fr; gap:16px; }
+    .card{
+      background: linear-gradient(180deg, rgba(18,29,64,.85), rgba(12,17,38,.78));
+      border: 1px solid rgba(107,151,255,.18);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      position:relative; overflow:hidden;
+    }
+    .card::before{
+      content:""; position:absolute; inset:-120px;
+      background: radial-gradient(circle at 30% 20%, rgba(70,243,255,.12), transparent 55%),
+                  radial-gradient(circle at 70% 70%, rgba(183,255,90,.10), transparent 55%);
+      filter: blur(2px); pointer-events:none;
+    }
+    .cardHead{
+      position:relative; padding:14px 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom: 1px solid rgba(107,151,255,.14);
+    }
+    .cardHead .label{
+      font-weight:600; font-size:13.5px; letter-spacing:.3px; color:#dbe7ff;
+      display:flex; align-items:center; gap:10px;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, #fff, var(--accent));
+      box-shadow: 0 0 16px rgba(70,243,255,.45);
+    }
+    .status{ font-size:12px; color:var(--muted); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .meter{
+      width:140px; height:8px; background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.10); border-radius:999px; overflow:hidden;
+    }
+    .meter > i{
+      display:block; height:100%; width:0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 20px rgba(70,243,255,.35);
+    }
+    .cardBody{ position:relative; padding:14px 16px 16px; }
+    .controls{
+      display:grid; grid-template-columns: 1fr auto; gap:10px 12px; align-items:center;
+      padding:10px 12px; border-radius:14px;
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(107,151,255,.14);
+      margin-bottom:12px;
+    }
+    .controls .row{ grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .controls .k{ font-size:12px; color:var(--muted); letter-spacing:.25px; }
+    .controls .v{ font-variant-numeric: tabular-nums; font-weight:700; font-size:13px; color:#f0f6ff; }
+    input[type="range"]{ width:100%; accent-color: var(--accent); cursor:pointer; }
+    select{
+      background: rgba(20,28,60,.55);
+      color: var(--text);
+      border:1px solid rgba(107,151,255,.20);
+      border-radius: 12px;
+      padding: 8px 10px;
+      font-size:12px;
+      outline:none;
+    }
+    .btns{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+    button{
+      appearance:none; border:1px solid rgba(107,151,255,.20);
+      background: rgba(20,28,60,.55);
+      color: var(--text); border-radius:12px; padding:8px 10px;
+      font-size:12px; cursor:pointer;
+      transition: transform .06s ease, border-color .2s ease, background .2s ease;
+      user-select:none;
+    }
+    button:hover{ border-color: rgba(70,243,255,.35); background: rgba(20,40,90,.55); }
+    button:active{ transform: translateY(1px); }
+    button.primary{
+      border-color: rgba(70,243,255,.35);
+      background: linear-gradient(180deg, rgba(70,243,255,.18), rgba(70,243,255,.08));
+    }
+    .canvasWrap{
+      border-radius:16px; overflow:hidden;
+      border: 1px solid rgba(107,151,255,.18);
+      background: radial-gradient(1000px 600px at 25% 25%, rgba(70,243,255,.06), transparent 60%),
+                  radial-gradient(900px 500px at 75% 70%, rgba(183,255,90,.05), transparent 60%),
+                  rgba(0,0,0,.18);
+    }
+    canvas{ display:block; width:100%; height:auto; }
+
+    .hint{
+      font-size:12px; color:var(--muted); margin-top:10px; line-height:1.35;
+    }
+    .tag{
+      display:inline-block; padding:2px 8px; border-radius:999px;
+      border:1px solid rgba(107,151,255,.22);
+      background: rgba(0,0,0,.18);
+      margin-right:6px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      .meter{ width: 120px; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">
+      <h1>Simulador de ECG <span class="pill">I · II · III + Vetor Cardíaco</span></h1>
+      <div class="subtitle">Arraste os eletrodos no torso (vista frontal/coronal). Selecione a derivação e ajuste FC e velocidade para ver P–QRS–T e o vetor em câmera lenta.</div>
+    </div>
+    <div class="status">
+      <div class="meter"><i id="meterFill"></i></div>
+      <div><span class="k">FC:</span> <span class="v" id="hrTxt">60</span> bpm</div>
+      <div><span class="k">Velocidade:</span> <span class="v" id="spdTxt">1.00</span>x</div>
+      <div><span class="k">FPS:</span> <span class="v" id="fpsTxt">—</span></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- TORSO -->
+    <section class="card">
+      <div class="cardHead">
+        <div class="label"><span class="dot"></span> Torso (coronal) + Eletrodos</div>
+        <div class="status">
+          <span class="k">Derivação:</span> <span class="v" id="leadTxt">II</span>
+        </div>
+      </div>
+      <div class="cardBody">
+
+        <div class="controls">
+          <div class="row">
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <div>
+                <div class="k">Derivação</div>
+                <select id="leadSel">
+                  <option value="I">I (LA − RA)</option>
+                  <option value="II" selected>II (LL − RA)</option>
+                  <option value="III">III (LL − LA)</option>
+                </select>
+              </div>
+
+              <div>
+                <div class="k">Ganho</div>
+                <div class="v"><span id="gainTxt">1.00</span>x</div>
+              </div>
+
+              <div>
+                <div class="k">Fase</div>
+                <div class="v"><span id="phaseTxt">—</span></div>
+              </div>
+            </div>
+
+            <div class="btns">
+              <button id="btnReset" class="primary">Reset eletrodos</button>
+              <button id="btnNoise">Ruído: OFF</button>
+              <button id="btnHold">Hold: OFF</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <div style="flex:1; min-width:240px;">
+              <div class="k">Frequência cardíaca</div>
+              <div class="v"><span id="hrVal">60</span> bpm</div>
+              <input id="hr" type="range" min="35" max="160" value="60" />
+            </div>
+
+            <div style="flex:1; min-width:240px;">
+              <div class="k">Velocidade da simulação</div>
+              <div class="v"><span id="spdVal">1.00</span>x</div>
+              <input id="speed" type="range" min="0.10" max="3.00" step="0.01" value="1.00" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div style="flex:1; min-width:240px;">
+              <div class="k">Ganho do osciloscópio</div>
+              <input id="gain" type="range" min="0.25" max="10" step="0.05" value="1.00" />
+            </div>
+            <div class="k">Dica</div>
+            <div class="v"><span class="tag">arrastar</span> eletrodos · <span class="tag">0.1×</span> para câmera lenta</div>
+          </div>
+        </div>
+
+        <div class="canvasWrap">
+          <canvas id="torso" width="980" height="620"></canvas>
+        </div>
+
+        <div class="hint">
+          Eletrodos: <span class="tag">RA</span> <span class="tag">LA</span> <span class="tag">LL</span>.
+          A linha destacada mostra o eixo da derivação (− para +).
+        </div>
+      </div>
+    </section>
+
+    <!-- OSCILOSCOPIO -->
+    <section class="card">
+      <div class="cardHead">
+        <div class="label"><span class="dot"></span> Osciloscópio ECG</div>
+        <div class="status">
+          <span class="k">Amplitude:</span> <span class="v" id="ampTxt">—</span>
+          <span class="k">fs:</span> <span class="v" id="fsTxt">—</span> Hz
+        </div>
+      </div>
+      <div class="cardBody">
+
+        <div class="controls">
+          <div class="row">
+            <div>
+              <div class="k">Janela</div>
+              <div class="v"><span id="winTxt">—</span> s</div>
+            </div>
+            <div class="btns">
+              <button id="btnClear">Limpar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="canvasWrap">
+          <canvas id="scope" width="980" height="620"></canvas>
+        </div>
+
+        <div class="hint">
+          Para “ver o vetor”: reduza a velocidade (0.10×–0.30×). O traçado é a projeção do vetor elétrico no eixo da derivação.
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------------- helpers ----------------
+  const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+  const lerp  = (a,b,t)=>a+(b-a)*t;
+
+  function randn(){
+    let u=0,v=0;
+    while(u===0) u=Math.random();
+    while(v===0) v=Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  }
+
+  // One-pole HP for drift control
+  function makeOnePoleHP(fc, fs){
+    const rc = 1/(2*Math.PI*fc);
+    const dt = 1/fs;
+    const a = rc/(rc+dt);
+    return {a, x1:0, y1:0};
+  }
+  function onePoleHP(hp, x){
+    const y = hp.a*(hp.y1 + x - hp.x1);
+    hp.x1 = x; hp.y1 = y;
+    return y;
+  }
+
+  // ---------------- DOM ----------------
+  const elMeter  = document.getElementById("meterFill");
+  const elHrTxt  = document.getElementById("hrTxt");
+  const elSpdTxt = document.getElementById("spdTxt");
+  const elFpsTxt = document.getElementById("fpsTxt");
+
+  const elLeadSel = document.getElementById("leadSel");
+  const elLeadTxt = document.getElementById("leadTxt");
+
+  const elHr    = document.getElementById("hr");
+  const elHrVal = document.getElementById("hrVal");
+
+  const elSpeed = document.getElementById("speed");
+  const elSpdVal= document.getElementById("spdVal");
+
+  const elGain   = document.getElementById("gain");
+  const elGainTxt= document.getElementById("gainTxt");
+
+  const elPhaseTxt = document.getElementById("phaseTxt");
+  const elAmpTxt   = document.getElementById("ampTxt");
+  const elFsTxt    = document.getElementById("fsTxt");
+  const elWinTxt   = document.getElementById("winTxt");
+
+  const btnReset = document.getElementById("btnReset");
+  const btnNoise = document.getElementById("btnNoise");
+  const btnHold  = document.getElementById("btnHold");
+  const btnClear = document.getElementById("btnClear");
+
+  const cTorso = document.getElementById("torso");
+  const cScope = document.getElementById("scope");
+  const tctx = cTorso.getContext("2d");
+  const sctx = cScope.getContext("2d");
+
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+      const rr = Math.min(r, w/2, h/2);
+      this.beginPath();
+      this.moveTo(x+rr,y);
+      this.arcTo(x+w,y, x+w,y+h, rr);
+      this.arcTo(x+w,y+h, x,y+h, rr);
+      this.arcTo(x,y+h, x,y, rr);
+      this.arcTo(x,y, x+w,y, rr);
+      this.closePath();
+      return this;
+    };
+  }
+
+  function fitCanvas(canvas){
+    const dpr = Math.max(1, Math.min(2.2, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.floor(rect.width * dpr);
+    const h = Math.floor(rect.height * dpr);
+    if(canvas.width !== w || canvas.height !== h){
+      canvas.width = w; canvas.height = h;
+    }
+    return {w,h,dpr};
+  }
+
+  // ---------------- Signal buffer (higher fs for smoothness) ----------------
+  const scope = {
+    fs: 2000,       // ↑ to avoid “serrilhado”
+    seconds: 3.0,
+    N: 0,
+    y: null,
+    write: 0,
+    t: 0
+  };
+  const baselineHP = makeOnePoleHP(0.6, scope.fs);
+
+  function resetScope(){
+    scope.N = Math.floor(scope.fs * scope.seconds);
+    scope.y = new Float32Array(scope.N);
+    scope.write = 0;
+    scope.t = 0;
+    baselineHP.x1 = baselineHP.y1 = 0;
+  }
+
+  // ---------------- Electrodes (normalized canvas coords) ----------------
+  const electrodes = {
+    RA: {x:0.30, y:0.30, r:0.030, color:"rgba(70,243,255,0.95)"},
+    LA: {x:0.70, y:0.30, r:0.030, color:"rgba(70,243,255,0.95)"},
+    LL: {x:0.52, y:0.80, r:0.032, color:"rgba(70,243,255,0.95)"},
+  };
+  function setDefaultElectrodes(){
+    electrodes.RA.x=0.30; electrodes.RA.y=0.30;
+    electrodes.LA.x=0.70; electrodes.LA.y=0.30;
+    electrodes.LL.x=0.52; electrodes.LL.y=0.80;
+  }
+
+  // ---------------- Heart vector model (P, QRS, T) ----------------
+  let HR = 60;
+  let gain = 1.0;
+  let speed = 1.0;   // simulation speed multiplier
+  let lead = "II";
+  let noiseOn = false;
+  let hold = false;
+
+  function norm2(x,y){
+    const n = Math.hypot(x,y) || 1;
+    return {x:x/n, y:y/n};
+  }
+  function gauss(u, mu, sig){
+    const z = (u-mu)/sig;
+    return Math.exp(-0.5*z*z);
+  }
+
+  // Directions (screen coords: +x right, +y down)
+  const dirP   = norm2( 0.22, -0.10);
+  const dirQRS = norm2( 0.25,  0.60);
+  const dirT   = norm2( 0.15,  0.35);
+
+  function heartVector(u){
+    const hr = HR;
+    const squeeze = clamp((hr-60)/100, 0, 1);
+    const tShift = -0.04*squeeze;
+
+    // P
+    const p = 0.22 * gauss(u, 0.18 + tShift, 0.032);
+
+    // QRS (slightly wider than before to avoid discretization look)
+    const q = -0.55 * gauss(u, 0.305 + tShift, 0.014);
+    const r =  1.60 * gauss(u, 0.322 + tShift, 0.012);
+    const s = -0.75 * gauss(u, 0.340 + tShift, 0.016);
+    const qrs = q + r + s;
+
+    // T
+    const t = 0.55 * gauss(u, 0.66 + tShift, 0.072 + 0.015*squeeze);
+
+    const drift = 0.02*Math.sin(2*Math.PI*u);
+
+    const Ex = p*dirP.x + qrs*dirQRS.x + t*dirT.x + drift*0.5;
+    const Ey = p*dirP.y + qrs*dirQRS.y + t*dirT.y + drift*0.3;
+
+    let phase = "baseline";
+    if(p>0.03) phase = "P";
+    if(Math.abs(qrs)>0.20) phase = "QRS";
+    if(t>0.08 && Math.abs(qrs)<0.08) phase = "T";
+
+    return {Ex, Ey, phase, p, qrs, t};
+  }
+
+  // ---------------- Lead projection (I, II, III) ----------------
+  function axisFrom(a,b){
+    const dx = (b.x - a.x);
+    const dy = (b.y - a.y);
+    const n = Math.hypot(dx,dy) || 1;
+    return {x:dx/n, y:dy/n};
+  }
+  function leadSignalFromVector(Ex, Ey){
+    const RA = electrodes.RA;
+    const LA = electrodes.LA;
+    const LL = electrodes.LL;
+
+    let axis;
+    let val = 0;
+
+    if(lead==="I"){
+      axis = axisFrom(RA, LA); // LA − RA
+      val = Ex*axis.x + Ey*axis.y;
+    } else if(lead==="II"){
+      axis = axisFrom(RA, LL); // LL − RA
+      val = Ex*axis.x + Ey*axis.y;
+    } else { // III
+      axis = axisFrom(LA, LL); // LL − LA
+      val = Ex*axis.x + Ey*axis.y;
+    }
+
+    return {val, axis};
+  }
+
+  // ---------------- Drawing: torso (more frontal/coronal) ----------------
+  let simTime = 0;
+  function drawTorso(){
+    const {w,h} = fitCanvas(cTorso);
+    const ctx = tctx;
+    ctx.clearRect(0,0,w,h);
+
+    const bg = ctx.createRadialGradient(w*0.30, h*0.20, 0, w*0.55, h*0.62, Math.max(w,h));
+    bg.addColorStop(0, "rgba(70,243,255,0.07)");
+    bg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = bg; ctx.fillRect(0,0,w,h);
+
+    // Torso frontal (ombros + braços sugeridos)
+    const cx=w*0.50, cy=h*0.55;
+    const Tw=w*0.68, Th=h*0.80;
+    const yTop = cy - Th*0.55;
+    const yBot = cy + Th*0.50;
+
+    const path = new Path2D();
+    // Neck + shoulders
+    path.moveTo(cx - Tw*0.10, yTop);
+    path.bezierCurveTo(cx - Tw*0.18, yTop+Th*0.02, cx - Tw*0.28, yTop+Th*0.06, cx - Tw*0.34, yTop+Th*0.12); // left shoulder
+    path.bezierCurveTo(cx - Tw*0.50, yTop+Th*0.24, cx - Tw*0.55, yTop+Th*0.36, cx - Tw*0.50, yTop+Th*0.48); // left arm outer
+    path.bezierCurveTo(cx - Tw*0.44, yTop+Th*0.62, cx - Tw*0.42, yBot, cx, yBot); // left to bottom
+    path.bezierCurveTo(cx + Tw*0.42, yBot, cx + Tw*0.44, yTop+Th*0.62, cx + Tw*0.50, yTop+Th*0.48); // right
+    path.bezierCurveTo(cx + Tw*0.55, yTop+Th*0.36, cx + Tw*0.50, yTop+Th*0.24, cx + Tw*0.34, yTop+Th*0.12); // right shoulder
+    path.bezierCurveTo(cx + Tw*0.28, yTop+Th*0.06, cx + Tw*0.18, yTop+Th*0.02, cx + Tw*0.10, yTop); // neck
+    path.closePath();
+
+    const grad = ctx.createLinearGradient(cx-Tw*0.5,yTop,cx+Tw*0.5,yBot);
+    grad.addColorStop(0,"rgba(255,170,205,0.12)");
+    grad.addColorStop(0.35,"rgba(255,120,170,0.10)");
+    grad.addColorStop(1,"rgba(80,120,255,0.08)");
+    ctx.fillStyle = grad; ctx.fill(path);
+
+    ctx.strokeStyle = "rgba(143,183,255,0.30)";
+    ctx.lineWidth = Math.max(1.6, w*0.0022);
+    ctx.shadowColor = "rgba(70,243,255,0.22)";
+    ctx.shadowBlur = 18;
+    ctx.stroke(path);
+    ctx.shadowBlur = 0;
+
+    // anatomy lines
+    ctx.save();
+    ctx.clip(path);
+    ctx.globalAlpha = 0.55;
+    for(let i=0;i<18;i++){
+      const yy = lerp(yTop+Th*0.20, yBot-Th*0.16, i/17);
+      ctx.strokeStyle = "rgba(37,64,122,0.30)";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(cx-Tw*0.34, yy);
+      ctx.lineTo(cx+Tw*0.34, yy);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // heart region and animation
+    const hx = cx + Tw*0.05;
+    const hy = yTop + Th*0.40;
+    drawHeartAnimation(ctx, hx, hy, Math.min(w,h)*0.11);
+
+    // lead overlay
+    drawLeadOverlay(ctx,w,h);
+
+    // electrodes
+    drawElectrode(ctx,w,h,"RA");
+    drawElectrode(ctx,w,h,"LA");
+    drawElectrode(ctx,w,h,"LL");
+  }
+
+  function drawElectrode(ctx,w,h,key){
+    const e = electrodes[key];
+    const x = e.x*w;
+    const y = e.y*h;
+    const r = e.r*Math.min(w,h);
+
+    ctx.save();
+    ctx.fillStyle = "rgba(15,20,40,0.62)";
+    ctx.strokeStyle = "rgba(143,183,255,0.28)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x-r*1.35, y-r*1.05, r*2.7, r*2.1, r*0.55);
+    ctx.fill(); ctx.stroke();
+
+    const rg = ctx.createRadialGradient(x-2,y-2,2,x,y,r*0.95);
+    rg.addColorStop(0, "rgba(255,255,255,0.92)");
+    rg.addColorStop(0.35, e.color);
+    rg.addColorStop(1, "rgba(70,243,255,0.10)");
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(x,y,r*0.75,0,Math.PI*2); ctx.fill();
+
+    ctx.shadowColor = e.color;
+    ctx.shadowBlur = 18;
+    ctx.strokeStyle = "rgba(70,243,255,0.45)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(x,y,r*0.75,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "rgba(233,241,255,0.92)";
+    ctx.font = `${Math.max(12, w*0.014)}px ui-sans-serif`;
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(key, x, y + r*1.55);
+    ctx.restore();
+  }
+
+  function drawLeadOverlay(ctx,w,h){
+    const RA=electrodes.RA, LA=electrodes.LA, LL=electrodes.LL;
+
+    ctx.save();
+    ctx.lineWidth = Math.max(3, w*0.003);
+    ctx.shadowColor = "rgba(70,243,255,0.25)";
+    ctx.shadowBlur = 18;
+
+    let a,b;
+    if(lead==="I"){ a=RA; b=LA; }
+    else if(lead==="II"){ a=RA; b=LL; }
+    else { a=LA; b=LL; }
+
+    ctx.strokeStyle = "rgba(70,243,255,0.28)";
+    ctx.beginPath();
+    ctx.moveTo(a.x*w, a.y*h);
+    ctx.lineTo(b.x*w, b.y*h);
+    ctx.stroke();
+
+    drawPlusMinus(ctx, a.x*w, a.y*h, b.x*w, b.y*h);
+
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  function drawPlusMinus(ctx, x0,y0,x1,y1){
+    const r = 12;
+    ctx.save();
+    ctx.font = `700 14px ui-sans-serif`;
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.strokeStyle = "rgba(143,183,255,0.25)";
+    ctx.lineWidth = 1.2;
+
+    // minus
+    ctx.beginPath(); ctx.arc(x0,y0,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "rgba(233,241,255,0.9)"; ctx.fillText("−", x0, y0+0.5);
+
+    // plus
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath(); ctx.arc(x1,y1,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "rgba(70,243,255,0.85)"; ctx.fillText("+", x1, y1+0.5);
+
+    ctx.restore();
+  }
+
+  function drawHeartAnimation(ctx, cx, cy, R){
+    const T = 60/HR;
+    const u = ((simTime % T) / T);
+    const hv = heartVector(u);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    const glow = ctx.createRadialGradient(0,0,0,0,0,R*1.9);
+    glow.addColorStop(0, "rgba(255,120,170,0.20)");
+    glow.addColorStop(0.5, "rgba(70,243,255,0.08)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0,0,R*1.7,0,Math.PI*2);
+    ctx.fill();
+
+    const body = new Path2D();
+    body.moveTo(0, R*0.65);
+    body.bezierCurveTo(R*0.95, R*0.20, R*0.75, -R*0.70, 0, -R*0.25);
+    body.bezierCurveTo(-R*0.75, -R*0.70, -R*0.95, R*0.20, 0, R*0.65);
+    body.closePath();
+
+    const g = ctx.createLinearGradient(-R,-R,R,R);
+    g.addColorStop(0,"rgba(255,90,140,0.18)");
+    g.addColorStop(1,"rgba(255,180,220,0.10)");
+    ctx.fillStyle = g; ctx.fill(body);
+
+    ctx.strokeStyle = "rgba(143,183,255,0.22)";
+    ctx.lineWidth = 1.6;
+    ctx.stroke(body);
+
+    const pA = clamp(hv.p/0.22, 0, 1);
+    const qA = clamp(Math.abs(hv.qrs)/1.60, 0, 1);
+    const tA = clamp(hv.t/0.55, 0, 1);
+
+    if(pA>0.05){
+      ctx.save();
+      ctx.globalAlpha = 0.12 + 0.35*pA;
+      ctx.fillStyle = "rgba(70,243,255,0.85)";
+      ctx.beginPath();
+      ctx.ellipse(0, -R*0.30, R*0.55, R*0.33, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+    if(qA>0.05){
+      ctx.save();
+      ctx.globalAlpha = 0.10 + 0.55*qA;
+      ctx.fillStyle = "rgba(183,255,90,0.85)";
+      ctx.beginPath();
+      ctx.ellipse(0, R*0.18, R*0.70, R*0.52, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+    if(tA>0.05){
+      ctx.save();
+      ctx.globalAlpha = 0.10 + 0.35*tA;
+      ctx.fillStyle = "rgba(255,211,106,0.78)";
+      ctx.beginPath();
+      ctx.ellipse(0, R*0.18, R*0.75, R*0.58, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // vector arrow
+    const vx = hv.Ex, vy = hv.Ey;
+    const scale = R*1.35;
+    ctx.save();
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = "rgba(233,241,255,0.80)";
+    ctx.shadowColor = "rgba(233,241,255,0.25)";
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.lineTo(vx*scale, vy*scale);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    const ax = vx*scale, ay = vy*scale;
+    const ang = Math.atan2(ay, ax);
+    const ah = 10;
+    ctx.fillStyle = "rgba(233,241,255,0.80)";
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - ah*Math.cos(ang-0.45), ay - ah*Math.sin(ang-0.45));
+    ctx.lineTo(ax - ah*Math.cos(ang+0.45), ay - ah*Math.sin(ang+0.45));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  // ---------------- scope drawing (anti-serrilhado by pixel re-sampling) ----------------
+  function drawScope(){
+    const {w,h} = fitCanvas(cScope);
+    const ctx = sctx;
+
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = "rgba(0,0,0,0.20)";
+    ctx.fillRect(0,0,w,h);
+
+    const margin = Math.min(w,h)*0.08;
+    const gx0 = margin, gx1 = w - margin;
+    const gy0 = margin*0.95, gy1 = h - margin*0.85;
+
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(gx0, gy0, gx1-gx0, gy1-gy0, 16);
+    ctx.clip();
+
+    // grid
+    const divX = 12, divY = 8;
+    ctx.lineWidth = 1;
+    for(let i=0;i<=divX;i++){
+      const x = lerp(gx0, gx1, i/divX);
+      ctx.strokeStyle = (i%6===0) ? "rgba(37,64,122,0.65)" : "rgba(26,42,85,0.55)";
+      ctx.beginPath(); ctx.moveTo(x, gy0); ctx.lineTo(x, gy1); ctx.stroke();
+    }
+    for(let j=0;j<=divY;j++){
+      const y = lerp(gy0, gy1, j/divY);
+      ctx.strokeStyle = (j%4===0) ? "rgba(37,64,122,0.65)" : "rgba(26,42,85,0.55)";
+      ctx.beginPath(); ctx.moveTo(gx0, y); ctx.lineTo(gx1, y); ctx.stroke();
+    }
+
+    const yc = (gy0+gy1)/2;
+    ctx.strokeStyle = "rgba(70,243,255,0.14)";
+    ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(gx0, yc); ctx.lineTo(gx1, yc); ctx.stroke();
+
+    // trace: resample to pixel columns with linear interpolation in ring buffer
+    ctx.lineWidth = 2.25;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(70,243,255,0.90)";
+    ctx.shadowColor = "rgba(70,243,255,0.35)";
+    ctx.shadowBlur = 18;
+
+    const Wpx = Math.max(200, Math.floor(gx1-gx0));
+    const N = scope.N;
+
+    ctx.beginPath();
+    for(let px=0; px<Wpx; px++){
+      const t = px/(Wpx-1);              // 0..1 across window
+      const s = t*(N-1);                 // sample position
+      const i0 = Math.floor(s);
+      const frac = s - i0;
+      const idx0 = (scope.write + i0) % N;
+      const idx1 = (scope.write + Math.min(i0+1,N-1)) % N;
+      const yv = scope.y[idx0]*(1-frac) + scope.y[idx1]*frac;
+
+      const x = gx0 + t*(gx1-gx0);
+      const y = yc - yv * (gy1-gy0)*0.40 * gain;
+
+      if(px===0) ctx.moveTo(x,y);
+      else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+    ctx.strokeStyle = "rgba(143,183,255,0.28)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(gx0, gy0, gx1-gx0, gy1-gy0, 16);
+    ctx.stroke();
+  }
+
+  // ---------------- Interaction: drag electrodes ----------------
+  let dragKey = null;
+
+  function hitTestElectrode(mx,my){
+    const {w,h} = fitCanvas(cTorso);
+    for(const key of ["RA","LA","LL"]){
+      const e = electrodes[key];
+      const x = e.x*w, y = e.y*h, r = e.r*Math.min(w,h)*0.95;
+      if(Math.hypot(mx-x,my-y) <= r*1.15) return key;
+    }
+    return null;
+  }
+
+  function pointerToCanvasPos(ev, canvas){
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (ev.clientY - rect.top)  * (canvas.height/ rect.height);
+    return {x,y};
+  }
+
+  function constrainToTorso(nx, ny){
+    // Keep them on plausible limb/chest zones.
+    // RA/LA: upper; LL: lower.
+    nx = clamp(nx, 0.20, 0.80);
+    ny = clamp(ny, 0.22, 0.88);
+    return {nx, ny};
+  }
+
+  cTorso.addEventListener("pointerdown", (ev)=>{
+    cTorso.setPointerCapture(ev.pointerId);
+    const p = pointerToCanvasPos(ev, cTorso);
+    dragKey = hitTestElectrode(p.x, p.y);
+  });
+  cTorso.addEventListener("pointermove", (ev)=>{
+    if(!dragKey) return;
+    const p = pointerToCanvasPos(ev, cTorso);
+    let nx = p.x / cTorso.width;
+    let ny = p.y / cTorso.height;
+    const q = constrainToTorso(nx, ny);
+
+    // Light per-electrode constraints for didactic placement zones
+    if(dragKey==="RA" || dragKey==="LA"){
+      ny = clamp(q.ny, 0.22, 0.46);
+      nx = clamp(q.nx, dragKey==="RA" ? 0.18 : 0.55, dragKey==="RA" ? 0.45 : 0.82);
+    } else { // LL
+      ny = clamp(q.ny, 0.60, 0.90);
+      nx = clamp(q.nx, 0.34, 0.70);
+    }
+
+    electrodes[dragKey].x = nx;
+    electrodes[dragKey].y = ny;
+  });
+  cTorso.addEventListener("pointerup", ()=>{ dragKey = null; });
+
+  // ---------------- Simulation loop ----------------
+  let lastFrame = performance.now();
+  let fpsEMA = 60;
+
+  function updateUI(){
+    elHrTxt.textContent = String(Math.round(HR));
+    elHrVal.textContent = String(Math.round(HR));
+
+    elSpdTxt.textContent = speed.toFixed(2);
+    elSpdVal.textContent = speed.toFixed(2);
+
+    elGainTxt.textContent = gain.toFixed(2);
+    elLeadTxt.textContent = lead;
+
+    elMeter.style.width = `${Math.round((HR-35)/(160-35)*100)}%`;
+
+    btnNoise.textContent = `Ruído: ${noiseOn ? "ON" : "OFF"}`;
+    btnHold.textContent  = `Hold: ${hold ? "ON" : "OFF"}`;
+
+    elFsTxt.textContent = String(scope.fs);
+    elWinTxt.textContent = scope.seconds.toFixed(1);
+  }
+
+  function stepSignal(dtReal){
+    if(hold) return;
+
+    // scale simulation time by speed
+    const dt = dtReal * speed;
+    simTime += dt;
+
+    // generate samples for scope buffer
+    const steps = Math.max(1, Math.floor(scope.fs * dt));
+    const T = 60/HR;
+
+    for(let i=0;i<steps;i++){
+      const u = (simTime % T) / T;
+      const hv = heartVector(u);
+      const {val} = leadSignalFromVector(hv.Ex, hv.Ey);
+
+      let y = 0.85 * val;
+
+      if(noiseOn){
+        // baseline wander + muscle + mains
+        const bw = 0.05*Math.sin(2*Math.PI*0.28*simTime) + 0.02*Math.sin(2*Math.PI*0.08*simTime);
+        const emg = 0.012*(Math.random()*2-1);
+        const mains = 0.018*Math.sin(2*Math.PI*60*simTime) + 0.006*Math.sin(2*Math.PI*120*simTime);
+        y += bw + emg + mains;
+      }
+
+      // gentle drift removal
+      y = onePoleHP(baselineHP, y);
+
+      scope.y[scope.write] = y;
+      scope.write = (scope.write + 1) % scope.N;
+      scope.t += 1/scope.fs;
+
+      elPhaseTxt.textContent = hv.phase;
+      const amp = Math.abs(y)*1000;
+      elAmpTxt.textContent = `${amp.toFixed(0)}`;
+    }
+  }
+
+  function tick(tNow){
+    const dtReal = Math.max(0.001, (tNow - lastFrame)/1000);
+    const fps = 1/dtReal;
+    fpsEMA = 0.90*fpsEMA + 0.10*fps;
+    elFpsTxt.textContent = fpsEMA.toFixed(0);
+
+    stepSignal(dtReal);
+    drawTorso();
+    drawScope();
+
+    lastFrame = tNow;
+    requestAnimationFrame(tick);
+  }
+
+  // ---------------- wiring ----------------
+  elLeadSel.addEventListener("change", ()=>{
+    lead = elLeadSel.value;
+    updateUI();
+  });
+
+  elHr.addEventListener("input", ()=>{
+    HR = parseFloat(elHr.value);
+    updateUI();
+  });
+
+  elSpeed.addEventListener("input", ()=>{
+    speed = parseFloat(elSpeed.value);
+    updateUI();
+  });
+
+  elGain.addEventListener("input", ()=>{
+    gain = parseFloat(elGain.value);
+    updateUI();
+  });
+
+  btnNoise.addEventListener("click", ()=>{
+    noiseOn = !noiseOn;
+    updateUI();
+  });
+
+  btnHold.addEventListener("click", ()=>{
+    hold = !hold;
+    updateUI();
+  });
+
+  btnClear.addEventListener("click", ()=>{
+    resetScope();
+  });
+
+  btnReset.addEventListener("click", ()=>{
+    setDefaultElectrodes();
+  });
+
+  // ---------------- init ----------------
+  function init(){
+    resetScope();
+    setDefaultElectrodes();
+    HR = 60;
+    gain = 1.0;
+    speed = 1.0;
+    lead = elLeadSel.value;
+    updateUI();
+    requestAnimationFrame(tick);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
