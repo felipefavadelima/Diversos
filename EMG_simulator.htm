@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simulador EMG (Σ MUAPs)</title>
+  <style>
+    :root{
+      --bg0:#070A12; --bg1:#0B1024;
+      --accent:#46f3ff; --accent2:#b7ff5a;
+      --text:#e9f1ff; --muted:#9db4ffcc;
+      --shadow: 0 18px 55px rgba(0,0,0,.55);
+      --radius: 18px;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; min-height:100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 15% 20%, #1d2b73 0%, transparent 55%),
+        radial-gradient(1000px 700px at 80% 30%, #0e5cad 0%, transparent 60%),
+        radial-gradient(900px 600px at 50% 95%, #1c0f42 0%, transparent 55%),
+        linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 100%);
+      overflow-x:hidden;
+    }
+    .wrap{ max-width:1200px; margin:0 auto; padding:22px; }
+    header{ display:flex; gap:16px; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .title{ display:flex; flex-direction:column; gap:4px; }
+    h1{ font-size:20px; margin:0; letter-spacing:.4px; display:flex; align-items:center; gap:10px; }
+    .pill{
+      font-size:12px; padding:4px 10px; border-radius:999px;
+      background: linear-gradient(90deg, #1b2a62, #123a72);
+      border:1px solid #2b4ca1; color:var(--muted);
+    }
+    .subtitle{ font-size:12.5px; color: var(--muted); max-width: 95ch; line-height:1.35; }
+    .grid{ display:grid; grid-template-columns: 1.05fr 1fr; gap:16px; }
+    .card{
+      background: linear-gradient(180deg, rgba(18,29,64,.85), rgba(12,17,38,.78));
+      border: 1px solid rgba(107,151,255,.18);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      position:relative; overflow:hidden;
+    }
+    .card::before{
+      content:""; position:absolute; inset:-120px;
+      background: radial-gradient(circle at 30% 20%, rgba(70,243,255,.12), transparent 55%),
+                  radial-gradient(circle at 70% 70%, rgba(183,255,90,.10), transparent 55%);
+      filter: blur(2px); pointer-events:none;
+    }
+    .cardHead{
+      position:relative; padding:14px 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom: 1px solid rgba(107,151,255,.14);
+    }
+    .cardHead .label{
+      font-weight:600; font-size:13.5px; letter-spacing:.3px; color:#dbe7ff;
+      display:flex; align-items:center; gap:10px;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, #fff, var(--accent));
+      box-shadow: 0 0 16px rgba(70,243,255,.45);
+    }
+    .status{ font-size:12px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .meter{
+      width:140px; height:8px; background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.10); border-radius:999px; overflow:hidden;
+    }
+    .meter > i{
+      display:block; height:100%; width:0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 20px rgba(70,243,255,.35);
+    }
+    .cardBody{ position:relative; padding:14px 16px 16px; }
+    .controls{
+      display:grid; grid-template-columns: 1fr auto; gap:10px 12px; align-items:center;
+      padding:10px 12px; border-radius:14px;
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(107,151,255,.14);
+      margin-bottom:12px;
+    }
+    .controls .row{ grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .controls .k{ font-size:12px; color:var(--muted); letter-spacing:.25px; }
+    .controls .v{ font-variant-numeric: tabular-nums; font-weight:700; font-size:13px; color:#f0f6ff; }
+    input[type="range"]{ width:100%; accent-color: var(--accent); cursor:pointer; }
+    .btns{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+    button{
+      appearance:none; border:1px solid rgba(107,151,255,.20);
+      background: rgba(20,28,60,.55);
+      color: var(--text); border-radius:12px; padding:8px 10px;
+      font-size:12px; cursor:pointer;
+      transition: transform .06s ease, border-color .2s ease, background .2s ease;
+      user-select:none;
+    }
+    button:hover{ border-color: rgba(70,243,255,.35); background: rgba(20,40,90,.55); }
+    button:active{ transform: translateY(1px); }
+    button.primary{
+      border-color: rgba(70,243,255,.35);
+      background: linear-gradient(180deg, rgba(70,243,255,.18), rgba(70,243,255,.08));
+    }
+    .canvasWrap{
+      border-radius:16px; overflow:hidden;
+      border: 1px solid rgba(107,151,255,.18);
+      background: radial-gradient(1000px 600px at 25% 25%, rgba(70,243,255,.06), transparent 60%),
+                  radial-gradient(900px 500px at 75% 70%, rgba(183,255,90,.05), transparent 60%),
+                  rgba(0,0,0,.18);
+    }
+    canvas{ display:block; width:100%; height:auto; }
+
+    /* Gauge */
+    .gaugeRow{
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      margin-bottom:12px;
+    }
+    .gaugeBox{
+      flex: 0 0 220px;
+      border-radius:16px;
+      border: 1px solid rgba(107,151,255,.18);
+      background: rgba(0,0,0,.16);
+      overflow:hidden;
+    }
+    .gaugeBox canvas{ width:220px; height:120px; display:block; }
+    .gaugeReadout{
+      flex: 1;
+      padding:10px 12px;
+      border-radius:16px;
+      border: 1px solid rgba(107,151,255,.18);
+      background: rgba(0,0,0,.16);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .gaugeReadout .big{
+      font-weight:800; font-size:18px; letter-spacing:.2px;
+      font-variant-numeric: tabular-nums;
+    }
+    .gaugeReadout .small{ color:var(--muted); font-size:12px; }
+
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      .meter{ width: 120px; }
+      .gaugeRow{ flex-direction:column; align-items:stretch; }
+      .gaugeBox{ flex: none; width:100%; }
+      .gaugeBox canvas{ width:100%; height:120px; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">
+      <h1>Simulador de EMG <span class="pill">Σ MUAPs</span></h1>
+      <div class="subtitle">Aumente a força e observe recrutamento + aumento de frequência. Use ganho alto para ver MUAP unitário.</div>
+    </div>
+    <div class="status">
+      <div class="meter"><i id="meterFill"></i></div>
+      <div><span class="k">FPS:</span> <span class="v" id="fps">—</span></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- MUSCULO -->
+    <section class="card">
+      <div class="cardHead">
+        <div class="label"><span class="dot"></span> Músculo + Eletrodos</div>
+        <div class="status"><span class="k">Ativas:</span> <span class="v" id="activeTxt">—</span></div>
+      </div>
+      <div class="cardBody">
+
+        <div class="gaugeRow">
+          <div class="gaugeBox">
+            <canvas id="gauge" width="220" height="120"></canvas>
+          </div>
+          <div class="gaugeReadout">
+            <div>
+              <div class="small">Força estimada</div>
+              <div class="big"><span id="forceN">0</span> N</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="small">Escala didática</div>
+              <div class="small"><span id="fmaxTxt">300</span> N máx</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="row">
+            <div>
+              <div class="k">Força</div>
+              <div class="v"><span id="forcePct">0</span>%</div>
+            </div>
+            <div class="btns">
+              <button id="btnZero">0%</button>
+              <button class="primary" id="btnBurst">Burst</button>
+              <button id="btnOneMuap">1 MUAP</button>
+              <button id="btnOneUnit">Somente 1 MU: OFF</button>
+            </div>
+          </div>
+          <input id="force" type="range" min="0" max="100" value="0" />
+          <div class="row">
+            <div class="k">Amostragem</div>
+            <div class="v"><span id="fsTxt">—</span> Hz · Janela <span id="winTxt">—</span> s</div>
+          </div>
+        </div>
+
+        <div class="canvasWrap">
+          <canvas id="muscle" width="900" height="520"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- OSCILOSCOPIO -->
+    <section class="card">
+      <div class="cardHead">
+        <div class="label"><span class="dot"></span> Osciloscópio</div>
+        <div class="status"><span class="k">RMS:</span> <span class="v" id="rmsTxt">—</span> <span class="k">µV*</span></div>
+      </div>
+      <div class="cardBody">
+        <div class="controls">
+          <div class="row">
+            <div>
+              <div class="k">Ganho</div>
+              <div class="v"><span id="gainTxt">1.0</span>x</div>
+            </div>
+            <div class="btns">
+              <button id="btnMains">Ruído 60 Hz: OFF</button>
+              <button id="btnHold">Hold: OFF</button>
+              <button id="btnClear">Limpar</button>
+            </div>
+          </div>
+          <input id="gain" type="range" min="0.2" max="80" step="0.1" value="1.0" />
+          <div class="row">
+            <div class="k">Filtro</div>
+            <div class="v">Bandpass 20–450 Hz</div>
+          </div>
+        </div>
+
+        <div class="canvasWrap">
+          <canvas id="scope" width="900" height="520"></canvas>
+        </div>
+
+        <div class="subtitle" style="margin-top:10px;">
+          *Escala simulada. Para ver MUAP unitário: ganho 20–60x.
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------------- helpers ----------------
+  const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+  const lerp  = (a,b,t)=>a+(b-a)*t;
+
+  function randn(){
+    let u=0,v=0;
+    while(u===0) u=Math.random();
+    while(v===0) v=Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  }
+
+  // RBJ biquad
+  function makeBiquad(type, fc, Q, fs){
+    const w0 = 2*Math.PI*fc/fs;
+    const cosw0 = Math.cos(w0), sinw0 = Math.sin(w0);
+    const alpha = sinw0/(2*Q);
+    let b0,b1,b2,a0,a1,a2;
+    if(type==="lowpass"){
+      b0=(1-cosw0)/2; b1=1-cosw0; b2=(1-cosw0)/2;
+      a0=1+alpha; a1=-2*cosw0; a2=1-alpha;
+    } else if(type==="highpass"){
+      b0=(1+cosw0)/2; b1=-(1+cosw0); b2=(1+cosw0)/2;
+      a0=1+alpha; a1=-2*cosw0; a2=1-alpha;
+    } else throw new Error("biquad type");
+    return { b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0, z1:0, z2:0 };
+  }
+  function biquadProcess(bq, x){
+    const y = bq.b0*x + bq.z1;
+    bq.z1 = bq.b1*x - bq.a1*y + bq.z2;
+    bq.z2 = bq.b2*x - bq.a2*y;
+    return y;
+  }
+
+  // ---------------- DOM ----------------
+  const elForce = document.getElementById("force");
+  const elForcePct = document.getElementById("forcePct");
+  const elMeter = document.getElementById("meterFill");
+  const elActive = document.getElementById("activeTxt");
+  const elFsTxt = document.getElementById("fsTxt");
+  const elWinTxt = document.getElementById("winTxt");
+  const elForceN = document.getElementById("forceN");
+  const elFmaxTxt = document.getElementById("fmaxTxt");
+
+  const elGain = document.getElementById("gain");
+  const elGainTxt = document.getElementById("gainTxt");
+  const elRmsTxt = document.getElementById("rmsTxt");
+  const elFps = document.getElementById("fps");
+
+  const btnZero = document.getElementById("btnZero");
+  const btnBurst = document.getElementById("btnBurst");
+  const btnOneMuap = document.getElementById("btnOneMuap");
+  const btnOneUnit = document.getElementById("btnOneUnit");
+  const btnMains = document.getElementById("btnMains");
+  const btnHold = document.getElementById("btnHold");
+  const btnClear = document.getElementById("btnClear");
+
+  const cGauge  = document.getElementById("gauge");
+  const gctx = cGauge.getContext("2d");
+
+  const cMuscle = document.getElementById("muscle");
+  const cScope  = document.getElementById("scope");
+  const mctx = cMuscle.getContext("2d");
+  const sctx = cScope.getContext("2d");
+
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+      const rr = Math.min(r, w/2, h/2);
+      this.beginPath();
+      this.moveTo(x+rr,y);
+      this.arcTo(x+w,y, x+w,y+h, rr);
+      this.arcTo(x+w,y+h, x,y+h, rr);
+      this.arcTo(x,y+h, x,y, rr);
+      this.arcTo(x,y, x+w,y, rr);
+      this.closePath();
+      return this;
+    };
+  }
+
+  function fitCanvas(canvas){
+    const dpr = Math.max(1, Math.min(2.2, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.floor(rect.width * dpr);
+    const h = Math.floor(rect.height * dpr);
+    if(canvas.width !== w || canvas.height !== h){
+      canvas.width = w; canvas.height = h;
+    }
+    return {w,h,dpr};
+  }
+
+  // ---------------- model ----------------
+  const scope = {
+    fs: 2000,
+    seconds: 2.0,
+    N: 0,
+    exc: null,
+    y: null,
+    write: 0,
+    tSim: 0,
+  };
+
+  const hp = makeBiquad("highpass", 20, 0.7071, scope.fs);
+  const lp = makeBiquad("lowpass",  450, 0.7071, scope.fs);
+
+  function resetScope(){
+    scope.N = Math.floor(scope.fs * scope.seconds);
+    scope.exc = new Float32Array(scope.N);
+    scope.y   = new Float32Array(scope.N);
+    scope.write = 0;
+    scope.tSim = 0;
+    hp.z1=hp.z2=0; lp.z1=lp.z2=0;
+  }
+
+  function makeMuapKernel(fs, durationMs, w1,w2,w3, o1,o2,o3){
+    const n = Math.max(14, Math.floor(durationMs*fs/1000));
+    const k = new Float32Array(n);
+    const tMid = (n-1)/2;
+
+    const s1 = Math.max(1.2, n*0.09);
+    const s2 = Math.max(1.6, n*0.12);
+    const s3 = Math.max(2.0, n*0.15);
+
+    const c1 = tMid - n*o1;
+    const c2 = tMid + n*o2;
+    const c3 = tMid + n*o3;
+
+    const gauss = (i,c,s)=> Math.exp(-0.5*Math.pow((i-c)/s,2));
+    for(let i=0;i<n;i++){
+      k[i] = w1*gauss(i,c1,s1) + w2*gauss(i,c2,s2) + w3*gauss(i,c3,s3);
+    }
+
+    let maxAbs = 0;
+    for(let i=0;i<n;i++) maxAbs = Math.max(maxAbs, Math.abs(k[i]));
+    const inv = maxAbs>0 ? 1/maxAbs : 1;
+    for(let i=0;i<n;i++) k[i] *= inv;
+
+    for(let i=0;i<n;i++){
+      const u = i/(n-1);
+      const w = 0.5 - 0.5*Math.cos(2*Math.PI*u);
+      k[i] *= w;
+    }
+    return k;
+  }
+
+  const N_MU = 200;
+  const motorUnits = [];
+
+  function initMotorUnits(){
+    motorUnits.length = 0;
+    for(let i=0;i<N_MU;i++){
+      const u = i/(N_MU-1);
+      const s = Math.pow(u, 1.35);
+      const thr = Math.pow(s, 1.10) * 0.95;
+
+      const dMin=4, dMax=35;
+      const d = dMin + Math.pow(Math.random(), 1.9) * (dMax-dMin);
+
+      const att = Math.exp(-d/18) / Math.pow(1 + d/18, 0.65);
+      const ampSize = lerp(0.18, 1.25, Math.pow(s, 0.95));
+      const durMs = lerp(9.0, 13.0, Math.random()) + 0.10*d;
+
+      const w1 =  1.00 + 0.10*randn();
+      const w2 = -1.45 + 0.16*randn();
+      const w3 =  0.72 + 0.14*randn();
+
+      const o1 = 0.22 + 0.02*randn();
+      const o2 = 0.00 + 0.01*randn();
+      const o3 = 0.22 + 0.02*randn();
+
+      const kernel = makeMuapKernel(scope.fs, durMs, w1,w2,w3, o1,o2,o3);
+
+      const rMin = 7;
+      const rMax = lerp(24, 42, Math.pow(1-s, 0.25));
+      const refractory = 0.018;
+      const cvBase = lerp(0.20, 0.10, Math.random());
+
+      motorUnits.push({
+        s, thr, d, att,
+        ampSize,
+        kernel,
+        rMin, rMax,
+        refractory,
+        cvBase,
+        nextSpikeSamp: Infinity,
+        polarity: (Math.random()<0.5)? 1 : -1,
+        fiberPick: Math.floor(Math.random()*130)
+      });
+    }
+  }
+
+  const N_FIB = 130;
+  const fibers = [];
+  function initFibers(){
+    fibers.length = 0;
+    for(let i=0;i<N_FIB;i++){
+      fibers.push({
+        x: Math.random(),
+        y: Math.random(),
+        tw: 0.8 + Math.random()*1.7,
+        flash: 0
+      });
+    }
+  }
+
+  function injectKernel(startIdx, kernel, amp){
+    const N = scope.N;
+    for(let i=0;i<kernel.length;i++){
+      scope.exc[(startIdx + i) % N] += amp * kernel[i];
+    }
+  }
+
+  // ---------------- state ----------------
+  let force = 0.0;     // 0..1
+  let gain = 1.0;
+  let hold = false;
+  let burstUntil = 0;
+  let onlyOneUnit = false;
+  let mainsOn = false;
+
+  // Educational force mapping
+  const F_MAX_N = 300;
+  const FORCE_GAMMA = 1.1;
+  elFmaxTxt.textContent = String(F_MAX_N);
+
+  function forceToNewtons(f){
+    return F_MAX_N * Math.pow(clamp(f,0,1), FORCE_GAMMA);
+  }
+  function countRecruitedUnits(f){
+    let c = 0;
+    for(const mu of motorUnits) if(f > mu.thr) c++;
+    return c;
+  }
+
+  function updateUI(){
+    elForcePct.textContent = Math.round(force*100);
+    elGainTxt.textContent = gain.toFixed(1);
+    elMeter.style.width = `${Math.round(force*100)}%`;
+
+    const FN = forceToNewtons(force);
+    elForceN.textContent = Math.round(FN);
+
+    const recruited = countRecruitedUnits(force);
+    elActive.textContent = `${onlyOneUnit ? Math.min(1, recruited) : recruited}/${N_MU}`;
+
+    btnOneUnit.textContent = `Somente 1 MU: ${onlyOneUnit ? "ON" : "OFF"}`;
+    btnHold.textContent = `Hold: ${hold ? "ON" : "OFF"}`;
+    btnMains.textContent = `Ruído 60 Hz: ${mainsOn ? "ON" : "OFF"}`;
+
+    drawGauge(force, FN);
+  }
+
+  // ---------------- gauge (CORRIGIDO: sentido horário) ----------------
+  function drawGauge(f, FN){
+    const {w,h} = fitCanvas(cGauge);
+    const ctx = gctx;
+    ctx.clearRect(0,0,w,h);
+
+    const cx = w*0.5, cy = h*0.88;
+    const R  = Math.min(w*0.42, h*0.95);
+
+    // Começa à esquerda (~189°) e termina à direita (~351°), avançando no sentido HORÁRIO
+    const a0 = Math.PI * 1.05;
+    const a1 = Math.PI * 1.95;
+
+    // base
+    ctx.lineWidth = Math.max(10, w*0.045);
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,255,255,0.09)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, a0, a1, false);
+    ctx.stroke();
+
+    // fill
+    const frac = clamp(f,0,1);
+    const grad = ctx.createLinearGradient(cx-R, cy, cx+R, cy);
+    grad.addColorStop(0, "rgba(70,243,255,0.85)");
+    grad.addColorStop(1, "rgba(183,255,90,0.85)");
+    ctx.strokeStyle = grad;
+    ctx.shadowColor = "rgba(70,243,255,0.28)";
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, a0, a0 + (a1-a0)*frac, false);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // ticks
+    ctx.lineWidth = 2;
+    for(let i=0;i<=6;i++){
+      const t = i/6;
+      const a = a0 + (a1-a0)*t;
+      const x0 = cx + (R-12)*Math.cos(a);
+      const y0 = cy + (R-12)*Math.sin(a);
+      const x1 = cx + (R+4)*Math.cos(a);
+      const y1 = cy + (R+4)*Math.sin(a);
+      ctx.strokeStyle = "rgba(157,180,255,0.45)";
+      ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+    }
+
+    // needle
+    const an = a0 + (a1-a0)*frac;
+    const nx = cx + (R-18)*Math.cos(an);
+    const ny = cy + (R-18)*Math.sin(an);
+
+    ctx.strokeStyle = "rgba(233,241,255,0.85)";
+    ctx.lineWidth = Math.max(2.5, w*0.012);
+    ctx.shadowColor = "rgba(233,241,255,0.25)";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(nx, ny);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // hub
+    const rg = ctx.createRadialGradient(cx-2,cy-2,2,cx,cy,18);
+    rg.addColorStop(0,"rgba(255,255,255,0.95)");
+    rg.addColorStop(0.4,"rgba(70,243,255,0.55)");
+    rg.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(cx,cy, 12, 0, Math.PI*2); ctx.fill();
+
+    // text
+    ctx.fillStyle = "rgba(157,180,255,0.80)";
+    ctx.font = `${Math.max(11, w*0.06)}px ui-sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText("N", cx, h*0.24);
+    ctx.fillStyle = "rgba(233,241,255,0.85)";
+    ctx.font = `${Math.max(12, w*0.07)}px ui-sans-serif`;
+    ctx.fillText(`${Math.round(FN)}`, cx, h*0.52);
+  }
+
+  // ---------------- muscle drawing ----------------
+  function drawMuscle(tNow){
+    const {w,h} = fitCanvas(cMuscle);
+    const ctx = mctx;
+    ctx.clearRect(0,0,w,h);
+
+    const bg = ctx.createRadialGradient(w*0.25, h*0.2, 0, w*0.55, h*0.55, Math.max(w,h));
+    bg.addColorStop(0, "rgba(70,243,255,0.07)");
+    bg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = bg; ctx.fillRect(0,0,w,h);
+
+    const cx = w*0.50, cy = h*0.54;
+    const muscleW = w*0.78, muscleH = h*0.56;
+    const halfW = muscleW*0.44, halfH = muscleH*0.38;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    const path = new Path2D();
+    path.moveTo(-halfW, -halfH);
+    path.arcTo( halfW, -halfH,  halfW,  halfH, halfH);
+    path.arcTo( halfW,  halfH, -halfW,  halfH, halfH);
+    path.arcTo(-halfW,  halfH, -halfW, -halfH, halfH);
+    path.arcTo(-halfW, -halfH,  halfW, -halfH, halfH);
+    path.closePath();
+
+    const g = ctx.createLinearGradient(-halfW, -halfH, halfW, halfH);
+    g.addColorStop(0, "rgba(255,120,170,0.20)");
+    g.addColorStop(0.35, "rgba(255,70,120,0.17)");
+    g.addColorStop(0.7, "rgba(255,160,210,0.10)");
+    g.addColorStop(1, "rgba(80,120,255,0.08)");
+    ctx.fillStyle = g; ctx.fill(path);
+
+    ctx.strokeStyle = "rgba(143,183,255,0.35)";
+    ctx.lineWidth = Math.max(1.5, w*0.0022);
+    ctx.shadowColor = "rgba(70,243,255,0.25)";
+    ctx.shadowBlur = 18;
+    ctx.stroke(path);
+    ctx.shadowBlur = 0;
+
+    ctx.save(); ctx.clip(path);
+
+    const fy0 = -halfH*0.80, fy1 = halfH*0.80;
+    const fx0 = -halfW*0.95, fx1 = halfW*0.95;
+
+    ctx.globalAlpha = 0.55;
+    for(let i=0;i<26;i++){
+      const y = lerp(fy0, fy1, i/25);
+      ctx.strokeStyle = "rgba(37,64,122,0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(fx0, y); ctx.lineTo(fx1, y + halfH*0.22); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    const L = halfW*0.70;
+    const ang = -0.11;
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+
+    for(const f of fibers){
+      const x = lerp(fx0, fx1, f.x);
+      const y = lerp(fy0, fy1, f.y);
+
+      const x0 = x - L*dx, y0 = y - L*dy;
+      const x1 = x + L*dx, y1 = y + L*dy;
+
+      ctx.strokeStyle = "rgba(255,255,255,0.09)";
+      ctx.lineWidth = (0.7 + 1.35*f.tw) * (w/900);
+      ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+
+      if(f.flash > 0){
+        const a = 0.12 + 0.80*f.flash;
+        ctx.strokeStyle = `rgba(183,255,90,${a})`;
+        ctx.lineWidth = (1.2 + 1.9*f.tw) * (w/900);
+        ctx.shadowColor = "rgba(183,255,90,0.55)";
+        ctx.shadowBlur = 18;
+        ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    ctx.restore();
+    ctx.restore();
+
+    const eY = h*0.34, eX1 = w*0.30, eX2 = w*0.42;
+
+    function electrode(x,y){
+      ctx.save();
+      ctx.fillStyle = "rgba(15,20,40,0.65)";
+      ctx.strokeStyle = "rgba(143,183,255,0.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(x-24, y-16, 48, 32, 10);
+      ctx.fill(); ctx.stroke();
+
+      const rg = ctx.createRadialGradient(x-3,y-3, 2, x,y, 18);
+      rg.addColorStop(0, "rgba(255,255,255,0.9)");
+      rg.addColorStop(0.35, "rgba(70,243,255,0.7)");
+      rg.addColorStop(1, "rgba(70,243,255,0.12)");
+      ctx.fillStyle = rg;
+      ctx.beginPath(); ctx.arc(x,y, 12, 0, Math.PI*2); ctx.fill();
+
+      ctx.shadowColor = "rgba(70,243,255,0.35)";
+      ctx.shadowBlur = 18;
+      ctx.strokeStyle = "rgba(70,243,255,0.5)";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.arc(x,y, 12, 0, Math.PI*2); ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
+    electrode(eX1, eY); electrode(eX2, eY);
+
+    const outX = w*0.98, outY = h*0.18;
+    const midX = w*0.70, midY = h*0.14;
+
+    ctx.save();
+    ctx.lineWidth = 4*(w/900);
+    ctx.strokeStyle = "rgba(70,243,255,0.25)";
+    ctx.shadowColor = "rgba(70,243,255,0.25)";
+    ctx.shadowBlur = 16;
+
+    ctx.beginPath();
+    ctx.moveTo(eX1+18, eY-8);
+    ctx.bezierCurveTo(eX1+90, eY-90, midX-90, midY+60, midX, midY);
+    ctx.bezierCurveTo(midX+120, midY-40, outX-120, outY+80, outX, outY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(eX2+18, eY+8);
+    ctx.bezierCurveTo(eX2+70, eY-40, midX-60, midY+90, midX, midY);
+    ctx.bezierCurveTo(midX+120, midY-40, outX-120, outY+80, outX, outY);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // ---------------- scope drawing ----------------
+  function drawScope(){
+    const {w,h} = fitCanvas(cScope);
+    const ctx = sctx;
+
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = "rgba(0,0,0,0.20)";
+    ctx.fillRect(0,0,w,h);
+
+    const margin = Math.min(w,h)*0.08;
+    const gx0 = margin, gx1 = w - margin;
+    const gy0 = margin*0.95, gy1 = h - margin*0.85;
+
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(gx0, gy0, gx1-gx0, gy1-gy0, 16);
+    ctx.clip();
+
+    const divX = 10, divY = 8;
+    ctx.lineWidth = 1;
+    for(let i=0;i<=divX;i++){
+      const x = lerp(gx0, gx1, i/divX);
+      ctx.strokeStyle = (i%5===0) ? "rgba(37,64,122,0.65)" : "rgba(26,42,85,0.55)";
+      ctx.beginPath(); ctx.moveTo(x, gy0); ctx.lineTo(x, gy1); ctx.stroke();
+    }
+    for(let j=0;j<=divY;j++){
+      const y = lerp(gy0, gy1, j/divY);
+      ctx.strokeStyle = (j%4===0) ? "rgba(37,64,122,0.65)" : "rgba(26,42,85,0.55)";
+      ctx.beginPath(); ctx.moveTo(gx0, y); ctx.lineTo(gx1, y); ctx.stroke();
+    }
+
+    const yc = (gy0+gy1)/2;
+    ctx.strokeStyle = "rgba(70,243,255,0.15)";
+    ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(gx0, yc); ctx.lineTo(gx1, yc); ctx.stroke();
+
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = "rgba(70,243,255,0.85)";
+    ctx.shadowColor = "rgba(70,243,255,0.35)";
+    ctx.shadowBlur = 18;
+
+    const N = scope.N;
+    ctx.beginPath();
+    for(let i=0;i<N;i++){
+      const idx = (scope.write + i) % N;
+      const x = lerp(gx0, gx1, i/(N-1));
+      const y = yc - scope.y[idx] * (gy1-gy0)*0.42 * gain;
+      if(i===0) ctx.moveTo(x,y);
+      else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+    ctx.strokeStyle = "rgba(143,183,255,0.28)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(gx0, gy0, gx1-gx0, gy1-gy0, 16);
+    ctx.stroke();
+  }
+
+  // ---------------- simulation ----------------
+  let lastFrame = performance.now();
+  let fpsEMA = 60;
+
+  // mains noise parameters
+  const MAINS_F = 60;
+  const MAINS_A = 0.020;
+  const MAINS_A2 = 0.006;
+  let mainsPhase = 0;
+
+  function updateSim(tNow){
+    if(hold) return;
+
+    const dt = Math.max(0.001, (tNow - lastFrame)/1000);
+    const steps = Math.max(1, Math.floor(scope.fs * dt));
+
+    // effective force with burst overlay
+    let f = force;
+    if(tNow < burstUntil){
+      const u = 1 - (burstUntil - tNow)/1100;
+      const env = (u < 0.20) ? (u/0.20) : (1 - (u-0.20)/0.80)*0.55 + 0.45;
+      f = clamp(f + 0.45*env, 0, 1);
+    }
+
+    // Correct active count (recruited units)
+    const recruitedNow = countRecruitedUnits(f);
+    elActive.textContent = `${onlyOneUnit ? Math.min(1, recruitedNow) : recruitedNow}/${N_MU}`;
+
+    const units = onlyOneUnit ? [motorUnits[0]] : motorUnits;
+
+    for(let s=0; s<steps; s++){
+      const w = scope.write;
+
+      let x = scope.exc[w];
+      scope.exc[w] = 0;
+
+      if(f > 0){
+        const noise = 0.002 + 0.006*Math.pow(f, 1.2);
+        x += noise * (Math.random()*2-1);
+      }
+
+      if(mainsOn){
+        const dphi = 2*Math.PI*MAINS_F/scope.fs;
+        mainsPhase += dphi;
+        if(mainsPhase > 1e9) mainsPhase = mainsPhase % (2*Math.PI);
+        const mains = MAINS_A*Math.sin(mainsPhase) + MAINS_A2*Math.sin(2*mainsPhase);
+        x += mains * (0.65 + 0.35*f);
+      }
+
+      if(f > 0){
+        const sampleNow = scope.tSim * scope.fs;
+
+        for(const mu of units){
+          if(f <= mu.thr){
+            mu.nextSpikeSamp = Infinity;
+            continue;
+          }
+
+          const drive = clamp((f - mu.thr)/(1 - mu.thr), 0, 1);
+
+          const rate = mu.rMin + (mu.rMax - mu.rMin)*Math.pow(drive, 0.75);
+          const isiMean = 1/Math.max(0.1, rate);
+          const isiMin  = mu.refractory;
+
+          const cv = mu.cvBase * (0.85 - 0.55*drive);
+          const cvEff = clamp(cv, 0.05, 0.25);
+
+          if(mu.nextSpikeSamp === Infinity){
+            const startJ = (0.2 + 0.8*Math.random()) * isiMean;
+            mu.nextSpikeSamp = sampleNow + startJ*scope.fs;
+          }
+
+          if(sampleNow >= mu.nextSpikeSamp){
+            let amp = mu.polarity * mu.ampSize * mu.att;
+            amp *= (1 + 0.04*randn());
+            if(onlyOneUnit) amp *= 3.0;
+
+            injectKernel((w + 1) % scope.N, mu.kernel, amp);
+            fibers[mu.fiberPick % fibers.length].flash = 1.0;
+
+            const isiJ = isiMean * (1 + cvEff*randn());
+            const isi = Math.max(isiMin, isiJ);
+            mu.nextSpikeSamp += isi*scope.fs;
+          }
+        }
+      }
+
+      x = biquadProcess(hp, x);
+      x = biquadProcess(lp, x);
+      x = Math.tanh(1.6*x);
+
+      scope.y[w] = x;
+
+      scope.write = (w + 1) % scope.N;
+      scope.tSim += 1/scope.fs;
+    }
+
+    const win = Math.min(scope.N, Math.floor(0.5*scope.fs));
+    let sumSq = 0;
+    for(let i=0;i<win;i++){
+      const idx = (scope.write - 1 - i + scope.N) % scope.N;
+      const v = scope.y[idx];
+      sumSq += v*v;
+    }
+    const rms = Math.sqrt(sumSq / Math.max(1,win));
+    elRmsTxt.textContent = Math.round(rms * 750).toString();
+  }
+
+  function tick(tNow){
+    const dtMs = tNow - lastFrame;
+    const fps = 1000 / Math.max(1, dtMs);
+    fpsEMA = 0.9*fpsEMA + 0.1*fps;
+    elFps.textContent = fpsEMA.toFixed(0);
+
+    const dt = Math.max(0.001, dtMs/1000);
+    for(const f of fibers) f.flash = Math.max(0, f.flash - dt*3.4);
+
+    updateSim(tNow);
+    drawMuscle(tNow);
+    drawScope();
+
+    lastFrame = tNow;
+    requestAnimationFrame(tick);
+  }
+
+  // ---------------- init + wiring ----------------
+  function init(){
+    resetScope();
+    initFibers();
+    initMotorUnits();
+
+    elFsTxt.textContent = scope.fs.toString();
+    elWinTxt.textContent = scope.seconds.toFixed(1);
+
+    force = 0; elForce.value = 0;
+    gain  = 1.0; elGain.value = 1.0;
+
+    updateUI();
+
+    elForce.addEventListener("input", () => {
+      force = clamp(parseFloat(elForce.value)/100, 0, 1);
+      updateUI();
+    });
+
+    elGain.addEventListener("input", () => {
+      gain = clamp(parseFloat(elGain.value), 0.2, 80);
+      updateUI();
+    });
+
+    btnZero.addEventListener("click", () => {
+      force = 0; elForce.value = 0; updateUI();
+    });
+
+    btnBurst.addEventListener("click", () => {
+      burstUntil = performance.now() + 1100;
+    });
+
+    btnOneUnit.addEventListener("click", () => {
+      onlyOneUnit = !onlyOneUnit;
+      for(const mu of motorUnits) mu.nextSpikeSamp = Infinity;
+      updateUI();
+    });
+
+    btnMains.addEventListener("click", () => {
+      mainsOn = !mainsOn;
+      updateUI();
+    });
+
+    btnHold.addEventListener("click", () => {
+      hold = !hold;
+      updateUI();
+    });
+
+    btnClear.addEventListener("click", () => {
+      resetScope();
+    });
+
+    btnOneMuap.addEventListener("click", () => {
+      const mu = motorUnits[0];
+      const idx = (scope.write + 6) % scope.N;
+      let amp = mu.polarity * mu.ampSize * mu.att;
+      amp *= 6.0;
+      injectKernel(idx, mu.kernel, amp);
+      fibers[mu.fiberPick % fibers.length].flash = 1.0;
+    });
+
+    requestAnimationFrame(tick);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
