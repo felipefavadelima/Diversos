@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Dipolo Elétrico</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent: #4CAF50;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        #sidebar {
+            width: 300px;
+            background-color: var(--panel-bg);
+            padding: 25px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            z-index: 10;
+        }
+        h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #fff;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+        .radio-group {
+            display: flex;
+            background: #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .radio-group label {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
+        .radio-group input[type="radio"] {
+            display: none;
+        }
+        .radio-group input[type="radio"]:checked + label {
+            background: var(--accent);
+            color: #fff;
+            font-weight: bold;
+        }
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(30, 30, 30, 0.8);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            pointer-events: none;
+        }
+        /* Novo estilo para a caixa de informações do clique */
+        #info-box {
+            position: absolute;
+            display: none;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid var(--accent);
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            pointer-events: none;
+            z-index: 20;
+            font-size: 0.9rem;
+            min-width: 160px;
+        }
+        #info-box div {
+            margin: 4px 0;
+        }
+        .val-highlight {
+            color: #fff;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>Controles</h2>
+        
+        <div class="control-group">
+            <div class="control-header">
+                <span>Tensão (ΔV)</span>
+                <span id="val-voltage">50 V</span>
+            </div>
+            <input type="range" id="voltage" min="10" max="100" value="50">
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">
+                <span>Distância (d)</span>
+                <span id="val-distance">150 px</span>
+            </div>
+            <input type="range" id="distance" min="50" max="300" value="150">
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">
+                <span>Condutividade (σ)</span>
+                <span id="val-sigma">1.0 S/m</span>
+            </div>
+            <input type="range" id="sigma" min="0.1" max="5" step="0.1" value="1.0">
+        </div>
+
+        <div class="control-group" style="margin-top: 15px;">
+            <div class="radio-group">
+                <input type="radio" id="mode-e" name="mode" value="E" checked>
+                <label for="mode-e">Campo (E)</label>
+                
+                <input type="radio" id="mode-j" name="mode" value="J">
+                <label for="mode-j">Corrente (J)</label>
+            </div>
+        </div>
+        
+        <div style="margin-top: auto; font-size: 0.8rem; color: #888;">
+            Dica: Clique em qualquer lugar do campo para inspecionar os valores exatos.
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="sim"></canvas>
+        <div class="legend" id="legend-text">Exibindo: Campo Elétrico (V/m)</div>
+        
+        <div id="info-box">
+            <div>Potencial: <span class="val-highlight" id="info-v">0</span> V</div>
+            <div>Corrente (J): <span class="val-highlight" id="info-j">0</span> A/m²</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('sim');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        // Inputs
+        const inVoltage = document.getElementById('voltage');
+        const inDistance = document.getElementById('distance');
+        const inSigma = document.getElementById('sigma');
+        const modeRadios = document.querySelectorAll('input[name="mode"]');
+        
+        // Displays
+        const valVoltage = document.getElementById('val-voltage');
+        const valDistance = document.getElementById('val-distance');
+        const valSigma = document.getElementById('val-sigma');
+        const legendText = document.getElementById('legend-text');
+        
+        // Info Box elements
+        const infoBox = document.getElementById('info-box');
+        const infoV = document.getElementById('info-v');
+        const infoJ = document.getElementById('info-j');
+
+        let width, height;
+        let selectedPoint = null; // Guarda a coordenada clicada pelo usuário
+
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            draw();
+        }
+
+        window.addEventListener('resize', resize);
+
+        function updateLabels() {
+            valVoltage.textContent = inVoltage.value + ' V';
+            valDistance.textContent = inDistance.value + ' px';
+            valSigma.textContent = inSigma.value + ' S/m';
+            
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            if(mode === 'E') {
+                legendText.textContent = "Exibindo: Campo Elétrico (E)";
+                document.documentElement.style.setProperty('--accent', '#2196F3');
+                if(selectedPoint) infoBox.style.borderColor = '#2196F3';
+            } else {
+                legendText.textContent = "Exibindo: Densidade de Corrente (J)";
+                document.documentElement.style.setProperty('--accent', '#FF9800');
+                if(selectedPoint) infoBox.style.borderColor = '#FF9800';
+            }
+        }
+
+        // Evento de clique no canvas
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            selectedPoint = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+                screenX: e.clientX,
+                screenY: e.clientY
+            };
+            
+            // Posicionar a caixa perto do clique (com ajuste para não sair da tela)
+            infoBox.style.display = 'block';
+            let boxX = selectedPoint.x + 15;
+            let boxY = selectedPoint.y + 15;
+            
+            if (boxX + 180 > width) boxX = selectedPoint.x - 180;
+            if (boxY + 80 > height) boxY = selectedPoint.y - 80;
+
+            infoBox.style.left = boxX + 'px';
+            infoBox.style.top = boxY + 'px';
+
+            draw();
+        });
+
+        // Clique duplo para limpar a seleção
+        canvas.addEventListener('dblclick', () => {
+            selectedPoint = null;
+            infoBox.style.display = 'none';
+            draw();
+        });
+
+        function drawArrow(x, y, ex, ey, magnitude, mode) {
+            const size = 30;
+            const logMag = Math.log10(magnitude + 1);
+            let arrowLen = Math.min(size * 0.9, logMag * 15);
+            if (arrowLen < 2) return;
+
+            const angle = Math.atan2(ey, ex);
+            const lightness = Math.min(90, Math.max(30, logMag * 20));
+            const hue = mode === 'E' ? 200 : 35; 
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(-arrowLen/2, 0);
+            ctx.lineTo(arrowLen/2, 0);
+            
+            ctx.lineTo(arrowLen/2 - 4, -3);
+            ctx.moveTo(arrowLen/2, 0);
+            ctx.lineTo(arrowLen/2 - 4, 3);
+            
+            ctx.strokeStyle = `hsl(${hue}, 100%, ${lightness}%)`;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Função isolada para calcular os dados físicos de um ponto específico
+        function getPhysicsAtPoint(x, y, v, d, sigma, cx, cy) {
+            const x1 = cx - d/2;
+            const x2 = cx + d/2;
+            
+            const dx1 = x - x1;
+            const dy1 = y - cy;
+            const r1 = Math.sqrt(dx1*dx1 + dy1*dy1);
+
+            const dx2 = x - x2;
+            const dy2 = y - cy;
+            const r2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+
+            const k = 5000; 
+
+            // Campo Elétrico E
+            const ex = v * k * ( (dx2 / Math.pow(r2, 3)) - (dx1 / Math.pow(r1, 3)) );
+            const ey = v * k * ( (dy2 / Math.pow(r2, 3)) - (dy1 / Math.pow(r1, 3)) );
+            const eMag = Math.sqrt(ex*ex + ey*ey);
+
+            // Densidade de Corrente J
+            const jMag = eMag * sigma;
+
+            // Potencial Elétrico V (aproximado para a escala bidimensional do simulador)
+            // Constante 15 usada apenas para alinhar a exibição com a voltagem de entrada próxima aos polos
+            const potential = v * 15 * ((1 / r2) - (1 / r1));
+
+            return { eMag, jMag, potential };
+        }
+
+        function draw() {
+            updateLabels();
+            ctx.clearRect(0, 0, width, height);
+
+            const v = parseFloat(inVoltage.value);
+            const d = parseFloat(inDistance.value);
+            const sigma = parseFloat(inSigma.value);
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+
+            const cx = width / 2;
+            const cy = height / 2;
+            const x1 = cx - d/2;
+            const x2 = cx + d/2;
+            const step = 35;
+
+            // Desenhar Campo Vetorial
+            for (let x = step/2; x < width; x += step) {
+                for (let y = step/2; y < height; y += step) {
+                    const dx1 = x - x1; const dy1 = y - cy;
+                    const dx2 = x - x2; const dy2 = y - cy;
+                    const r1 = Math.sqrt(dx1*dx1 + dy1*dy1);
+                    const r2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+
+                    if (r1 < 15 || r2 < 15) continue;
+
+                    const k = 5000;
+                    const ex = v * k * ( (dx2 / Math.pow(r2, 3)) - (dx1 / Math.pow(r1, 3)) );
+                    const ey = v * k * ( (dy2 / Math.pow(r2, 3)) - (dy1 / Math.pow(r1, 3)) );
+
+                    let vx = ex;
+                    let vy = ey;
+
+                    if (mode === 'J') {
+                        vx = ex * sigma;
+                        vy = ey * sigma;
+                    }
+
+                    const magnitude = Math.sqrt(vx*vx + vy*vy);
+                    drawArrow(x, y, vx, vy, magnitude, mode);
+                }
+            }
+
+            // Atualizar e Desenhar Ponto Selecionado
+            if (selectedPoint) {
+                const data = getPhysicsAtPoint(selectedPoint.x, selectedPoint.y, v, d, sigma, cx, cy);
+                
+                // Atualiza a janelinha com 2 casas decimais
+                infoV.textContent = data.potential.toFixed(2);
+                infoJ.textContent = data.jMag.toFixed(2);
+
+                // Desenha um alvo no ponto clicado
+                ctx.beginPath();
+                ctx.arc(selectedPoint.x, selectedPoint.y, 6, 0, Math.PI * 2);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(selectedPoint.x, selectedPoint.y, 1, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+            }
+
+            // Desenhar os polos
+            ctx.shadowBlur = 15;
+            
+            ctx.shadowColor = '#f44336';
+            ctx.fillStyle = '#f44336';
+            ctx.beginPath(); ctx.arc(x2, cy, 8, 0, Math.PI * 2); ctx.fill();
+
+            ctx.shadowColor = '#2196F3';
+            ctx.fillStyle = '#2196F3';
+            ctx.beginPath(); ctx.arc(x1, cy, 8, 0, Math.PI * 2); ctx.fill();
+
+            ctx.shadowBlur = 0;
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('+', x2, cy);
+            ctx.fillText('-', x1, cy);
+        }
+
+        // Listeners para atualizar o canvas
+        [inVoltage, inDistance, inSigma].forEach(el => el.addEventListener('input', draw));
+        modeRadios.forEach(el => el.addEventListener('change', draw));
+
+        // Inicialização
+        resize();
+    </script>
+</body>
+</html>
