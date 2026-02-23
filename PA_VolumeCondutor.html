@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulação Completa - Fibra Muscular Fiel</title>
+  <style>
+    :root {
+      --bg-color: #0d1117;
+      --panel-bg: rgba(22, 27, 34, 0.75);
+      --border: rgba(255, 255, 255, 0.15);
+      --text: #c9d1d9;
+      --accent: #58a6ff;
+      --pos-color: #ff7b72;
+      --neg-color: #79c0ff;
+    }
+
+    body, html {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background-color: var(--bg-color); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    #simulationCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+    #controls {
+      position: absolute; top: 20px; left: 20px; width: 320px; max-height: 90vh; overflow-y: auto;
+      background: var(--panel-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    }
+
+    #controls::-webkit-scrollbar { width: 6px; }
+    #controls::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+    h2 { margin: 0 0 5px 0; font-size: 18px; text-align: center; color: #fff; }
+    .subtitle { text-align: center; font-size: 11px; color: #8b949e; margin-bottom: 20px; }
+
+    .control-group { margin-bottom: 12px; }
+    .control-group label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; color: #8b949e; font-weight: bold;}
+    input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+    .btn-row { display: flex; gap: 10px; margin-bottom: 10px; margin-top: 15px; }
+    .btn-action {
+      flex: 1; background: rgba(88, 166, 255, 0.15); border: 1px solid rgba(88, 166, 255, 0.4);
+      color: var(--accent); padding: 8px; border-radius: 6px; cursor: pointer; transition: 0.2s; font-weight: 600; font-size: 12px;
+    }
+    .btn-action:hover { background: rgba(88, 166, 255, 0.25); }
+
+    .btn-reset {
+      width: 100%; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--border);
+      color: #fff; padding: 10px; border-radius: 6px; cursor: pointer; transition: 0.2s; font-weight: 600;
+    }
+    .btn-reset:hover { background: rgba(255, 255, 255, 0.15); }
+
+    .instructions { margin-top: 15px; font-size: 11px; color: #8b949e; text-align: center; line-height: 1.5; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px;}
+
+    #oscilloscope-container {
+      position: absolute; bottom: 20px; right: 20px; width: 400px;
+      background: var(--panel-bg); backdrop-filter: blur(12px);
+      border: 1px solid var(--border); border-radius: 12px; padding: 15px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    }
+
+    .osc-title { font-size: 12px; color: #8b949e; margin-bottom: 10px; display: flex; justify-content: space-between; font-weight: bold;}
+    #oscCanvas { background: #000; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); box-shadow: inset 0 0 15px rgba(57, 255, 20, 0.15); }
+
+    .grid-legend { position: absolute; bottom: 20px; left: 20px; font-size: 12px; color: rgba(255,255,255,0.5); font-family: monospace; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px;}
+    hr { border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0; }
+  </style>
+</head>
+<body>
+
+  <canvas id="simulationCanvas"></canvas>
+  <div class="grid-legend">■ grid= 1 cm</div>
+
+  <div id="controls">
+    <h2>Potencial de Ação Muscular</h2>
+
+    <div class="control-group">
+      <label><span>Velocidade de Condução</span> <span id="speedVal">5.0 m/s</span></label>
+      <input type="range" id="speed" min="1" max="8" step="0.5" value="5">
+    </div>
+
+    <div class="control-group">
+      <label><span>Condutividade do Meio (σe)</span> <span id="condVal">0.5 S/m</span></label>
+      <input type="range" id="conductivity" min="0.1" max="5" step="0.1" value="0.5">
+    </div>
+
+    <div class="control-group">
+      <label><span>Tempo de Repolarização</span> <span id="repolVal">5.0 ms</span></label>
+      <input type="range" id="repolTime" min="1" max="100" step="0.5" value="5.0">
+    </div>
+
+    <hr>
+
+    <div class="control-group">
+      <label><span>Intensidade Visual do Campo</span> <span id="fieldVal">2.0x</span></label>
+      <input type="range" id="fieldIntensity" min="0.1" max="10" step="0.1" value="2.0">
+    </div>
+
+    <div class="control-group">
+      <label><span>Ganho do Osciloscópio</span> <span id="gainVal">175</span></label>
+      <input type="range" id="oscGain" min="5" max="200" step="5" value="175">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-action" id="pauseBtn">Pausar</button>
+      <button class="btn-action" id="stepBtn">Avançar Passo</button>
+    </div>
+    <button class="btn-reset" id="resetBtn">Limpar Elétrodos</button>
+
+    <div class="instructions">
+      <strong>Ordem:</strong> Elétrodo A (Vermelho) -> Elétrodo B (Azul).<br>
+    </div>
+  </div>
+
+  <div id="oscilloscope-container">
+    <div class="osc-title">
+      <span>Sinal Diferencial (V_A - V_B)</span>
+      <span style="color: #39ff14;">V(t)</span>
+    </div>
+    <canvas id="oscCanvas" width="370" height="150"></canvas>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('simulationCanvas');
+    const ctx = canvas.getContext('2d');
+    const oscCanvas = document.getElementById('oscCanvas');
+    const octx = oscCanvas.getContext('2d');
+
+    // Sliders
+    const speedSlider = document.getElementById('speed');
+    const condSlider = document.getElementById('conductivity');
+    const repolSlider = document.getElementById('repolTime');
+    const fieldSlider = document.getElementById('fieldIntensity');
+    const gainSlider = document.getElementById('oscGain');
+
+    // Labels
+    const speedValLabel = document.getElementById('speedVal');
+    const condValLabel = document.getElementById('condVal');
+    const repolValLabel = document.getElementById('repolVal');
+    const fieldValLabel = document.getElementById('fieldVal');
+    const gainValLabel = document.getElementById('gainVal');
+
+    // Botões
+    const resetBtn = document.getElementById('resetBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const stepBtn = document.getElementById('stepBtn');
+
+    let width, height, fiberY;
+    const fiberRadius = 16;
+    let waveX = -200;
+
+    // FÍSICA E ESCALA
+    const PIXELS_PER_CM = 40;
+    const TIME_SLOWDOWN = 100;
+
+    // Objeto global de parâmetros para alinhamento físico e visual
+    const physicsParams = { L_AP: 0, L_depol: 0.15, L_repol: 0.30 };
+
+    // NÚCLEO MATEMÁTICO
+    let templateX = new Float32Array(0);
+    let templateD2 = new Float32Array(0);
+
+    // Canvas offscreen para gradiente perfeitamente liso
+    const fieldCanvas = document.createElement('canvas');
+    const fctx = fieldCanvas.getContext('2d');
+    let needsFieldUpdate = true;
+    const PAD_PX = 800;
+
+    // Escala de resolução do campo
+    const FIELD_RENDER_SCALE = 0.25;
+
+    let isPaused = false;
+    let stepRequested = false;
+    let electrodes = [];
+    let currentElectrodeIndex = 0;
+    const colors = ['#ff7b72', '#79c0ff'];
+    const labels = ['A', 'B'];
+    const signalBuffer = new Array(oscCanvas.width).fill(0);
+
+    function resize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      fiberY = Math.round((height / 2) / PIXELS_PER_CM) * PIXELS_PER_CM;
+      needsFieldUpdate = true;
+    }
+    window.addEventListener('resize', resize);
+
+    // FUNÇÕES MATEMÁTICAS
+    function smoothstep(min, max, value) {
+      let x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+      return x * x * (3 - 2 * x);
+    }
+
+    // Devolve o Vm transmembrana para uma posição relativa à frente da onda
+    function getVmAt(x_cm_relative, L_AP, L_depol, L_repol) {
+      if (x_cm_relative > 0) return -90; // Repouso à frente
+
+      if (x_cm_relative > -L_depol) {
+        let t = (x_cm_relative + L_depol) / L_depol;
+        return 30 - 120 * smoothstep(0, 1, t); // subida rápida
+      }
+
+      if (x_cm_relative > -L_AP) return 30; // platô
+
+      if (x_cm_relative > -L_AP - L_repol) {
+        let t = (x_cm_relative - (-L_AP - L_repol)) / L_repol;
+        return -90 + 120 * smoothstep(0, 1, t); // repolarização
+      }
+
+      return -90; // Repouso atrás
+    }
+
+    function updatePhysicsTemplate() {
+      // ===== CORREÇÃO "MUITO ERRADA": CONVERSÃO DE UNIDADES =====
+      // speedSlider está em m/s.
+      // 1 m/s = 100 cm/s = 0.1 cm/ms
+      const speed_m_s = parseFloat(speedSlider.value);
+      const speed_cm_ms = speed_m_s * 0.1;
+
+      // repolSlider está em ms (apesar do nome, aqui define a "largura" do platô/trecho despolarizado)
+      const repol_ms = parseFloat(repolSlider.value);
+
+      // Comprimento do trecho despolarizado (cm) = velocidade (cm/ms) * tempo (ms)
+      physicsParams.L_AP = speed_cm_ms * repol_ms;
+      // =========================================================
+
+      const dx_cm = 0.01;
+      const margin = 1.0;
+
+      const numSteps = Math.ceil((margin * 2 + physicsParams.L_AP + physicsParams.L_repol) / dx_cm);
+      let Vm = new Float32Array(numSteps);
+      let x_vals = new Float32Array(numSteps);
+
+      for (let i = 0; i < numSteps; i++) {
+        let x_cm = margin - i * dx_cm;
+        x_vals[i] = x_cm;
+        Vm[i] = getVmAt(x_cm, physicsParams.L_AP, physicsParams.L_depol, physicsParams.L_repol);
+      }
+
+      let tempX = [];
+      let tempD2 = [];
+      for (let i = 1; i < numSteps - 1; i++) {
+        let d2 = (Vm[i-1] - 2*Vm[i] + Vm[i+1]) / (dx_cm * dx_cm);
+        if (Math.abs(d2) > 0.01) {
+          tempX.push(x_vals[i]);
+          tempD2.push(d2 * dx_cm);
+        }
+      }
+      templateX = new Float32Array(tempX);
+      templateD2 = new Float32Array(tempD2);
+      needsFieldUpdate = true;
+    }
+
+    // INTEGRAL CONTÍNUA DISCRETIZADA
+    function getPotentialAt(px_x, px_y, px_waveX, sigma) {
+      const x_cm = px_x / PIXELS_PER_CM;
+      const y_cm = px_y / PIXELS_PER_CM;
+      const waveX_cm = px_waveX / PIXELS_PER_CM;
+      const fiberY_cm = fiberY / PIXELS_PER_CM;
+
+      const p = Math.abs(y_cm - fiberY_cm);
+      const p2 = p * p;
+      const r_min2 = 0.05 * 0.05; // Piso Físico r_min
+
+      let phi = 0;
+      for (let i = 0; i < templateX.length; i++) {
+        const sourceX_cm = waveX_cm + templateX[i];
+        const dx = x_cm - sourceX_cm;
+        const r = Math.sqrt(dx * dx + p2 + r_min2);
+        phi += templateD2[i] / r;
+      }
+
+      const K = 0.05;
+      return (K / sigma) * phi;
+    }
+
+    // RENDERIZAÇÃO DO CAMPO LISO POR MATRIZ
+    function renderFieldCanvas() {
+      const sigma = parseFloat(condSlider.value);
+      const visualMultiplier = parseFloat(fieldSlider.value);
+
+      const actionPotentialWidth_px = physicsParams.L_AP * PIXELS_PER_CM;
+      const fullCanvasWidth = actionPotentialWidth_px + PAD_PX * 2;
+
+      const w = Math.ceil(fullCanvasWidth * FIELD_RENDER_SCALE);
+      const h = Math.ceil(height * FIELD_RENDER_SCALE);
+
+      fieldCanvas.width = w;
+      fieldCanvas.height = h;
+
+      const imgData = fctx.createImageData(w, h);
+      const localWaveX = fullCanvasWidth - PAD_PX;
+
+      for (let y = 0; y < h; y++) {
+        const screenY = y / FIELD_RENDER_SCALE;
+        if (Math.abs(screenY - fiberY) < fiberRadius) continue;
+
+        for (let x = 0; x < w; x++) {
+          const screenX = x / FIELD_RENDER_SCALE;
+          let phi = getPotentialAt(screenX, screenY, localWaveX, sigma);
+
+          let alpha = Math.min(255, Math.abs(phi) * visualMultiplier * 45);
+          if (alpha > 3) {
+            const idx = (y * w + x) * 4;
+            if (phi > 0) {
+              imgData.data[idx] = 255;
+              imgData.data[idx+1] = 123;
+              imgData.data[idx+2] = 114;
+            } else {
+              imgData.data[idx] = 121;
+              imgData.data[idx+1] = 192;
+              imgData.data[idx+2] = 255;
+            }
+            imgData.data[idx+3] = alpha;
+          }
+        }
+      }
+      fctx.putImageData(imgData, 0, 0);
+      needsFieldUpdate = false;
+    }
+
+    // UI BINDINGS
+    function attachSlider(slider, labelElem, suffix, callback) {
+      slider.oninput = () => {
+        labelElem.innerText = `${parseFloat(slider.value).toFixed(1)}${suffix}`;
+        if (callback) callback();
+      };
+    }
+    attachSlider(speedSlider, speedValLabel, ' m/s', updatePhysicsTemplate);
+    attachSlider(repolSlider, repolValLabel, ' ms', updatePhysicsTemplate);
+    attachSlider(condSlider, condValLabel, ' S/m', () => needsFieldUpdate = true);
+    attachSlider(fieldSlider, fieldValLabel, 'x', () => needsFieldUpdate = true);
+
+    gainSlider.oninput = () => {
+      gainValLabel.innerText = gainSlider.value;
+      if (isPaused) renderOscilloscope();
+    };
+
+    pauseBtn.addEventListener('click', () => {
+      isPaused = !isPaused;
+      pauseBtn.innerText = isPaused ? "Retomar" : "Pausar";
+    });
+
+    stepBtn.addEventListener('click', () => {
+      if (!isPaused) {
+        isPaused = true;
+        pauseBtn.innerText = "Retomar";
+      }
+      stepRequested = true;
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#controls') || e.target.closest('#oscilloscope-container')) return;
+      const rect = canvas.getBoundingClientRect();
+      const snapX = Math.round((e.clientX - rect.left) / PIXELS_PER_CM) * PIXELS_PER_CM;
+      const snapY = Math.round((e.clientY - rect.top) / PIXELS_PER_CM) * PIXELS_PER_CM;
+
+      electrodes[currentElectrodeIndex] = { x: snapX, y: snapY, color: colors[currentElectrodeIndex], label: labels[currentElectrodeIndex] };
+      currentElectrodeIndex = (currentElectrodeIndex + 1) % 2;
+
+      if (isPaused) updateOscilloscope(computeInstantVoltage());
+      else signalBuffer.fill(0);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      electrodes = [];
+      currentElectrodeIndex = 0;
+      signalBuffer.fill(0);
+      if (isPaused) updateOscilloscope(0);
+    });
+
+    function computeInstantVoltage() {
+      const sigma = parseFloat(condSlider.value);
+      const valid = electrodes.filter(e => e !== undefined);
+      if (valid.length === 1) return getPotentialAt(valid[0].x, valid[0].y, waveX, sigma);
+      if (valid.length === 2) return getPotentialAt(electrodes[0].x, electrodes[0].y, waveX, sigma) - getPotentialAt(electrodes[1].x, electrodes[1].y, waveX, sigma);
+      return 0;
+    }
+
+    // DESENHOS
+    function drawGrid() {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = 0; x <= width; x += PIXELS_PER_CM) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
+      for (let y = 0; y <= height; y += PIXELS_PER_CM) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
+      ctx.stroke();
+    }
+
+    function drawVector(x, y, direction, label, color) {
+      ctx.beginPath();
+      if (direction === 'forward') {
+        ctx.moveTo(x - 20, y); ctx.lineTo(x + 20, y);
+        ctx.lineTo(x + 10, y - 5); ctx.moveTo(x + 20, y); ctx.lineTo(x + 10, y + 5);
+      } else {
+        ctx.moveTo(x + 20, y); ctx.lineTo(x - 20, y);
+        ctx.lineTo(x - 10, y - 5); ctx.moveTo(x - 20, y); ctx.lineTo(x - 10, y + 5);
+      }
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = color; ctx.font = '11px Arial'; ctx.textAlign = 'center'; ctx.fillText(label, x, y - 15);
+    }
+
+    function drawFiber() {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(0, fiberY - fiberRadius, width, fiberRadius * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const colorPos = getComputedStyle(document.documentElement).getPropertyValue('--pos-color').trim();
+      const colorNeg = getComputedStyle(document.documentElement).getPropertyValue('--neg-color').trim();
+
+      for (let x = 20; x < width; x += PIXELS_PER_CM) {
+        let x_cm_rel = (x - waveX) / PIXELS_PER_CM;
+        let v = getVmAt(x_cm_rel, physicsParams.L_AP, physicsParams.L_depol, physicsParams.L_repol);
+        const isDepolarized = v > -30;
+
+        ctx.fillStyle = isDepolarized ? colorNeg : colorPos;
+        ctx.fillText(isDepolarized ? '-' : '+', x, fiberY - fiberRadius - 15);
+        ctx.fillText(isDepolarized ? '-' : '+', x, fiberY + fiberRadius + 15);
+        ctx.fillStyle = isDepolarized ? colorPos : colorNeg;
+        ctx.fillText(isDepolarized ? '+' : '-', x, fiberY);
+      }
+
+      const vectorDepolX = waveX - (physicsParams.L_depol / 2) * PIXELS_PER_CM;
+      const vectorRepolX = waveX - (physicsParams.L_AP + physicsParams.L_repol / 2) * PIXELS_PER_CM;
+
+      if (vectorDepolX > -100 && vectorDepolX < width + 100) drawVector(vectorDepolX, fiberY - fiberRadius - 45, 'forward', 'Despolarização', '#ff7b72');
+      if (vectorRepolX > -100 && vectorRepolX < width + 100) drawVector(vectorRepolX, fiberY - fiberRadius - 45, 'backward', 'Repolarização', '#79c0ff');
+    }
+
+    function drawElectrodes() {
+      electrodes.forEach((el) => {
+        if (!el) return;
+        ctx.beginPath(); ctx.moveTo(el.x, el.y); ctx.lineTo(el.x, height);
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1; ctx.stroke();
+
+        ctx.beginPath(); ctx.arc(el.x, el.y, 6, 0, Math.PI * 2); ctx.fillStyle = el.color; ctx.fill();
+        ctx.beginPath(); ctx.arc(el.x, el.y, 18, 0, Math.PI * 2);
+        ctx.fillStyle = el.color.replace(')', ', 0.25)').replace('rgb', 'rgba');
+        ctx.fill();
+
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif';
+        ctx.fillText(el.label, el.x + 18, el.y - 18);
+      });
+    }
+
+    function renderOscilloscope() {
+      octx.fillStyle = '#000'; octx.fillRect(0, 0, oscCanvas.width, oscCanvas.height);
+      octx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; octx.lineWidth = 1; octx.beginPath();
+      for (let i = 0; i < oscCanvas.width; i += 20) { octx.moveTo(i, 0); octx.lineTo(i, oscCanvas.height); }
+      for (let j = 0; j < oscCanvas.height; j += 20) { octx.moveTo(0, j); octx.lineTo(oscCanvas.width, j); }
+      octx.stroke();
+
+      octx.beginPath(); octx.strokeStyle = '#39ff14'; octx.lineWidth = 2;
+      octx.shadowBlur = 8; octx.shadowColor = '#39ff14';
+
+      const midY = oscCanvas.height / 2;
+      const scaleY = parseFloat(gainSlider.value);
+
+      for (let i = 0; i < oscCanvas.width; i++) {
+        const y = midY - (signalBuffer[i] * scaleY);
+        if (i === 0) octx.moveTo(i, y); else octx.lineTo(i, y);
+      }
+      octx.stroke();
+      octx.shadowBlur = 0;
+    }
+
+    function updateOscilloscope(voltage) {
+      signalBuffer.push(voltage);
+      signalBuffer.shift();
+      renderOscilloscope();
+    }
+
+    let lastTime = performance.now();
+
+    function animate(time) {
+      let dt = (time - lastTime) / 1000;
+      lastTime = time;
+
+      if (dt > 0.1) dt = 0.016;
+
+      if (needsFieldUpdate) renderFieldCanvas();
+
+      const speed_m_s = parseFloat(speedSlider.value);
+      const actionPotentialWidth_px = physicsParams.L_AP * PIXELS_PER_CM;
+
+      if (!isPaused || stepRequested) {
+        if (stepRequested) { dt = 1/60; stepRequested = false; }
+
+        const speed_px_s = (speed_m_s * 100 * PIXELS_PER_CM) / TIME_SLOWDOWN;
+        waveX += speed_px_s * dt;
+
+        if (waveX > width + actionPotentialWidth_px + PAD_PX) {
+          waveX = -PAD_PX;
+        }
+
+        const vDiff = computeInstantVoltage();
+        updateOscilloscope(vDiff);
+      } else {
+        renderOscilloscope();
+      }
+
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-color').trim();
+      ctx.fillRect(0, 0, width, height);
+      drawGrid();
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      const drawX = waveX - (fieldCanvas.width / FIELD_RENDER_SCALE - PAD_PX);
+      ctx.drawImage(fieldCanvas, drawX, 0,
+        fieldCanvas.width / FIELD_RENDER_SCALE,
+        fieldCanvas.height / FIELD_RENDER_SCALE
+      );
+
+      drawFiber();
+      drawElectrodes();
+
+      requestAnimationFrame(animate);
+    }
+
+    // INIT
+    resize();
+    updatePhysicsTemplate();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
