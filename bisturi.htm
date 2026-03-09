@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Bisturi Elétrico: Ultimate Edition</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #121216; color: #eee; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 350px; background-color: #1e1e24; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.8); display: flex; flex-direction: column; gap: 15px; z-index: 10; border-right: 1px solid #333; overflow-y: auto; }
+        h2 { margin: 0; font-size: 1.2rem; color: #00e5ff; border-bottom: 1px solid #00e5ff; padding-bottom: 5px; }
+        
+        .control-group { background: #252530; padding: 12px; border-radius: 6px; border: 1px solid #333; }
+        label { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 8px; font-weight: bold;}
+        .val { color: #00e5ff; }
+        select, input[type="range"] { width: 100%; padding: 8px; background: #111; color: #fff; border: 1px solid #555; border-radius: 4px; margin-bottom: 5px; cursor: pointer; }
+        
+        .presets { display: flex; gap: 10px; margin-top: 5px; }
+        .preset-btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; transition: 0.2s; }
+        .btn-cut { background-color: #d4a017; color: #000; } 
+        .btn-coag { background-color: #0066cc; } 
+        .preset-btn:hover { filter: brightness(1.2); }
+
+        .btn-game { background-color: #cc0055; color: white; font-size: 1.1rem; text-transform: uppercase; margin-top: auto; padding: 15px; border-radius: 6px; font-weight: 900; animation: pulse 2s infinite; border: 2px solid #ff0066;}
+        .btn-game:hover { background-color: #ff0066; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 102, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 0, 102, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 102, 0); } }
+
+        .main-area { flex-grow: 1; display: flex; flex-direction: column; align-items: center; padding: 20px; gap: 15px; position: relative; }
+        
+        .telemetry-bar { width: 800px; display: flex; justify-content: space-between; background: #0a0a0f; border: 1px solid #333; border-radius: 6px; padding: 10px 20px; box-sizing: border-box; font-family: 'Courier New', Courier, monospace; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+        .tel-item { text-align: center; display: flex; flex-direction: column; }
+        .tel-label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 3px; font-weight: bold;}
+        .tel-value { font-size: 1.4rem; font-weight: bold; }
+        .v-power { color: #ff3366; } .v-res { color: #00ffcc; } .v-cur { color: #ffcc00; } .v-vol { color: #cc66ff; } .v-temp { color: #ff4400; }
+
+        .canvas-container { position: relative; }
+        canvas { background-color: #0c0c12; border: 2px solid #444; border-radius: 4px; box-shadow: 0 0 15px rgba(0,0,0,0.8); }
+        #simCanvas { cursor: crosshair; }
+
+        .scope-container { width: 800px; background: #0a1a0a; border: 2px solid #333; border-radius: 4px; position: relative; }
+        .scope-legend { position: absolute; top: 10px; left: 10px; font-size: 0.8rem; font-family: monospace; }
+        .scope-legend span { display: block; margin-bottom: 5px; font-weight: bold;}
+        .leg-v { color: #ffff00; } .leg-i { color: #00ffff; }
+
+        .game-hud { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 8px; border: 2px solid #cc0055; color: white; font-size: 1.2rem; font-weight: bold; font-family: monospace; display: none; z-index: 20; text-align: center;}
+        
+        .modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1e1e24; padding: 30px; border-radius: 8px; border: 2px solid #00e5ff; box-shadow: 0 0 30px rgba(0, 229, 255, 0.4); z-index: 50; text-align: center; min-width: 300px;}
+        .modal h1 { margin-top: 0; color: #00e5ff; }
+        .score-big { font-size: 3rem; color: #d4a017; margin: 10px 0; }
+        .score-detail { text-align: left; font-size: 0.9rem; color: #aaa; margin-bottom: 20px; }
+        .score-detail span { color: white; float: right; font-weight: bold;}
+        .btn-close { background: #00e5ff; color: #000; padding: 10px 20px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>Gerador Eletrocirúrgico</h2>
+
+        <div class="presets">
+            <button class="preset-btn btn-cut" onclick="setPreset('cut')">Modo CORTE</button>
+            <button class="preset-btn btn-coag" onclick="setPreset('coag')">Modo COAG</button>
+        </div>
+
+        <div class="control-group">
+            <label>Tecido Alvo <span class="val" id="lbl-tissue">Músculo</span></label>
+            <select id="sel-tissue" onchange="changeTissue()">
+                <option value="liver">Fígado (Sangra fácil, difunde calor)</option>
+                <option value="muscle" selected>Músculo (Padrão)</option>
+                <option value="skin">Pele (Alta densidade)</option>
+                <option value="fat">Gordura (Alta resistência elétrica)</option>
+                <option value="bone">Osso (Resistência Extrema)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Potência <span class="val" id="lbl-power">80 W</span></label>
+            <input type="range" id="rng-power" min="10" max="150" step="5" value="80">
+        </div>
+
+        <div class="control-group">
+            <label>Eletrodo <span class="val" id="lbl-electrode">Agulha (Corte)</span></label>
+            <input type="range" id="rng-electrode" min="1" max="4" step="1" value="1">
+        </div>
+
+        <button class="preset-btn btn-game" onclick="startGame()">⚔️ Iniciar Desafio</button>
+    </div>
+
+    <div class="main-area">
+        
+        <div class="telemetry-bar">
+            <div class="tel-item"><span class="tel-label">Potência Real</span><span class="tel-value v-power" id="tel-p">0 W</span></div>
+            <div class="tel-item"><span class="tel-label">Impedância</span><span class="tel-value v-res" id="tel-r">--- Ω</span></div>
+            <div class="tel-item"><span class="tel-label">Corrente RMS</span><span class="tel-value v-cur" id="tel-i">0 mA</span></div>
+            <div class="tel-item"><span class="tel-label">Tensão RMS</span><span class="tel-value v-vol" id="tel-v">0 V</span></div>
+            <div class="tel-item"><span class="tel-label">Temp. Máx.</span><span class="tel-value v-temp" id="tel-temp">37 °C</span></div>
+        </div>
+
+        <div class="game-hud" id="gameHud">Tempo: <span id="timerVal">0.0</span>s</div>
+        
+        <div class="canvas-container">
+            <canvas id="simCanvas" width="800" height="300"></canvas>
+        </div>
+
+        <div class="scope-container">
+            <div class="scope-legend">
+                <span class="leg-v">--- Tensão (V)</span>
+                <span class="leg-i">--- Corrente (A)</span>
+            </div>
+            <canvas id="oscCanvas" width="800" height="150"></canvas>
+        </div>
+
+        <div class="modal" id="scoreModal">
+            <h1>Avaliação Cirúrgica</h1>
+            <div class="score-big" id="finalScore">95%</div>
+            <div class="score-detail">
+                Tempo de Corte: <span id="resTime">2.5s</span><br><br>
+                Desvio da Trajetória: <span id="resDev">Baixo</span><br><br>
+                Dano Térmico Colateral: <span id="resDam">Mínimo</span>
+            </div>
+            <button class="btn-close" onclick="closeModal()">Concluir</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const cellSize = 4;
+        const cols = Math.floor(canvas.width / cellSize);
+        const rows = Math.floor(canvas.height / cellSize);
+        const oscCanvas = document.getElementById('oscCanvas');
+        const oscCtx = oscCanvas.getContext('2d');
+
+        let audioCtx, oscAudio, gainNode;
+
+        const rngPower = document.getElementById('rng-power');
+        const lblPower = document.getElementById('lbl-power');
+        const rngElectrode = document.getElementById('rng-electrode');
+        const lblElectrode = document.getElementById('lbl-electrode');
+
+        let grid = [];
+        let nextTemp = new Float32Array(cols * rows); 
+        let currentMode = 'cut';
+        let isDrawing = false;
+        let mouseX = -100; let mouseY = -100;
+        let oscTime = 0;
+        let currentMaxTemp = 37;
+
+        let gameActive = false;
+        let gameStartTime = 0;
+        let hasStartedCutting = false;
+        let targetLine = { x1: 50, y1: 150, x2: 750, y2: 150 }; 
+
+        const tissueData = {
+            liver:  { name: "Fígado", color: [160, 40, 40], res: 0.6, baseOhm: 150, cooling: 0.8, diffusion: 0.12 },
+            muscle: { name: "Músculo", color: [200, 60, 60], res: 1.0, baseOhm: 300, cooling: 0.5, diffusion: 0.08 },
+            skin:   { name: "Pele", color: [230, 180, 140], res: 1.5, baseOhm: 600, cooling: 0.4, diffusion: 0.05 },
+            fat:    { name: "Gordura", color: [220, 190, 60], res: 2.5, baseOhm: 1200, cooling: 0.2, diffusion: 0.02 },
+            bone:   { name: "Osso", color: [240, 240, 230], res: 5.0, baseOhm: 3000, cooling: 0.1, diffusion: 0.01 }
+        };
+        let currentTissue = tissueData.muscle;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                oscAudio = audioCtx.createOscillator();
+                gainNode = audioCtx.createGain();
+                oscAudio.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                gainNode.gain.value = 0; 
+                oscAudio.start();
+            }
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound() {
+            if(!audioCtx) initAudio();
+            if (currentMode === 'cut') {
+                oscAudio.type = 'sine'; oscAudio.frequency.setValueAtTime(800, audioCtx.currentTime); 
+                gainNode.gain.setTargetAtTime(0.1, audioCtx.currentTime, 0.05);
+            } else {
+                oscAudio.type = 'sawtooth'; oscAudio.frequency.setValueAtTime(350, audioCtx.currentTime); 
+                gainNode.gain.setTargetAtTime(0.05, audioCtx.currentTime, 0.01);
+            }
+        }
+        function stopSound() { if(gainNode) gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05); }
+
+        function initGrid() {
+            grid = new Array(cols * rows);
+            for (let i = 0; i < grid.length; i++) { grid[i] = { temp: 37, state: 0 }; }
+        }
+
+        function updateElectrodeLabel() {
+            const nomes = ["Agulha (Fino)", "Faca Média", "Bola Pequena", "Bola Grande"];
+            lblElectrode.innerText = nomes[rngElectrode.value - 1];
+        }
+
+        rngPower.oninput = () => lblPower.innerText = rngPower.value + ' W';
+        rngElectrode.oninput = updateElectrodeLabel;
+
+        function changeTissue() {
+            currentTissue = tissueData[document.getElementById('sel-tissue').value];
+            document.getElementById('lbl-tissue').innerText = currentTissue.name;
+            initGrid();
+        }
+
+        function setPreset(mode) {
+            currentMode = mode;
+            if (mode === 'cut') { rngPower.value = 80; rngElectrode.value = 1; lblPower.innerText = '80 W'; updateElectrodeLabel(); } 
+            else { rngPower.value = 40; rngElectrode.value = 4; lblPower.innerText = '40 W'; updateElectrodeLabel(); }
+        }
+
+        function applyHeat() {
+            const power = parseInt(rngPower.value);
+            const radiusVal = parseInt(rngElectrode.value);
+            const dutyMultiplier = currentMode === 'coag' ? 0.3 : 1.5;
+            const r_cells = radiusVal * 2; 
+            const heatRate = (power * currentTissue.res * dutyMultiplier) / (r_cells * r_cells);
+            
+            let localMax = 37;
+
+            for (let i = -Math.ceil(r_cells); i <= Math.ceil(r_cells); i++) {
+                for (let j = -Math.ceil(r_cells); j <= Math.ceil(r_cells); j++) { 
+                    let cx = mouseX + i; let cy = mouseY + j;
+                    if (cx >= 0 && cx < cols && cy >= 0 && cy < rows) {
+                        let dist = Math.sqrt(i*i + j*j);
+                        if (dist <= r_cells) {
+                            let idx = cy * cols + cx;
+                            let factor = Math.max(0, 1 - (dist / r_cells)); 
+                            
+                            // Permite aumentar temperatura, a menos que já tenha virado "vácuo" (buraco)
+                            if (grid[idx].temp < 400 && grid[idx].state !== 2) { 
+                                grid[idx].temp += heatRate * factor;
+                            }
+                            if (grid[idx].temp > localMax) localMax = grid[idx].temp;
+                        }
+                    }
+                }
+            }
+            if (isDrawing) currentMaxTemp = localMax;
+        }
+
+        function diffuseAndCoolHeat() {
+            for(let i=0; i<grid.length; i++) nextTemp[i] = grid[i].temp;
+
+            let diff = currentTissue.diffusion;
+            
+            for (let y = 1; y < rows - 1; y++) {
+                for (let x = 1; x < cols - 1; x++) {
+                    let idx = y * cols + x;
+                    let t = grid[idx].temp;
+                    
+                    if (t > 37) {
+                        let avg = (grid[idx-1].temp + grid[idx+1].temp + grid[idx-cols].temp + grid[idx+cols].temp) / 4;
+                        nextTemp[idx] += (avg - t) * diff;
+                        nextTemp[idx] -= currentTissue.cooling;
+                        if (nextTemp[idx] < 37) nextTemp[idx] = 37;
+                    }
+                }
+            }
+
+            for(let i=0; i<grid.length; i++) {
+                grid[i].temp = nextTemp[i];
+                let t = grid[i].temp;
+                
+                // O SEGREDO DO DANO PERMANENTE ESTÁ AQUI:
+                // O estado do tecido só pode "piorar", nunca melhorar.
+                if (t > 250) {
+                    grid[i].state = 2; // Vaporizado/Buraco negro
+                } else if (t > 150 && grid[i].state < 2) {
+                    grid[i].state = 3; // Carbonizado/Marrom escuro
+                } else if (t > 60 && grid[i].state < 1) {
+                    grid[i].state = 1; // Coagulado/Cinza
+                }
+            }
+            
+            if (!isDrawing) currentMaxTemp = Math.max(37, currentMaxTemp - currentTissue.cooling * 5);
+        }
+
+        function updateTelemetry() {
+            if (!isDrawing || mouseX < 0 || mouseX >= cols || mouseY < 0 || mouseY >= rows) {
+                document.getElementById('tel-p').innerText = "0 W";
+                document.getElementById('tel-r').innerText = "--- Ω";
+                document.getElementById('tel-i').innerText = "0 mA";
+                document.getElementById('tel-v').innerText = "0 V";
+                document.getElementById('tel-temp').innerText = Math.round(currentMaxTemp) + " °C";
+                return;
+            }
+
+            let centerCell = grid[mouseY * cols + mouseX];
+            let baseR = currentTissue.baseOhm;
+            
+            if (centerCell.state === 1) baseR *= 1.8; 
+            if (centerCell.state === 3) baseR *= 4.0; 
+            if (centerCell.state === 2) baseR *= 10.0; 
+
+            let noise = 1 + (Math.random() * 0.1 - 0.05);
+            let R = baseR * noise;
+            let P_set = parseInt(rngPower.value);
+            let I = Math.sqrt(P_set / R);
+            let V = I * R;
+
+            let P_actual = P_set;
+            if (R > 5000) P_actual = P_set * 0.3; 
+
+            document.getElementById('tel-p').innerText = Math.round(P_actual) + " W";
+            document.getElementById('tel-r').innerText = Math.round(R) + " Ω";
+            document.getElementById('tel-i').innerText = Math.round(I * 1000) + " mA";
+            document.getElementById('tel-v').innerText = Math.round(V) + " V";
+            document.getElementById('tel-temp').innerText = Math.round(currentMaxTemp) + " °C";
+            
+            const tempEl = document.getElementById('tel-temp');
+            if(currentMaxTemp > 250) tempEl.style.color = "#ff0000";
+            else if(currentMaxTemp > 100) tempEl.style.color = "#ffaa00";
+            else tempEl.style.color = "#00ffcc";
+        }
+
+        function drawTissue() {
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    let cell = grid[y * cols + x];
+                    
+                    // Renderiza baseado no estado permanente
+                    if (cell.state === 2) {
+                        ctx.fillStyle = "#0c0c12"; // Corte (Preto/Fundo)
+                    } else if (cell.state === 3) {
+                        ctx.fillStyle = "#1a120b"; // Carbonizado
+                    } else if (cell.state === 1) {
+                        ctx.fillStyle = "#c0c0c0"; // Coagulado (Cinza)
+                    } else {
+                        // Tecido normal com overlay de calor visível
+                        let heatRatio = Math.max(0, (cell.temp - 37) / 23);
+                        let r = Math.min(255, currentTissue.color[0] + heatRatio * 80);
+                        let g = Math.min(255, currentTissue.color[1] + heatRatio * 50);
+                        let b = Math.min(255, currentTissue.color[2]);
+                        ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    }
+                    ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                }
+            }
+
+            if (gameActive) {
+                ctx.beginPath(); ctx.setLineDash([10, 10]);
+                ctx.moveTo(targetLine.x1, targetLine.y1); ctx.lineTo(targetLine.x2, targetLine.y2);
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+                ctx.beginPath(); ctx.arc(targetLine.x1, targetLine.y1, 15, 0, Math.PI*2); ctx.fillStyle = "rgba(0, 255, 0, 0.5)"; ctx.fill(); ctx.strokeStyle = "#0f0"; ctx.stroke();
+                ctx.beginPath(); ctx.arc(targetLine.x2, targetLine.y2, 15, 0, Math.PI*2); ctx.fillStyle = "rgba(255, 0, 0, 0.5)"; ctx.fill(); ctx.strokeStyle = "#f00"; ctx.stroke();
+            }
+
+            if (isDrawing) {
+                let r_px = (parseInt(rngElectrode.value) * 2) * cellSize;
+                ctx.beginPath(); ctx.arc((mouseX * cellSize) + cellSize/2, (mouseY * cellSize) + cellSize/2, r_px, 0, Math.PI * 2);
+                ctx.strokeStyle = "cyan"; ctx.lineWidth = 1; ctx.stroke();
+            }
+        }
+
+        // --- SISTEMA DE JOGO ---
+        function startGame() { 
+            changeTissue(); 
+            gameActive = true; 
+            hasStartedCutting = false; 
+            document.getElementById('gameHud').style.display = 'block'; 
+            document.getElementById('timerVal').innerText = "0.0";
+        }
+
+        function checkGameLogic() {
+            if (!gameActive) return;
+
+            if (isDrawing && !hasStartedCutting) {
+                hasStartedCutting = true;
+                gameStartTime = Date.now();
+            }
+
+            if (hasStartedCutting) {
+                let elapsed = (Date.now() - gameStartTime) / 1000;
+                document.getElementById('timerVal').innerText = elapsed.toFixed(1);
+
+                let endDist = Math.sqrt(Math.pow(mouseX*cellSize - targetLine.x2, 2) + Math.pow(mouseY*cellSize - targetLine.y2, 2));
+                if (isDrawing && endDist < 20) {
+                    finishGame(elapsed);
+                }
+            }
+        }
+
+        function finishGame(timeElapsed) {
+            gameActive = false;
+            stopSound();
+            isDrawing = false;
+            
+            let vaporizedCount = 0;
+            let coagulatedCount = 0;
+            let totalDeviation = 0;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    let cell = grid[y * cols + x];
+                    if (cell.state === 2) { 
+                        vaporizedCount++;
+                        let realY = y * cellSize;
+                        totalDeviation += Math.abs(realY - targetLine.y1);
+                    }
+                    if (cell.state === 1 || cell.state === 3) coagulatedCount++; 
+                }
+            }
+
+            let avgDeviation = vaporizedCount > 0 ? (totalDeviation / vaporizedCount) : 100;
+            let score = 100;
+            
+            if (timeElapsed > 3.5) score -= (timeElapsed - 3.5) * 5;
+            score -= avgDeviation * 1.5;
+            let descDev = avgDeviation < 5 ? "Excelente (< 5px)" : (avgDeviation < 15 ? "Aceitável" : "Alto (Tremor)");
+
+            score -= (coagulatedCount * 0.05); 
+            if (vaporizedCount > 1000) score -= 20; 
+
+            let descDam = coagulatedCount < 400 ? "Mínimo (Corte Limpo)" : "Severo (Muito Dano Térmico)";
+            if (score < 0) score = 0;
+
+            document.getElementById('resTime').innerText = timeElapsed.toFixed(1) + "s";
+            document.getElementById('resDev').innerText = descDev;
+            document.getElementById('resDam').innerText = descDam;
+            document.getElementById('finalScore').innerText = Math.round(score) + "%";
+            
+            const sc = document.getElementById('finalScore');
+            if (score >= 90) sc.style.color = "#00ff00"; 
+            else if (score >= 70) sc.style.color = "#d4a017"; 
+            else sc.style.color = "#ff3333"; 
+
+            document.getElementById('scoreModal').style.display = 'block';
+            document.getElementById('gameHud').style.display = 'none';
+        }
+
+        function closeModal() { document.getElementById('scoreModal').style.display = 'none'; changeTissue(); }
+        
+        canvas.addEventListener('mousedown', (e) => { initAudio(); isDrawing = true; updateMouse(e); playSound(); });
+        canvas.addEventListener('mousemove', (e) => { if (isDrawing) updateMouse(e); });
+        window.addEventListener('mouseup', () => { isDrawing = false; stopSound(); });
+        canvas.addEventListener('mouseleave', () => { isDrawing = false; stopSound(); });
+
+        function updateMouse(e) {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = Math.floor((e.clientX - rect.left) / cellSize);
+            mouseY = Math.floor((e.clientY - rect.top) / cellSize);
+        }
+
+        function drawScope() {
+            oscCtx.fillStyle = '#0a1a0a'; oscCtx.fillRect(0, 0, oscCanvas.width, oscCanvas.height);
+            oscCtx.strokeStyle = '#1a3a1a'; oscCtx.lineWidth = 1;
+            for(let i=0; i<oscCanvas.width; i+=40){oscCtx.beginPath(); oscCtx.moveTo(i,0); oscCtx.lineTo(i,oscCanvas.height); oscCtx.stroke();}
+            for(let i=0; i<oscCanvas.height; i+=30){oscCtx.beginPath(); oscCtx.moveTo(0,i); oscCtx.lineTo(oscCanvas.width,i); oscCtx.stroke();}
+
+            const centerY = oscCanvas.height / 2;
+            if (!isDrawing) {
+                oscCtx.strokeStyle = 'rgba(255,255,0,0.5)'; oscCtx.beginPath(); oscCtx.moveTo(0, centerY); oscCtx.lineTo(oscCanvas.width, centerY); oscCtx.stroke();
+                oscCtx.strokeStyle = 'rgba(0,255,255,0.5)'; oscCtx.beginPath(); oscCtx.moveTo(0, centerY); oscCtx.lineTo(oscCanvas.width, centerY); oscCtx.stroke();
+                return;
+            }
+            oscTime -= 5;
+            const isCoag = currentMode === 'coag';
+            let vPeak = isCoag ? 65 : 30; let iPeak = isCoag ? 20 : 50; 
+            
+            oscCtx.beginPath(); oscCtx.strokeStyle = 'rgba(255, 255, 0, 0.9)'; oscCtx.lineWidth = 2;
+            for(let x = 0; x < oscCanvas.width; x++) {
+                let t = x * 0.2 + oscTime; let wave = Math.sin(t); let env = 1;
+                if (isCoag) { let lx = (x + oscTime*0.5)%150; if(lx<0)lx+=150; env = lx<30 ? Math.exp(-lx*0.1) : 0; }
+                if(x===0) oscCtx.moveTo(x, centerY - wave*vPeak*env); else oscCtx.lineTo(x, centerY - wave*vPeak*env);
+            } oscCtx.stroke();
+            oscCtx.beginPath(); oscCtx.strokeStyle = 'rgba(0, 255, 255, 0.9)';
+            for(let x = 0; x < oscCanvas.width; x++) {
+                let t = x * 0.2 + oscTime; let wave = Math.sin(t); let env = 1;
+                if (isCoag) { let lx = (x + oscTime*0.5)%150; if(lx<0)lx+=150; env = lx<30 ? Math.exp(-lx*0.1) : 0; }
+                if(x===0) oscCtx.moveTo(x, centerY - wave*iPeak*env); else oscCtx.lineTo(x, centerY - wave*iPeak*env);
+            } oscCtx.stroke();
+        }
+
+        function loop() {
+            checkGameLogic();
+            if (isDrawing) applyHeat();
+            diffuseAndCoolHeat(); 
+            updateTelemetry();
+            drawTissue();
+            drawScope();
+            requestAnimationFrame(loop);
+        }
+
+        initGrid();
+        loop();
+    </script>
+</body>
+</html>
