@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Simulador de Marés Profissional</title>
+    <title>Simulador de Marés Simplificado</title>
     <style>
         :root {
             --bg-main: #0b0f19;
@@ -329,7 +329,7 @@
 
                 // Fómula da interferência de ondas (posição da Terra é 0 radianos)
                 let tideHeight = ampMoon * Math.cos(2 * (0 - projMoonAngle)) + 
-                                 ampSun * Math.cos(2 * (0 - projSunAngle));
+                                 ampSun * Math.cos(2 * (0 - projSunAngle)) + 50;
 
                 // Formata os números com 3 casas decimais usando ponto como separador
                 csvContent += `${current_t.toFixed(3)},${tideHeight.toFixed(3)}\n`;
