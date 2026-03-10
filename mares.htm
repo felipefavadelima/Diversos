@@ -226,8 +226,8 @@
             <h2>Configuração da Aquisição</h2>
             
             <div class="input-group">
-                <label for="sampleFreq">Período de Amostragem (horas)</label>
-                <input type="number" id="sampleFreq" value="1.0" min="0.1" step="0.1">
+                <label for="samplePeriod">Período de Amostragem (horas)</label>
+                <input type="number" id="samplePeriod" value="1.0" min="0.1" step="0.1">
             </div>
             
             <div class="input-group">
@@ -304,7 +304,7 @@
         window.onclick = (e) => { if (e.target == modal) modal.style.display = "none"; }
 
         btnGenerateCSV.onclick = () => {
-            const freq = parseFloat(document.getElementById('sampleFreq').value);
+            const freq = parseFloat(document.getElementById('samplePeriod').value);
             const duration = parseFloat(document.getElementById('acqTime').value);
 
             if (isNaN(freq) || isNaN(duration) || freq <= 0 || duration <= 0) {
