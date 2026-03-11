@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSP STEP - Unified View</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .data-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
+        .term-box { transition: all 0.3s ease; border-bottom: 3px solid transparent; }
+        .highlight-input { animation: pulse-blue 2s infinite; }
+        @keyframes pulse-blue {
+            0%, 100% { border-color: #3b82f6; box-shadow: 0 0 0px #3b82f6; }
+            50% { border-color: #93c5fd; box-shadow: 0 0 15px #93c5fd; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-900 font-sans">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        
+        <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+            <div>
+                <h1 class="text-4xl font-black text-slate-800 tracking-tighter italic">DSP<span class="text-blue-600">STEP</span></h1>
+                <p class="text-slate-500 font-medium">Entrada e Saída em Tempo Real</p>
+            </div>
+            <div class="flex gap-2 bg-white p-1 rounded-xl shadow-sm border">
+                <button onclick="setMode('FIR')" id="modeFIR" class="px-6 py-2 rounded-lg font-bold transition-all bg-blue-600 text-white">FIR</button>
+                <button onclick="setMode('IIR')" id="modeIIR" class="px-6 py-2 rounded-lg font-bold transition-all text-slate-400">IIR</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-4 space-y-6">
+                
+                <div class="bg-white p-6 rounded-3xl shadow-xl border-4 border-blue-500 highlight-input">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold text-blue-500 uppercase tracking-widest">Entrada Atual</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-end mt-2 mb-4">
+                        <h2 class="text-5xl font-black text-slate-800">x[n]</h2>
+                        <span id="currentXVal" class="text-5xl font-mono text-blue-600">0.00</span>
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Tipo de Sinal Gerado</label>
+                        <select id="waveType" class="w-full p-2 bg-slate-50 rounded-lg text-slate-700 font-bold border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <option value="random">Ruído (Aleatório)</option>
+                            <option value="sine">Senoide</option>
+                            <option value="square">Onda Quadrada</option>
+                            <option value="sawtooth">Dente de Serra</option>
+                            <option value="step">Degrau Unitário (Periódico)</option>
+                            <option value="impulse">Impulso (Periódico)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Feedforward (b)</p>
+                            <div class="grid grid-cols-3 gap-2">
+                                <input type="number" id="b0" value="0.5" step="0.1" class="w-full p-2 bg-slate-50 rounded-lg text-center font-bold">
+                                <input type="number" id="b1" value="0.3" step="0.1" class="w-full p-2 bg-slate-50 rounded-lg text-center font-bold">
+                                <input type="number" id="b2" value="0.2" step="0.1" class="w-full p-2 bg-slate-50 rounded-lg text-center font-bold">
+                            </div>
+                        </div>
+                        <div id="panelA" class="hidden">
+                            <p class="text-[10px] font-bold text-orange-400 uppercase mb-2">Feedback (a)</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" id="a1" value="-0.5" step="0.1" class="w-full p-2 bg-orange-50 rounded-lg text-center font-bold">
+                                <input type="number" id="a2" value="0.2" step="0.1" class="w-full p-2 bg-orange-50 rounded-lg text-center font-bold">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="nextStep()" class="w-full mt-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-lg hover:bg-blue-700 shadow-lg active:scale-95 transition-all">
+                        PRÓXIMO PASSO
+                    </button>
+                </div>
+
+                <div class="bg-slate-800 p-5 rounded-3xl shadow-xl text-white">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase mb-4 text-center">Últimos 5 Pontos</h3>
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="text-slate-500 border-b border-slate-700">
+                                <th class="pb-2">n</th>
+                                <th class="pb-2">x[n]</th>
+                                <th class="pb-2">y[n]</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody" class="font-mono"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="font-black text-slate-400 uppercase text-xs tracking-widest">Resolução Passo a Passo</h3>
+                        <span id="labelN" class="bg-slate-100 px-4 py-1 rounded-full font-bold text-slate-600">n = 0</span>
+                    </div>
+
+                    <div id="equationUI" class="flex flex-wrap items-center justify-center gap-2 text-xl md:text-2xl font-light text-slate-400">
+                        Clique em "Próximo Passo" para processar o sinal...
+                    </div>
+
+                    <div class="mt-8 pt-6 border-t border-dashed flex justify-between items-center">
+                        <span class="text-slate-400 font-bold italic">Saída Final:</span>
+                        <div class="text-4xl font-black text-emerald-500">
+                            y[n] = <span id="resY">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 h-[350px]">
+                    <canvas id="unifiedChart"></canvas>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let n = 0;
+        let x_mem = [0, 0, 0]; 
+        let y_mem = [0, 0];
+        let history = [];
+        let mode = 'FIR';
+        let chart;
+
+        function setMode(m) {
+            mode = m;
+            document.getElementById('modeFIR').className = m === 'FIR' ? 'px-6 py-2 rounded-lg font-bold transition-all bg-blue-600 text-white' : 'px-6 py-2 rounded-lg font-bold transition-all text-slate-400';
+            document.getElementById('modeIIR').className = m === 'IIR' ? 'px-6 py-2 rounded-lg font-bold transition-all bg-blue-600 text-white' : 'px-6 py-2 rounded-lg font-bold transition-all text-slate-400';
+            document.getElementById('panelA').classList.toggle('hidden', m === 'FIR');
+            reset();
+        }
+
+        document.getElementById('waveType').addEventListener('change', reset);
+
+        function reset() {
+            n = 0; x_mem = [0,0,0]; y_mem = [0,0]; history = [];
+            initChart();
+            renderHistory();
+            document.getElementById('equationUI').innerHTML = "Aguardando sinal de entrada...";
+            document.getElementById('currentXVal').innerText = "0.00";
+            document.getElementById('resY').innerText = "0.00";
+            document.getElementById('labelN').innerText = `n = 0`;
+        }
+
+        function initChart() {
+            if (chart) chart.destroy();
+            const ctx = document.getElementById('unifiedChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Entrada x[n]', data: [], borderColor: '#3b82f6', backgroundColor: '#3b82f611', fill: true, tension: 0.4, pointRadius: 2 },
+                        { label: 'Saída y[n]', data: [], borderColor: '#10b981', backgroundColor: '#10b98111', fill: true, tension: 0.4, pointRadius: 2 }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { usePointStyle: true, font: { weight: 'bold' } } } },
+                    scales: { x: { display: true }, y: { min: -2.5, max: 2.5 } },
+                    animation: false 
+                }
+            });
+        }
+
+        function nextStep() {
+            const b = [parseFloat(document.getElementById('b0').value), parseFloat(document.getElementById('b1').value), parseFloat(document.getElementById('b2').value)];
+            const a = [parseFloat(document.getElementById('a1').value), parseFloat(document.getElementById('a2').value)];
+            
+            const waveType = document.getElementById('waveType').value;
+            let x_atual = 0;
+            const freq = 0.5; 
+
+            switch(waveType) {
+                case 'sine':
+                    x_atual = Math.sin(n * freq);
+                    break;
+                case 'square':
+                    x_atual = Math.sin(n * freq) >= 0 ? 1 : -1;
+                    break;
+                case 'sawtooth':
+                    x_atual = ((n % 10) / 10) * 2 - 1; 
+                    break;
+                case 'step':
+                    x_atual = (n % 10 < 5) ? 1 : 0; // Fica em 1 por 5 amostras e em 0 por 5 amostras
+                    break;
+                case 'impulse':
+                    x_atual = (n % 10 === 0) ? 1 : 0; // Dispara 1 apenas quando n for múltiplo de 10
+                    break;
+                case 'random':
+                default:
+                    x_atual = Math.random() * 2 - 1;
+                    break;
+            }
+
+            document.getElementById('currentXVal').innerText = x_atual.toFixed(2);
+            document.getElementById('labelN').innerText = `n = ${n}`;
+
+            let y_n = 0;
+            let html = `y[${n}] = `;
+
+            // Alterado: text-[10px] para text-sm e adicionado mb-1 para melhorar a legibilidade das equações
+            const term = (label, coeff, val, isBlue) => `
+                <div class="term-box px-3 py-2 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                    <span class="text-sm block text-slate-500 font-bold mb-1">${label}</span>
+                    <span class="font-bold text-slate-700">${coeff.toFixed(2)}</span> 
+                    <span class="text-slate-300">·</span> 
+                    <span class="${isBlue?'text-blue-600 font-black':'text-slate-500'}">${val.toFixed(2)}</span>
+                </div>
+            `;
+
+            y_n = (b[0]*x_atual) + (b[1]*x_mem[0]) + (b[2]*x_mem[1]);
+            html += term('b0·x[n]', b[0], x_atual, true) + `<span class="text-slate-300">+</span>`;
+            html += term('b1·x[n-1]', b[1], x_mem[0], false) + `<span class="text-slate-300">+</span>`;
+            html += term('b2·x[n-2]', b[2], x_mem[1], false);
+
+            if (mode === 'IIR') {
+                y_n -= (a[0]*y_mem[0] + a[1]*y_mem[1]);
+                html += `<span class="text-orange-400 mx-1 text-2xl">-</span><div class="flex items-center gap-1 border-2 border-orange-50 p-1 rounded-xl">`;
+                html += term('a1·y[n-1]', a[0], y_mem[0], false) + `<span class="text-orange-200">+</span>`;
+                html += term('a2·y[n-2]', a[1], y_mem[1], false) + `</div>`;
+            }
+
+            document.getElementById('equationUI').innerHTML = html;
+            document.getElementById('resY').innerText = y_n.toFixed(2);
+
+            history.push({n, x: x_atual, y: y_n});
+            
+            chart.data.labels.push(n);
+            chart.data.datasets[0].data.push(x_atual);
+            chart.data.datasets[1].data.push(y_n);
+            if(n > 30) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+                chart.data.datasets[1].data.shift();
+            }
+            chart.update();
+
+            renderHistory();
+            x_mem[1] = x_mem[0]; x_mem[0] = x_atual;
+            if(mode === 'IIR') { y_mem[1] = y_mem[0]; y_mem[0] = y_n; }
+            n++;
+        }
+
+        function renderHistory() {
+            const body = document.getElementById('historyBody');
+            body.innerHTML = history.slice().reverse().slice(0, 5).map(h => `
+                <tr class="border-b border-slate-700/50">
+                    <td class="py-2 text-slate-500">${h.n}</td>
+                    <td class="py-2 text-blue-400">${h.x.toFixed(2)}</td>
+                    <td class="py-2 text-emerald-400">${h.y.toFixed(2)}</td>
+                </tr>
+            `).join('');
+        }
+
+        reset();
+    </script>
+</body>
+</html>
