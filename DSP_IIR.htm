@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSP IIR Designer - Frequency Response</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        .glow-focus:focus-within { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); border-color: #3b82f6; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-900 font-sans">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        
+        <div class="mb-10">
+            <h1 class="text-4xl font-black text-slate-800 tracking-tighter italic">DSP<span class="text-blue-600">IIR DESIGNER</span></h1>
+            <p class="text-slate-500 font-medium">Butterworth & Chebyshev</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-4 space-y-6">
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 text-center flex flex-col justify-center min-h-[140px]">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Equação de Diferenças Resultante</span>
+                    <div id="dynamicEquation" class="w-full">
+                        </div>
+                </div>
+                
+                <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
+                    <div class="space-y-4">
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 glow-focus transition-all">
+                                <label class="text-[10px] font-bold text-indigo-500 uppercase block mb-1">Tipo de Filtro</label>
+                                <select id="typeInput" onchange="toggleInputs()" class="w-full bg-transparent font-bold text-indigo-700 focus:outline-none">
+                                    <option value="butterworth">Butterworth</option>
+                                    <option value="chebyshev">Chebyshev</option>
+                                </select>
+                            </div>
+
+                            <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 glow-focus transition-all">
+                                <label class="text-[10px] font-bold text-indigo-500 uppercase block mb-1">Resposta</label>
+                                <select id="responseInput" onchange="toggleInputs()" class="w-full bg-transparent font-bold text-indigo-700 focus:outline-none">
+                                    <option value="lowpass">Passa-Baixa</option>
+                                    <option value="highpass">Passa-Alta</option>
+                                    <option value="bandpass">Passa-Banda</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 glow-focus transition-all">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Ordem</label>
+                                <select id="orderInput" class="w-full bg-transparent font-bold text-slate-700 focus:outline-none">
+                                    <option value="2" selected>2</option>
+                                    <option value="4">4</option>
+                                    <option value="6">6</option>
+                                    <option value="8">8</option>
+                                    <option value="10">10</option>
+                                </select>
+                            </div>
+
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 glow-focus transition-all">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Fs (Hz)</label>
+                                <input type="number" id="fsInput" value="100" class="w-full bg-transparent font-black text-slate-700 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 glow-focus transition-all">
+                                <label id="fc1Label" class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Freq. Corte (Hz)</label>
+                                <input type="number" id="fc1Input" value="10" class="w-full bg-transparent font-black text-slate-700 focus:outline-none">
+                            </div>
+
+                            <div id="fc2Container" class="bg-slate-50 p-3 rounded-2xl border border-slate-100 glow-focus transition-all hidden">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Fc 2 Superior (Hz)</label>
+                                <input type="number" id="fc2Input" value="15" class="w-full bg-transparent font-black text-slate-700 focus:outline-none">
+                            </div>
+
+                            <div id="rippleContainer" class="bg-purple-50 p-3 rounded-2xl border border-purple-100 glow-focus transition-all hidden">
+                                <label class="text-[10px] font-bold text-purple-500 uppercase block mb-1">Ripple (dB)</label>
+                                <input type="number" id="rippleInput" value="1.0" step="0.1" class="w-full bg-transparent font-black text-purple-700 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <hr class="border-slate-200 border-dashed my-4">
+
+                        <div>
+                            <div class="flex justify-between items-end mb-1">
+                                <label class="text-[10px] font-bold text-blue-500 uppercase block">Coeficientes B (Feedforward)</label>
+                                <button onclick="copyCoefficients('b')" class="text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold py-1 px-3 rounded transition-colors active:scale-95">COPIAR</button>
+                            </div>
+                            <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 font-mono text-sm text-blue-700 overflow-x-auto custom-scrollbar whitespace-nowrap" id="bDisplay">
+                                </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <div class="flex justify-between items-end mb-1">
+                                <label class="text-[10px] font-bold text-orange-500 uppercase block">Coeficientes A (Feedback)</label>
+                                <button onclick="copyCoefficients('a')" class="text-[10px] bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold py-1 px-3 rounded transition-colors active:scale-95">COPIAR</button>
+                            </div>
+                            <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 font-mono text-sm text-orange-700 overflow-x-auto custom-scrollbar whitespace-nowrap" id="aDisplay">
+                                </div>
+                        </div>
+
+                    </div>
+
+                    <button onclick="updateFilter()" class="w-full mt-8 py-4 bg-slate-800 text-white rounded-2xl font-black text-lg hover:bg-slate-900 shadow-xl active:scale-95 transition-all">
+                        PROJETAR
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col">
+                            <h3 class="font-black text-slate-700 uppercase text-sm tracking-widest">Magnitude (dB)</h3>
+                            <span class="text-[10px] font-bold text-slate-400">Arraste para selecionar a região de zoom</span>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <button class="text-[10px] bg-blue-600 text-white font-bold py-1 px-4 rounded-full shadow-sm cursor-default">
+                                ZOOM
+                            </button>
+                            <button onclick="resetIterView()" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-1 px-4 rounded-full transition-colors border border-slate-200 active:scale-95">
+                                HOME
+                            </button>
+                        </div>
+                    </div>
+                    <div class="h-[300px]" oncontextmenu="return false;">
+                        <canvas id="magChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col">
+                            <h3 class="font-black text-slate-700 uppercase text-sm tracking-widest">Fase (Graus)</h3>
+                            <span class="text-[10px] font-bold text-slate-400">O eixo X é sincronizado automaticamente</span>
+                        </div>
+                    </div>
+                    <div class="h-[300px]" oncontextmenu="return false;">
+                        <canvas id="phaseChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let magChartInstance = null;
+    let phaseChartInstance = null;
+    let currentBArray = [];
+    let currentAArray = [];
+    let currentSOS = [];
+
+    function toggleInputs() {
+        const resp = document.getElementById('responseInput').value;
+        const type = document.getElementById('typeInput').value;
+
+        document.getElementById('fc2Container').style.display = resp === 'bandpass' ? 'block' : 'none';
+        document.getElementById('fc1Label').innerText = resp === 'bandpass' ? 'Fc 1 Inferior (Hz)' : 'Freq. Corte (Hz)';
+        document.getElementById('rippleContainer').style.display = type === 'chebyshev' ? 'block' : 'none';
+    }
+
+    function resetIterView() {
+        if (magChartInstance) magChartInstance.resetZoom('none');
+        if (phaseChartInstance) phaseChartInstance.resetZoom('none');
+
+        if (magChartInstance && phaseChartInstance) {
+            delete magChartInstance.options.scales.x.min;
+            delete magChartInstance.options.scales.x.max;
+            delete phaseChartInstance.options.scales.x.min;
+            delete phaseChartInstance.options.scales.x.max;
+            magChartInstance.update();
+            phaseChartInstance.update();
+        }
+    }
+
+    function copyCoefficients(type) {
+        const arr = type === 'b' ? currentBArray : currentAArray;
+        const textToCopy = "[" + arr.map(v => v.toExponential(8)).join(", ") + "]";
+        navigator.clipboard.writeText(textToCopy);
+    }
+
+    // =========================
+    // UTILITÁRIOS MATEMÁTICOS
+    // =========================
+
+    function multiplyPoly(p1, p2) {
+        const res = new Array(p1.length + p2.length - 1).fill(0);
+        for (let i = 0; i < p1.length; i++) {
+            for (let j = 0; j < p2.length; j++) {
+                res[i + j] += p1[i] * p2[j];
+            }
+        }
+        return res;
+    }
+
+    function flattenStages(stages) {
+        let bFlat = [1];
+        let aFlat = [1];
+        for (const stage of stages) {
+            bFlat = multiplyPoly(bFlat, stage.b);
+            aFlat = multiplyPoly(aFlat, stage.a);
+        }
+        return { b: bFlat, a: aFlat };
+    }
+
+    function evalPolyOnUnitCircle(coeffs, w) {
+        let re = 0;
+        let im = 0;
+        for (let k = 0; k < coeffs.length; k++) {
+            re += coeffs[k] * Math.cos(-w * k);
+            im += coeffs[k] * Math.sin(-w * k);
+        }
+        return { re, im };
+    }
+
+    function complexMul(z1, z2) {
+        return {
+            re: z1.re * z2.re - z1.im * z2.im,
+            im: z1.re * z2.im + z1.im * z2.re
+        };
+    }
+
+    function complexDiv(num, den) {
+        let d = den.re * den.re + den.im * den.im;
+        if (d < 1e-30) d = 1e-30;
+        return {
+            re: (num.re * den.re + num.im * den.im) / d,
+            im: (num.im * den.re - num.re * den.im) / d
+        };
+    }
+
+    function evalBiquad(stage, w) {
+        const B = evalPolyOnUnitCircle(stage.b, w);
+        const A = evalPolyOnUnitCircle(stage.a, w);
+        return complexDiv(B, A);
+    }
+
+    function evalCascade(stages, w) {
+        let H = { re: 1, im: 0 };
+        for (const stage of stages) {
+            H = complexMul(H, evalBiquad(stage, w));
+        }
+        return H;
+    }
+
+    function evalCascadeAtFrequency(stages, f, fs) {
+        const w = 2 * Math.PI * (f / fs);
+        return evalCascade(stages, w);
+    }
+
+    function complexMag(z) {
+        return Math.hypot(z.re, z.im);
+    }
+
+    function unwrapPhase(phasesDeg, mags) {
+        if (phasesDeg.length === 0) return phasesDeg;
+
+        const unwrapped = [phasesDeg[0]];
+        let offset = 0;
+
+        for (let i = 1; i < phasesDeg.length; i++) {
+            const prevWrapped = phasesDeg[i - 1];
+            const currWrapped = phasesDeg[i];
+
+            if (mags && (mags[i] < 1e-12 || mags[i - 1] < 1e-12)) {
+                unwrapped.push(currWrapped + offset);
+                continue;
+            }
+
+            const delta = currWrapped - prevWrapped;
+            if (delta > 180) offset -= 360;
+            else if (delta < -180) offset += 360;
+
+            unwrapped.push(currWrapped + offset);
+        }
+
+        return unwrapped;
+    }
+
+    function biquadIsStable(a) {
+        if (!a || a.length !== 3) return false;
+
+        const a1 = a[1];
+        const a2 = a[2];
+
+        if (!Number.isFinite(a1) || !Number.isFinite(a2)) return false;
+
+        const delta = a1 * a1 - 4 * a2;
+
+        let r1Mag, r2Mag;
+
+        if (delta >= 0) {
+            const sqrtDelta = Math.sqrt(delta);
+            const r1 = (-a1 + sqrtDelta) / 2;
+            const r2 = (-a1 - sqrtDelta) / 2;
+            r1Mag = Math.abs(r1);
+            r2Mag = Math.abs(r2);
+        } else {
+            const mag = Math.sqrt(Math.abs(a2));
+            r1Mag = mag;
+            r2Mag = mag;
+        }
+
+        return r1Mag < 1 && r2Mag < 1;
+    }
+
+    function checkCascadeStability(stages) {
+        for (const stage of stages) {
+            if (!biquadIsStable(stage.a)) {
+                return { status: 'unstable' };
+            }
+        }
+        return { status: 'stable' };
+    }
+
+    function scaleStagesGain(stages, gain) {
+        if (!Number.isFinite(gain) || gain <= 0) return stages;
+        if (stages.length === 0) return stages;
+
+        const out = stages.map(stage => ({
+            b: [...stage.b],
+            a: [...stage.a]
+        }));
+
+        out[0].b = out[0].b.map(v => v * gain);
+        return out;
+    }
+
+    function normalizeCascadeGain(stages, response, fs, fc1, fc2) {
+        if (!stages.length) return stages;
+
+        let fRef;
+        if (response === 'lowpass') {
+            fRef = 0;
+        } else if (response === 'highpass') {
+            fRef = fs / 2;
+        } else {
+            fRef = Math.sqrt(fc1 * fc2);
+        }
+
+        const Href = evalCascadeAtFrequency(stages, fRef, fs);
+        const magRef = complexMag(Href);
+
+        if (!Number.isFinite(magRef) || magRef < 1e-30) return stages;
+
+        return scaleStagesGain(stages, 1 / magRef);
+    }
+
+    // =========================
+    // PROTÓTIPOS ANALÓGICOS
+    // =========================
+
+    function getAnalogPoles(type, order, ripple) {
+        const poles = [];
+        const K = order / 2;
+
+        let epsilon = 0;
+        let v = 0;
+
+        if (type === 'chebyshev') {
+            epsilon = Math.sqrt(Math.pow(10, ripple / 10) - 1);
+            v = Math.asinh(1 / epsilon) / order;
+        }
+
+        for (let k = 1; k <= K; k++) {
+            const theta = Math.PI * (2 * k - 1) / (2 * order);
+            let sigma, omega;
+
+            if (type === 'butterworth') {
+                sigma = -Math.sin(theta);
+                omega = Math.cos(theta);
+            } else {
+                sigma = -Math.sinh(v) * Math.sin(theta);
+                omega = Math.cosh(v) * Math.cos(theta);
+            }
+
+            poles.push({ sigma, omega });
+        }
+
+        return poles;
+    }
+
+    function getBiquadFromPole(pole, fs, fc, isHighpass) {
+        const wa = Math.tan(Math.PI * fc / fs);
+        const p2 = pole.sigma * pole.sigma + pole.omega * pole.omega;
+
+        let b0, b1, b2, a1, a2;
+
+        if (!isHighpass) {
+            const B = -2 * pole.sigma * wa;
+            const C = p2 * wa * wa;
+            const den = 1 + B + C;
+
+            b0 = C / den;
+            b1 = 2 * C / den;
+            b2 = C / den;
+            a1 = 2 * (C - 1) / den;
+            a2 = (1 - B + C) / den;
+        } else {
+            const B = -2 * pole.sigma * wa / p2;
+            const C = (wa * wa) / p2;
+            const den = 1 + B + C;
+
+            b0 = 1 / den;
+            b1 = -2 / den;
+            b2 = 1 / den;
+            a1 = 2 * (C - 1) / den;
+            a2 = (1 - B + C) / den;
+        }
+
+        return { b: [b0, b1, b2], a: [1, a1, a2] };
+    }
+
+    function designFilterSOS(type, response, order, fs, fc1, fc2, ripple) {
+        const poles = getAnalogPoles(type, order, ripple);
+        let stages = [];
+
+        if (response === 'lowpass') {
+            for (const pole of poles) {
+                stages.push(getBiquadFromPole(pole, fs, fc1, false));
+            }
+        } else if (response === 'highpass') {
+            for (const pole of poles) {
+                stages.push(getBiquadFromPole(pole, fs, fc1, true));
+            }
+        } else if (response === 'bandpass') {
+            for (const pole of poles) {
+                stages.push(getBiquadFromPole(pole, fs, fc1, true));
+            }
+            for (const pole of poles) {
+                stages.push(getBiquadFromPole(pole, fs, fc2, false));
+            }
+        }
+
+        stages = normalizeCascadeGain(stages, response, fs, fc1, fc2);
+        return stages;
+    }
+
+    // =========================
+    // VISUAL / EXIBIÇÃO
+    // =========================
+
+    function renderDynamicEquation(b, a) {
+        const bTrunc = b.length > 7;
+        const aTrunc = a.length > 7;
+
+        let html = `<div class="flex flex-wrap items-center justify-center text-slate-700 font-serif text-sm md:text-base gap-x-1 gap-y-2 leading-relaxed w-full">`;
+        html += `<span class="font-black text-emerald-600 text-lg mr-1 whitespace-nowrap">y[n] =</span>`;
+
+        if (bTrunc) {
+            html += `<span class="text-blue-600 font-bold">[${b.length} Coeficientes B]</span>`;
+        } else {
+            const bTerms = b.map((val, i) =>
+                `<span class="whitespace-nowrap"><span class="text-blue-600 font-bold">${val.toExponential(2)}</span>x[${i === 0 ? 'n' : `n-${i}`}]</span>`
+            ).join(' <span class="text-slate-400 font-bold">+</span> ');
+            html += `<div class="flex flex-wrap items-center justify-center gap-x-1">${bTerms}</div>`;
+        }
+
+        if (a.length > 1) {
+            html += `<span class="font-black text-slate-400 text-lg mx-2">-</span>`;
+            if (aTrunc) {
+                html += `<span class="text-orange-500 font-bold">[${a.length - 1} Coeficientes A]</span>`;
+            } else {
+                const aTerms = a.slice(1).map((val, i) =>
+                    `<span class="whitespace-nowrap"><span class="text-orange-500 font-bold">${val.toExponential(2)}</span>y[n-${i + 1}]</span>`
+                ).join(' <span class="text-slate-400 font-bold">+</span> ');
+                html += `<div class="flex flex-wrap items-center justify-center gap-x-1"><span class="text-slate-400 font-light">(</span>${aTerms}<span class="text-slate-400 font-light">)</span></div>`;
+            }
+        }
+
+        html += `</div>`;
+        document.getElementById('dynamicEquation').innerHTML = html;
+    }
+
+    function calculateFrequencyResponseFromSOS(stages, fs) {
+        const points = 4096;
+        const freqs = [];
+        const magsDB = [];
+        const magsLinear = [];
+        const phasesWrapped = [];
+        const nyquist = fs / 2;
+
+        // O laço agora vai até < points (fs/2 - df) garantindo que nunca apresente a borda cravada fs/2
+        for (let i = 0; i < points; i++) {
+            const f = (i / points) * nyquist;
+            const H = evalCascadeAtFrequency(stages, f, fs);
+            const magLinear = Math.max(complexMag(H), 1e-30);
+            const magDB = 20 * Math.log10(magLinear);
+            const phaseDeg = Math.atan2(H.im, H.re) * (180 / Math.PI);
+
+            freqs.push(f);
+            magsLinear.push(magLinear);
+            magsDB.push(magDB);
+            phasesWrapped.push(phaseDeg);
+        }
+
+        return {
+            freqs,
+            mags: magsDB,
+            phases: unwrapPhase(phasesWrapped, magsLinear)
+        };
+    }
+
+    function syncZoom(sourceChart) {
+        const min = sourceChart.scales.x.min;
+        const max = sourceChart.scales.x.max;
+
+        if (sourceChart.canvas.id === 'magChart' && phaseChartInstance) {
+            phaseChartInstance.options.scales.x.min = min;
+            phaseChartInstance.options.scales.x.max = max;
+            phaseChartInstance.update('none');
+        } else if (sourceChart.canvas.id === 'phaseChart' && magChartInstance) {
+            magChartInstance.options.scales.x.min = min;
+            magChartInstance.options.scales.x.max = max;
+            magChartInstance.update('none');
+        }
+    }
+
+    function initCharts() {
+        const ctxMag = document.getElementById('magChart').getContext('2d');
+        const ctxPhase = document.getElementById('phaseChart').getContext('2d');
+
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            elements: { point: { radius: 0 } },
+            plugins: {
+                legend: { display: false },
+                zoom: {
+                    pan: {
+                        enabled: false,
+                        mode: 'x',
+                        onPan: function({ chart }) { syncZoom(chart); }
+                    },
+                    zoom: {
+                        wheel: { enabled: false },
+                        pinch: { enabled: false },
+                        drag: {
+                            enabled: true,
+                            backgroundColor: 'rgba(59, 130, 246, 0.3)'
+                        },
+                        mode: 'x',
+                        onZoom: function({ chart }) { syncZoom(chart); }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Frequência (Hz)', color: '#64748b', font: { weight: 'bold' } },
+                    ticks: { maxTicksLimit: 10, color: '#94a3b8' },
+                    grid: { color: '#f1f5f9' }
+                },
+                y: {
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: '#f1f5f9' }
+                }
+            }
+        };
+
+        magChartInstance = new Chart(ctxMag, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#3b82f622',
+                    fill: false,
+                    tension: 0.1,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    ...commonOptions.scales,
+                    y: {
+                        ...commonOptions.scales.y,
+                        title: { display: true, text: 'Magnitude (dB)', color: '#64748b', font: { weight: 'bold' } }
+                    }
+                }
+            }
+        });
+
+        phaseChartInstance = new Chart(ctxPhase, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    borderColor: '#f97316',
+                    backgroundColor: '#f9731622',
+                    fill: false,
+                    tension: 0.1,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    ...commonOptions.scales,
+                    y: {
+                        ...commonOptions.scales.y,
+                        title: { display: true, text: 'Fase (Graus)', color: '#64748b', font: { weight: 'bold' } }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateFilter() {
+        const type = document.getElementById('typeInput').value;
+        const response = document.getElementById('responseInput').value;
+        const order = parseInt(document.getElementById('orderInput').value, 10);
+        const fs = parseFloat(document.getElementById('fsInput').value);
+        const fc1 = parseFloat(document.getElementById('fc1Input').value);
+        const fc2 = parseFloat(document.getElementById('fc2Input').value);
+        const ripple = parseFloat(document.getElementById('rippleInput').value);
+
+        if (!Number.isFinite(order) || order <= 0 || order % 2 !== 0) {
+            alert("⚠️ A ordem deve ser par e maior que zero.");
+            return;
+        }
+
+        if (!Number.isFinite(fs) || fs <= 0) {
+            alert("⚠️ Fs deve ser maior que zero.");
+            return;
+        }
+
+        if (!Number.isFinite(fc1) || fc1 <= 0) {
+            alert("⚠️ A frequência de corte deve ser maior que zero.");
+            return;
+        }
+
+        if (type === 'chebyshev' && (!Number.isFinite(ripple) || ripple <= 0)) {
+            alert("⚠️ O ripple do Chebyshev deve ser maior que zero.");
+            return;
+        }
+
+        if (fc1 >= fs / 2 || (response === 'bandpass' && fc2 >= fs / 2)) {
+            alert("⚠️ A frequência de corte não pode exceder o Limite de Nyquist (Fs/2).");
+            return;
+        }
+
+        if (response === 'bandpass') {
+            if (!Number.isFinite(fc2) || fc2 <= 0) {
+                alert("⚠️ A frequência superior do passa-banda deve ser maior que zero.");
+                return;
+            }
+            if (fc1 >= fc2) {
+                alert("⚠️ No Passa-Banda, a Frequência 1 (Inferior) deve ser menor que a Frequência 2 (Superior).");
+                return;
+            }
+        }
+
+        const stages = designFilterSOS(type, response, order, fs, fc1, fc2, ripple);
+        currentSOS = stages;
+
+        if (checkCascadeStability(stages).status === 'unstable') {
+            alert("⚠️ ATENÇÃO: Pelo menos uma seção biquad resultou instável.\n\nO projeto foi interrompido porque a cascata não é estável.");
+            return;
+        }
+
+        const { b, a } = flattenStages(stages);
+        currentBArray = b;
+        currentAArray = a;
+
+        document.getElementById('bDisplay').innerText =
+            b.length > 5
+                ? `[${b[0].toExponential(4)}, ${b[1].toExponential(4)}, ... (${b.length} termos)]`
+                : `[${b.map(v => v.toExponential(4)).join(", ")}]`;
+
+        document.getElementById('aDisplay').innerText =
+            a.length > 5
+                ? `[${a[0].toExponential(4)}, ${a[1].toExponential(4)}, ... (${a.length} termos)]`
+                : `[${a.map(v => v.toExponential(4)).join(", ")}]`;
+
+        renderDynamicEquation(b, a);
+
+        const { freqs, mags, phases } = calculateFrequencyResponseFromSOS(stages, fs);
+
+        magChartInstance.data.labels = freqs.map(f => f.toFixed(0));
+        magChartInstance.data.datasets[0].data = mags;
+        magChartInstance.resetZoom('none');
+        delete magChartInstance.options.scales.x.min;
+        delete magChartInstance.options.scales.x.max;
+        magChartInstance.update();
+
+        phaseChartInstance.data.labels = freqs.map(f => f.toFixed(0));
+        phaseChartInstance.data.datasets[0].data = phases;
+        phaseChartInstance.resetZoom('none');
+        delete phaseChartInstance.options.scales.x.min;
+        delete phaseChartInstance.options.scales.x.max;
+        phaseChartInstance.update();
+    }
+
+    toggleInputs();
+    initCharts();
+    updateFilter();
+</script>
+</body>
+</html>

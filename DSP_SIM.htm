@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSP SIM - Motor de Processamento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .data-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
+        .term-box { transition: all 0.3s ease; border-bottom: 3px solid transparent; min-width: 100px; }
+        .highlight-input { animation: pulse-blue 2s infinite; }
+        @keyframes pulse-blue {
+            0%, 100% { border-color: #3b82f6; box-shadow: 0 0 0px #3b82f6; }
+            50% { border-color: #93c5fd; box-shadow: 0 0 15px #93c5fd; }
+        }
+        .custom-scroll::-webkit-scrollbar { height: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-900 font-sans">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        
+        <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+            <div>
+                <h1 class="text-4xl font-black text-slate-800 tracking-tighter italic">DSP<span class="text-blue-600">SIM</span></h1>
+                <p class="text-slate-500 font-medium">Equação de Diferenças</p>
+            </div>
+            <div class="flex gap-2">
+                <button id="playBtn" onclick="togglePlay()" class="px-6 py-2 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all shadow-lg active:scale-95">AUTO PLAY</button>
+                <button onclick="reset()" class="px-6 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-400 hover:text-red-500 transition-all">RESET</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-4 space-y-6">
+                
+                <div class="bg-white p-6 rounded-3xl shadow-xl border-4 border-blue-500 highlight-input">
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-xs font-bold text-blue-500 uppercase tracking-widest">Sinal de Entrada Atualx[n]</span>
+                        <span id="currentXVal" class="text-3xl font-mono text-blue-600 font-black">0.00</span>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tipo de Onda</label>
+                            <select id="waveType" onchange="updateFreqVisibility()" class="w-full p-2 bg-slate-50 rounded-lg text-slate-700 font-bold border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                <option value="sine">Senoide</option>
+                                <option value="square">Onda Quadrada</option>
+                                <option value="impulse">Impulso Periódico</option>
+                                <option value="random">Ruído Branco</option>
+                            </select>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Fs (Hz)</label>
+                                <input type="number" id="fsInput" value="100" class="w-full p-2 bg-slate-50 rounded-lg font-bold border focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div id="freqContainer">
+                                <label class="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Freq. Sinal (Hz)</label>
+                                <input type="number" id="freqInput" value="10" class="w-full p-2 bg-blue-50 rounded-lg font-bold border border-blue-100 focus:ring-2 focus:ring-blue-500 outline-none text-blue-700">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-[10px] font-bold text-blue-500 uppercase mb-2">Numerador (b)</p>
+                            <input type="text" id="bCoeffs" value="[0.3, 0.3, 0.3]" class="w-full p-3 bg-slate-50 rounded-xl font-mono text-sm border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: 9.36e-3, 0, -3.74e-2">
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-orange-500 uppercase mb-2">Denominador (a)</p>
+                            <input type="text" id="aCoeffs" value="[1.0]" class="w-full p-3 bg-slate-50 rounded-xl font-mono text-sm border focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Ex: 1, -0.5, 0.2">
+                        </div>
+                    </div>
+
+                    <button onclick="nextStep()" class="w-full mt-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-lg hover:bg-blue-700 shadow-lg active:scale-95 transition-all">
+                        PROCESSAR AMOSTRA
+                    </button>
+                </div>
+
+                <div class="bg-slate-800 p-5 rounded-3xl shadow-xl text-white">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase mb-4 text-center">Últimos Pontos</h3>
+                    <table class="w-full text-left text-xs">
+                        <thead><tr class="text-slate-500 border-b border-slate-700"><th class="pb-2">n</th><th class="pb-2">x[n]</th><th class="pb-2">y[n]</th></tr></thead>
+                        <tbody id="historyBody" class="font-mono"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="font-black text-slate-400 uppercase text-xs tracking-widest">Equação em Tempo Real</h3>
+                        <span id="labelN" class="bg-slate-100 px-4 py-1 rounded-full font-bold text-slate-600 font-mono text-sm">n = 0</span>
+                    </div>
+
+                    <div id="equationUI" class="flex flex-wrap items-center justify-start gap-y-4 gap-x-2 text-lg font-light text-slate-400 overflow-x-auto custom-scroll pb-4">
+                        Aguardando sinal...
+                    </div>
+
+                    <div class="mt-8 pt-6 border-t border-dashed flex justify-between items-center">
+                        <span class="text-slate-400 font-bold italic">Resultado y[n]:</span>
+                        <div class="text-4xl font-black text-emerald-500">
+                            y[n] = <span id="resY">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 h-[400px]">
+                    <canvas id="unifiedChart"></canvas>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let n = 0;
+        let x_mem = [];
+        let y_mem = [];
+        let history = [];
+        let chart;
+        let playInterval = null;
+
+        function updateFreqVisibility() {
+            const type = document.getElementById('waveType').value;
+            const container = document.getElementById('freqContainer');
+            const isPeriodic = (type === 'sine' || type === 'square' || type === 'impulse');
+            container.style.opacity = isPeriodic ? '1' : '0';
+            container.style.pointerEvents = isPeriodic ? 'all' : 'none';
+        }
+
+        function parseInput(str) {
+            // Remove colchetes e converte vírgulas em espaços
+            let cleanStr = str.replace(/[\[\]]/g, '').replace(/,/g, ' ').trim();
+            if (cleanStr === "") return [];
+
+            // Regex atualizada para permitir 'e', 'E' e '+' de notação científica
+            if (/[^0-9.\-\s eE+]/.test(cleanStr)) return null;
+
+            let tokens = cleanStr.split(/\s+/);
+            let arr = tokens.map(token => Number(token));
+
+            if (arr.some(v => isNaN(v))) return null;
+
+            return arr;
+        }
+
+        function reset() {
+            n = 0; x_mem = []; y_mem = []; history = [];
+            if(playInterval) togglePlay();
+            initChart();
+            renderHistory();
+            document.getElementById('equationUI').innerHTML = "Motor reiniciado.";
+            document.getElementById('currentXVal').innerText = "0.00";
+            document.getElementById('resY').innerText = "0.00";
+            document.getElementById('labelN').innerText = `n = 0`;
+        }
+
+        function togglePlay() {
+            const btn = document.getElementById('playBtn');
+            if(playInterval) {
+                clearInterval(playInterval);
+                playInterval = null;
+                btn.innerText = "AUTO PLAY";
+                btn.classList.replace('bg-red-500', 'bg-emerald-500');
+            } else {
+                playInterval = setInterval(nextStep, 100);
+                btn.innerText = "PAUSE";
+                btn.classList.replace('bg-emerald-500', 'bg-red-500');
+            }
+        }
+
+        function initChart() {
+            if (chart) chart.destroy();
+            const ctx = document.getElementById('unifiedChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Entrada x[n]', data: [], borderColor: '#3b82f6', fill: false, tension: 0.3, pointRadius: 0 },
+                        { label: 'Saída y[n]', data: [], borderColor: '#10b981', fill: false, tension: 0.3, pointRadius: 0 }
+                    ]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { x: { display: false }, y: { suggestedMin: -1.2, suggestedMax: 1.2 } },
+                    animation: false 
+                }
+            });
+        }
+
+        function nextStep() {
+            const b = parseInput(document.getElementById('bCoeffs').value);
+            const a = parseInput(document.getElementById('aCoeffs').value);
+            
+            if (b === null || a === null || b.length === 0 || a.length === 0) {
+                if (playInterval) togglePlay();
+                alert("⚠️ Erro de Formatação nos Coeficientes!\n\nNúmeros devem ser separados por vírgulas ou espaços.\nAceita notação científica (ex: 9.36e-3).\n\nExemplo:\n[9.36e-3, 0, -3.74e-2]");
+                return;
+            }
+
+            const fs = parseFloat(document.getElementById('fsInput').value) || 1000;
+            const fSinal = parseFloat(document.getElementById('freqInput').value) || 60;
+            const a0 = a[0] === 0 ? 1 : a[0];
+            
+            while(x_mem.length < b.length) x_mem.push(0);
+            while(y_mem.length < a.length) y_mem.push(0);
+
+            const waveType = document.getElementById('waveType').value;
+            let x_atual = 0;
+            const t = n / fs;
+
+            switch(waveType) {
+                case 'sine': x_atual = Math.sin(2 * Math.PI * fSinal * t); break;
+                case 'square': x_atual = Math.sin(2 * Math.PI * fSinal * t) >= 0 ? 1 : -1; break;
+                case 'impulse': 
+                    const periodInSamples = Math.round(fs / fSinal);
+                    x_atual = (n % periodInSamples === 0) ? 1 : 0;
+                    break;
+                default: x_atual = Math.random() * 2 - 1; break;
+            }
+
+            let sumB = 0;
+            // Mostra o fator de escala 1/a0 se for diferente de 1
+            let html = `<div class="flex items-center gap-1 font-mono text-sm">y[${n}] = (${Math.abs(1/a0 - 1) > 1e-6 ? (1/a0).toExponential(2):''}`;
+            
+            // Termos em notação científica para maior precisão visual
+            const term = (label, coeff, val, isBlue) => `
+                <div class="term-box px-2 py-1 bg-white rounded border border-slate-100 text-center shadow-sm">
+                    <span class="text-[8px] block text-slate-400 font-bold">${label}</span>
+                    <span class="font-bold text-slate-700">${coeff.toExponential(2)}</span><span class="text-slate-300">·</span><span class="${isBlue?'text-blue-600':'text-orange-500'} font-bold">${val.toFixed(2)}</span>
+                </div>
+            `;
+
+            x_mem.unshift(x_atual);
+            for(let i = 0; i < b.length; i++) {
+                sumB += b[i] * x_mem[i];
+                html += term(`b${i}`, b[i], x_mem[i], true);
+                if(i < b.length - 1) html += `+`;
+            }
+
+            let sumA = 0;
+            if (a.length > 1) {
+                html += `<span class="mx-1 font-bold">-</span><span class="text-slate-300">[</span>`;
+                for(let j = 1; j < a.length; j++) {
+                    let valY = y_mem[j-1] || 0;
+                    sumA += a[j] * valY;
+                    html += term(`a${j}`, a[j], valY, false);
+                    if(j < a.length - 1) html += `+`;
+                }
+                html += `<span class="text-slate-300">]</span>`;
+            }
+            
+            let y_final = (sumB - sumA) / a0;
+            html += `)</div>`;
+
+            document.getElementById('currentXVal').innerText = x_atual.toFixed(2);
+            document.getElementById('resY').innerText = y_final.toFixed(2);
+            document.getElementById('labelN').innerText = `n = ${n} (t = ${t.toFixed(3)}s)`;
+            document.getElementById('equationUI').innerHTML = html;
+
+            y_mem.unshift(y_final);
+            if(x_mem.length > b.length) x_mem.pop();
+            if(y_mem.length > a.length) y_mem.pop();
+
+            history.push({n, x: x_atual, y: y_final});
+            chart.data.labels.push(n);
+            chart.data.datasets[0].data.push(x_atual);
+            chart.data.datasets[1].data.push(y_final);
+            if(n > 50) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+                chart.data.datasets[1].data.shift();
+            }
+            chart.update();
+            renderHistory();
+            n++;
+        }
+
+        function renderHistory() {
+            const body = document.getElementById('historyBody');
+            body.innerHTML = history.slice().reverse().slice(0, 5).map(h => `
+                <tr class="border-b border-slate-700/50">
+                    <td class="py-1 text-slate-500">${h.n}</td>
+                    <td class="py-1 text-blue-400 font-bold">${h.x.toFixed(2)}</td>
+                    <td class="py-1 text-emerald-400 font-bold">${h.y.toFixed(2)}</td>
+                </tr>
+            `).join('');
+        }
+
+        updateFreqVisibility();
+        reset();
+    </script>
+</body>
+</html>

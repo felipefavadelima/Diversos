@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSP Média Móvel - Frequency Response</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        .glow-focus:focus-within { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); border-color: #3b82f6; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-900 font-sans">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        
+        <div class="mb-10">
+            <h1 class="text-4xl font-black text-slate-800 tracking-tighter italic">DSP<span class="text-blue-600">MÉDIA MÓVEL</span></h1>
+            <p class="text-slate-500 font-medium">Filtro FIR Simples (Moving Average)</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-4 space-y-6">
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 text-center flex flex-col justify-center min-h-[140px]">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Equação de Diferenças Resultante</span>
+                    <div id="dynamicEquation" class="w-full">
+                        </div>
+                </div>
+                
+                <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
+                    <div class="space-y-4">
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 glow-focus transition-all">
+                                <label class="text-[10px] font-bold text-indigo-500 uppercase block mb-1">Tamanho do Filtro (N)</label>
+                                <input type="number" id="nInput" value="5" min="1" step="1" class="w-full bg-transparent font-black text-indigo-700 focus:outline-none">
+                            </div>
+
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 glow-focus transition-all">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Fs (Hz)</label>
+                                <input type="number" id="fsInput" value="100" class="w-full bg-transparent font-black text-slate-700 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <hr class="border-slate-200 border-dashed my-4">
+
+                        <div>
+                            <div class="flex justify-between items-end mb-1">
+                                <label class="text-[10px] font-bold text-blue-500 uppercase block">Coeficientes B (Feedforward)</label>
+                                <button onclick="copyCoefficients('b')" class="text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold py-1 px-3 rounded transition-colors active:scale-95">COPIAR</button>
+                            </div>
+                            <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 font-mono text-sm text-blue-700 overflow-x-auto custom-scrollbar whitespace-nowrap" id="bDisplay">
+                                </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <div class="flex justify-between items-end mb-1">
+                                <label class="text-[10px] font-bold text-orange-500 uppercase block">Coeficientes A (Feedback)</label>
+                                <button onclick="copyCoefficients('a')" class="text-[10px] bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold py-1 px-3 rounded transition-colors active:scale-95">COPIAR</button>
+                            </div>
+                            <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 font-mono text-sm text-orange-700 overflow-x-auto custom-scrollbar whitespace-nowrap" id="aDisplay">
+                                </div>
+                        </div>
+
+                    </div>
+
+                    <button onclick="updateFilter()" class="w-full mt-8 py-4 bg-slate-800 text-white rounded-2xl font-black text-lg hover:bg-slate-900 shadow-xl active:scale-95 transition-all">
+                        GERAR MÉDIA MÓVEL
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col">
+                            <h3 class="font-black text-slate-700 uppercase text-sm tracking-widest">Magnitude (dB)</h3>
+                            <span class="text-[10px] font-bold text-slate-400">Arraste para selecionar a região de zoom</span>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <button class="text-[10px] bg-blue-600 text-white font-bold py-1 px-4 rounded-full shadow-sm cursor-default">
+                                ZOOM
+                            </button>
+                            <button onclick="resetIterView()" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-1 px-4 rounded-full transition-colors border border-slate-200 active:scale-95">
+                                HOME
+                            </button>
+                        </div>
+                    </div>
+                    <div class="h-[300px]" oncontextmenu="return false;">
+                        <canvas id="magChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col">
+                            <h3 class="font-black text-slate-700 uppercase text-sm tracking-widest">Fase (Graus)</h3>
+                            <span class="text-[10px] font-bold text-slate-400">O eixo X é sincronizado automaticamente</span>
+                        </div>
+                    </div>
+                    <div class="h-[300px]" oncontextmenu="return false;">
+                        <canvas id="phaseChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let magChartInstance = null;
+    let phaseChartInstance = null;
+    let currentBArray = [];
+    let currentAArray = [];
+
+    function resetIterView() {
+        if (magChartInstance) magChartInstance.resetZoom('none');
+        if (phaseChartInstance) phaseChartInstance.resetZoom('none');
+
+        if (magChartInstance && phaseChartInstance) {
+            delete magChartInstance.options.scales.x.min;
+            delete magChartInstance.options.scales.x.max;
+            delete phaseChartInstance.options.scales.x.min;
+            delete phaseChartInstance.options.scales.x.max;
+            magChartInstance.update();
+            phaseChartInstance.update();
+        }
+    }
+
+    function copyCoefficients(type) {
+        const arr = type === 'b' ? currentBArray : currentAArray;
+        const textToCopy = "[" + arr.map(v => v.toExponential(8)).join(", ") + "]";
+        navigator.clipboard.writeText(textToCopy);
+    }
+
+    // =========================
+    // UTILITÁRIOS MATEMÁTICOS
+    // =========================
+
+    function unwrapPhase(phasesDeg, mags) {
+        if (phasesDeg.length === 0) return phasesDeg;
+
+        const unwrapped = [phasesDeg[0]];
+        let offset = 0;
+
+        for (let i = 1; i < phasesDeg.length; i++) {
+            const prevWrapped = phasesDeg[i - 1];
+            const currWrapped = phasesDeg[i];
+
+            // Proteção para os pulos bruscos nos "zeros" da Média Móvel
+            if (mags && (mags[i] < 1e-10 || mags[i - 1] < 1e-10)) {
+                unwrapped.push(currWrapped + offset);
+                continue;
+            }
+
+            const delta = currWrapped - prevWrapped;
+            if (delta > 180) offset -= 360;
+            else if (delta < -180) offset += 360;
+
+            unwrapped.push(currWrapped + offset);
+        }
+
+        return unwrapped;
+    }
+
+    // =========================
+    // VISUAL / EXIBIÇÃO
+    // =========================
+
+    function renderDynamicEquation(b, a) {
+        const bTrunc = b.length > 7;
+        const aTrunc = a.length > 7;
+
+        let html = `<div class="flex flex-wrap items-center justify-center text-slate-700 font-serif text-sm md:text-base gap-x-1 gap-y-2 leading-relaxed w-full">`;
+        html += `<span class="font-black text-emerald-600 text-lg mr-1 whitespace-nowrap">y[n] =</span>`;
+
+        if (bTrunc) {
+            html += `<span class="text-blue-600 font-bold">[${b.length} Coeficientes B]</span>`;
+        } else {
+            const bTerms = b.map((val, i) =>
+                `<span class="whitespace-nowrap"><span class="text-blue-600 font-bold">${val.toExponential(2)}</span>x[${i === 0 ? 'n' : `n-${i}`}]</span>`
+            ).join(' <span class="text-slate-400 font-bold">+</span> ');
+            html += `<div class="flex flex-wrap items-center justify-center gap-x-1">${bTerms}</div>`;
+        }
+
+        // Filtros de Média Móvel raramente terão A diferente de 1, mas mantemos por segurança da interface
+        if (a.length > 1) {
+            html += `<span class="font-black text-slate-400 text-lg mx-2">-</span>`;
+            if (aTrunc) {
+                html += `<span class="text-orange-500 font-bold">[${a.length - 1} Coeficientes A]</span>`;
+            } else {
+                const aTerms = a.slice(1).map((val, i) =>
+                    `<span class="whitespace-nowrap"><span class="text-orange-500 font-bold">${val.toExponential(2)}</span>y[n-${i + 1}]</span>`
+                ).join(' <span class="text-slate-400 font-bold">+</span> ');
+                html += `<div class="flex flex-wrap items-center justify-center gap-x-1"><span class="text-slate-400 font-light">(</span>${aTerms}<span class="text-slate-400 font-light">)</span></div>`;
+            }
+        }
+
+        html += `</div>`;
+        document.getElementById('dynamicEquation').innerHTML = html;
+    }
+
+    function calculateFrequencyResponseFIR(b, fs) {
+        const points = 4096;
+        const freqs = [];
+        const magsDB = [];
+        const magsLinear = [];
+        const phasesWrapped = [];
+        const nyquist = fs / 2;
+
+        // Iterando estritamente até < points (fs/2 - df)
+        for (let i = 0; i < points; i++) {
+            const f = (i / points) * nyquist;
+            const w = 2 * Math.PI * (f / fs);
+
+            let re = 0;
+            let im = 0;
+            
+            // Avaliação direta do polinômio B no círculo unitário
+            for (let k = 0; k < b.length; k++) {
+                re += b[k] * Math.cos(-w * k);
+                im += b[k] * Math.sin(-w * k);
+            }
+
+            const magLinear = Math.max(Math.hypot(re, im), 1e-30);
+            const magDB = 20 * Math.log10(magLinear);
+            const phaseDeg = Math.atan2(im, re) * (180 / Math.PI);
+
+            freqs.push(f);
+            magsLinear.push(magLinear);
+            magsDB.push(magDB);
+            phasesWrapped.push(phaseDeg);
+        }
+
+        return {
+            freqs,
+            mags: magsDB,
+            phases: unwrapPhase(phasesWrapped, magsLinear)
+        };
+    }
+
+    function syncZoom(sourceChart) {
+        const min = sourceChart.scales.x.min;
+        const max = sourceChart.scales.x.max;
+
+        if (sourceChart.canvas.id === 'magChart' && phaseChartInstance) {
+            phaseChartInstance.options.scales.x.min = min;
+            phaseChartInstance.options.scales.x.max = max;
+            phaseChartInstance.update('none');
+        } else if (sourceChart.canvas.id === 'phaseChart' && magChartInstance) {
+            magChartInstance.options.scales.x.min = min;
+            magChartInstance.options.scales.x.max = max;
+            magChartInstance.update('none');
+        }
+    }
+
+    function initCharts() {
+        const ctxMag = document.getElementById('magChart').getContext('2d');
+        const ctxPhase = document.getElementById('phaseChart').getContext('2d');
+
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            elements: { point: { radius: 0 } },
+            plugins: {
+                legend: { display: false },
+                zoom: {
+                    pan: {
+                        enabled: false,
+                        mode: 'x',
+                        onPan: function({ chart }) { syncZoom(chart); }
+                    },
+                    zoom: {
+                        wheel: { enabled: false },
+                        pinch: { enabled: false },
+                        drag: {
+                            enabled: true,
+                            backgroundColor: 'rgba(59, 130, 246, 0.3)'
+                        },
+                        mode: 'x',
+                        onZoom: function({ chart }) { syncZoom(chart); }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Frequência (Hz)', color: '#64748b', font: { weight: 'bold' } },
+                    ticks: { maxTicksLimit: 10, color: '#94a3b8' },
+                    grid: { color: '#f1f5f9' }
+                },
+                y: {
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: '#f1f5f9' }
+                }
+            }
+        };
+
+        magChartInstance = new Chart(ctxMag, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#3b82f622',
+                    fill: false,
+                    tension: 0.1,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    ...commonOptions.scales,
+                    y: {
+                        ...commonOptions.scales.y,
+                        title: { display: true, text: 'Magnitude (dB)', color: '#64748b', font: { weight: 'bold' } }
+                    }
+                }
+            }
+        });
+
+        phaseChartInstance = new Chart(ctxPhase, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    borderColor: '#f97316',
+                    backgroundColor: '#f9731622',
+                    fill: false,
+                    tension: 0.1,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    ...commonOptions.scales,
+                    y: {
+                        ...commonOptions.scales.y,
+                        title: { display: true, text: 'Fase (Graus)', color: '#64748b', font: { weight: 'bold' } }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateFilter() {
+        const n = parseInt(document.getElementById('nInput').value, 10);
+        const fs = parseFloat(document.getElementById('fsInput').value);
+
+        if (!Number.isFinite(n) || n <= 0) {
+            alert("⚠️ O tamanho do filtro (N) deve ser um inteiro maior que zero.");
+            return;
+        }
+
+        if (!Number.isFinite(fs) || fs <= 0) {
+            alert("⚠️ Fs deve ser maior que zero.");
+            return;
+        }
+
+        // Geração dos coeficientes de Média Móvel
+        const bValue = 1.0 / n;
+        const b = new Array(n).fill(bValue);
+        const a = [1];
+
+        currentBArray = b;
+        currentAArray = a;
+
+        // Atualização da UI e Equação
+        document.getElementById('bDisplay').innerText =
+            b.length > 5
+                ? `[${b[0].toExponential(4)}, ${b[1].toExponential(4)}, ... (${b.length} termos)]`
+                : `[${b.map(v => v.toExponential(4)).join(", ")}]`;
+
+        document.getElementById('aDisplay').innerText = `[1.0000e+0]`;
+
+        renderDynamicEquation(b, a);
+
+        // Geração dos Gráficos
+        const { freqs, mags, phases } = calculateFrequencyResponseFIR(b, fs);
+
+        magChartInstance.data.labels = freqs.map(f => f.toFixed(2));
+        magChartInstance.data.datasets[0].data = mags;
+        magChartInstance.resetZoom('none');
+        delete magChartInstance.options.scales.x.min;
+        delete magChartInstance.options.scales.x.max;
+        magChartInstance.update();
+
+        phaseChartInstance.data.labels = freqs.map(f => f.toFixed(2));
+        phaseChartInstance.data.datasets[0].data = phases;
+        phaseChartInstance.resetZoom('none');
+        delete phaseChartInstance.options.scales.x.min;
+        delete phaseChartInstance.options.scales.x.max;
+        phaseChartInstance.update();
+    }
+
+    initCharts();
+    updateFilter();
+</script>
+</body>
+</html>

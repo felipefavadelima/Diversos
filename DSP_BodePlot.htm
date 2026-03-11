@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSP BODE - Frequency Response</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        .glow-focus:focus-within { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); border-color: #3b82f6; }
+        #dynamicEquation { transition: opacity 0.2s ease-in-out; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-900 font-sans">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        
+        <div class="mb-10">
+            <h1 class="text-4xl font-black text-slate-800 tracking-tighter italic">DSP<span class="text-blue-600">BODE</span></h1>
+            <p class="text-slate-500 font-medium">Análise de Resposta em Frequência (Magnitude e Fase)</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-4 space-y-6">
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 text-center flex flex-col justify-center min-h-[140px]">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Equação de Diferenças (Tempo)</span>
+                    <div id="dynamicEquation" class="w-full"></div>
+                </div>
+                
+                <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
+                    <div class="space-y-5">
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 glow-focus transition-all">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Freq. de Amostragem (Fs) em Hz</label>
+                            <input type="number" id="fsInput" value="100" class="w-full bg-transparent text-2xl font-black text-slate-700 focus:outline-none">
+                        </div>
+
+                        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 glow-focus transition-all">
+                            <label class="text-[10px] font-bold text-blue-500 uppercase block mb-1">Entradas (x): Coeficientes B</label>
+                            <input type="text" id="bInput" value="[0.3, 0.3, 0.3]" class="w-full bg-transparent text-xl font-mono text-blue-700 focus:outline-none">
+                        </div>
+
+                        <div class="bg-orange-50 p-4 rounded-2xl border border-orange-100 glow-focus transition-all">
+                            <label class="text-[10px] font-bold text-orange-500 uppercase block mb-1">Saídas (y): Coeficientes A</label>
+                            <input type="text" id="aInput" value="[1]" class="w-full bg-transparent text-xl font-mono text-orange-700 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <button onclick="updateBodePlot()" class="w-full mt-8 py-4 bg-slate-800 text-white rounded-2xl font-black text-lg hover:bg-slate-900 shadow-xl active:scale-95 transition-all">
+                        ATUALIZAR
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col">
+                            <h3 class="font-black text-slate-700 uppercase text-sm tracking-widest">Magnitude (dB)</h3>
+                            <span class="text-[10px] font-bold text-slate-400">Arraste para selecionar a região de zoom</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="text-[10px] bg-blue-600 text-white font-bold py-1 px-4 rounded-full shadow-sm cursor-default">ZOOM</button>
+                            <button onclick="resetIterView()" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-1 px-4 rounded-full transition-colors border border-slate-200 active:scale-95">HOME</button>
+                        </div>
+                    </div>
+                    <div class="h-[300px]" oncontextmenu="return false;">
+                        <canvas id="magChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col">
+                            <h3 class="font-black text-slate-700 uppercase text-sm tracking-widest">Fase (Graus)</h3>
+                            <span class="text-[10px] font-bold text-slate-400">O eixo X é sincronizado automaticamente</span>
+                        </div>
+                    </div>
+                    <div class="h-[300px]" oncontextmenu="return false;">
+                        <canvas id="phaseChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let magChartInstance = null;
+        let phaseChartInstance = null;
+
+        function parseCoefficients(inputStr) {
+            let cleanStr = inputStr.replace(/[\[\]]/g, '').replace(/,/g, ' ').trim();
+            if (cleanStr === "") return [];
+            if (/[^0-9.\-\s eE+]/.test(cleanStr)) return null;
+            let tokens = cleanStr.split(/\s+/);
+            let arr = tokens.map(token => Number(token));
+            if (arr.some(v => isNaN(v))) return null;
+            return arr;
+        }
+
+        function checkStability(a) {
+            if (!Array.isArray(a) || a.length <= 1) return { status: 'stable', message: '' };
+            const a0 = a[0];
+            if (!Number.isFinite(a0) || a0 === 0) return { status: 'unstable', message: "⚠️ a0 não pode ser zero." };
+
+            if (a.length === 2) {
+                return Math.abs(-a[1] / a0) < 1 ? { status: 'stable' } : { status: 'unstable', message: "⚠️ Filtro instável (polo fora do círculo unitário)." };
+            }
+
+            if (a.length === 3) {
+                const delta = a[1] * a[1] - 4 * a[0] * a[2];
+                let r1, r2;
+                if (delta >= 0) {
+                    r1 = Math.abs((-a[1] + Math.sqrt(delta)) / (2 * a[0]));
+                    r2 = Math.abs((-a[1] - Math.sqrt(delta)) / (2 * a[0]));
+                } else {
+                    r1 = r2 = Math.sqrt(Math.abs(a[2] / a[0]));
+                }
+                return (r1 < 1 && r2 < 1) ? { status: 'stable' } : { status: 'unstable', message: "⚠️ Filtro instável (polos fora do círculo unitário)." };
+            }
+
+            // Checagem empírica para ordem superior
+            let y_mem = new Array(a.length).fill(0);
+            for (let n = 0; n < 1000; n++) {
+                let yn = (n === 0) ? 1 : 0;
+                for (let k = 1; k < a.length; k++) yn -= (a[k] / a0) * y_mem[k - 1];
+                if (Math.abs(yn) > 1e6 || isNaN(yn)) return { status: 'unstable', message: "⚠️ Filtro de ordem superior detectado como instável." };
+                y_mem.unshift(yn); y_mem.pop();
+            }
+            return { status: 'stable' };
+        }
+
+        function renderDynamicEquation(b, a) {
+            let a0 = a.length > 0 ? a[0] : 1;
+            const fmt = (v) => v.toExponential(2);
+
+            let bTerms = b.map((val, i) => {
+                let index = i === 0 ? 'n' : `n-${i}`;
+                return `<span class="whitespace-nowrap"><span class="text-blue-600 font-bold">${fmt(val)}</span>x[${index}]</span>`;
+            }).join(' <span class="text-slate-400 mx-1 font-bold">+</span> ');
+
+            let hasFeedback = a.length > 1 && a.slice(1).some(val => val !== 0);
+            let aTerms = '';
+            if (hasFeedback) {
+                aTerms = a.slice(1).map((val, i) => `<span class="whitespace-nowrap"><span class="text-orange-500 font-bold">${fmt(val)}</span>y[n-${i+1}]</span>`).join(' <span class="text-slate-400 mx-1 font-bold">+</span> ');
+            }
+
+            let html = `<div class="flex flex-wrap items-center justify-center text-slate-700 font-serif text-sm md:text-base gap-x-1 gap-y-2 leading-relaxed w-full">`;
+            html += `<span class="font-black text-emerald-600 text-lg mr-1 whitespace-nowrap">y[n] =</span>`;
+            if (a0 !== 1) html += `<div class="inline-flex flex-col items-center mx-1 whitespace-nowrap"><div class="border-b border-slate-400 pb-0.5 px-2 leading-none text-xs">1</div><div class="pt-0.5 px-2 leading-none text-xs font-bold text-orange-500">${fmt(a0)}</div></div>`;
+            if (a0 !== 1 && hasFeedback) html += `<span class="text-xl text-slate-400 font-light">[</span>`;
+            html += `<div class="flex flex-wrap items-center justify-center gap-x-1">${bTerms}</div>`;
+            if (hasFeedback) {
+                html += `<span class="font-black text-slate-400 text-lg mx-2">-</span>`;
+                html += `<div class="flex flex-wrap items-center justify-center gap-x-1"><span class="text-xl text-slate-400 font-light">(</span>${aTerms}<span class="text-xl text-slate-400 font-light">)</span></div>`;
+            }
+            if (a0 !== 1 && hasFeedback) html += `<span class="text-xl text-slate-400 font-light">]</span>`;
+            html += `</div>`;
+            document.getElementById('dynamicEquation').innerHTML = html;
+        }
+
+        function unwrapPhase(phasesDeg, mags) {
+            if (phasesDeg.length === 0) return phasesDeg;
+            const unwrapped = [phasesDeg[0]];
+            let offset = 0;
+            for (let i = 1; i < phasesDeg.length; i++) {
+                if (mags[i] < 1e-12) { unwrapped.push(phasesDeg[i] + offset); continue; }
+                let delta = phasesDeg[i] - phasesDeg[i - 1];
+                if (delta > 180) offset -= 360;
+                else if (delta < -180) offset += 360;
+                unwrapped.push(phasesDeg[i] + offset);
+            }
+            return unwrapped;
+        }
+
+        function calculateFrequencyResponse(b, a, fs) {
+            const points = 4096;
+            const freqs = [], mags = [], phasesWrapped = [], magsLin = [];
+            const nyquist = fs / 2;
+
+            for (let i = 0; i < points; i++) {
+                const f = (i / points) * nyquist;
+                const w = 2 * Math.PI * (f / fs);
+
+                let reB = 0, imB = 0;
+                for (let k = 0; k < b.length; k++) {
+                    reB += b[k] * Math.cos(-w * k);
+                    imB += b[k] * Math.sin(-w * k);
+                }
+
+                let reA = 0, imA = 0;
+                for (let k = 0; k < a.length; k++) {
+                    reA += a[k] * Math.cos(-w * k);
+                    imA += a[k] * Math.sin(-w * k);
+                }
+
+                let den = reA * reA + imA * imA;
+                if (den < 1e-30) den = 1e-30;
+
+                const reH = (reB * reA + imB * imA) / den;
+                const imH = (imB * reA - reB * imA) / den;
+
+                const magLin = Math.max(Math.sqrt(reH * reH + imH * imH), 1e-30);
+                freqs.push(f);
+                magsLin.push(magLin);
+                mags.push(20 * Math.log10(magLin));
+                phasesWrapped.push(Math.atan2(imH, reH) * (180 / Math.PI));
+            }
+            return { freqs, mags, phases: unwrapPhase(phasesWrapped, magsLin) };
+        }
+
+        function syncZoom(sourceChart) {
+            const min = sourceChart.scales.x.min;
+            const max = sourceChart.scales.x.max;
+            const target = (sourceChart.canvas.id === 'magChart') ? phaseChartInstance : magChartInstance;
+            if (target) {
+                target.options.scales.x.min = min;
+                target.options.scales.x.max = max;
+                target.update('none');
+            }
+        }
+
+        function resetIterView() {
+            if (magChartInstance) magChartInstance.resetZoom('none');
+            if (phaseChartInstance) phaseChartInstance.resetZoom('none');
+            if (magChartInstance && phaseChartInstance) {
+                delete magChartInstance.options.scales.x.min;
+                delete magChartInstance.options.scales.x.max;
+                delete phaseChartInstance.options.scales.x.min;
+                delete phaseChartInstance.options.scales.x.max;
+                magChartInstance.update(); phaseChartInstance.update();
+            }
+        }
+
+        function initCharts() {
+            const commonOptions = {
+                responsive: true, maintainAspectRatio: false,
+                elements: { point: { radius: 0 } },
+                plugins: { 
+                    legend: { display: false },
+                    zoom: {
+                        pan: { enabled: false, mode: 'x', onPan: ({chart}) => syncZoom(chart) },
+                        zoom: { wheel: { enabled: false }, pinch: { enabled: false }, drag: { enabled: true, backgroundColor: 'rgba(59, 130, 246, 0.3)' }, mode: 'x', onZoom: ({chart}) => syncZoom(chart) }
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Frequência (Hz)', color: '#64748b', font: { weight: 'bold' } }, ticks: { maxTicksLimit: 10, color: '#94a3b8' }, grid: { color: '#f1f5f9' } },
+                    y: { ticks: { color: '#94a3b8' }, grid: { color: '#f1f5f9' } }
+                }
+            };
+
+            magChartInstance = new Chart(document.getElementById('magChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: '#3b82f6', fill: false, tension: 0.1, borderWidth: 2 }] },
+                options: { ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, title: { display: true, text: 'Magnitude (dB)', color: '#64748b', font: { weight: 'bold' } } } } }
+            });
+
+            phaseChartInstance = new Chart(document.getElementById('phaseChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: '#f97316', fill: false, tension: 0.1, borderWidth: 2 }] },
+                options: { ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, title: { display: true, text: 'Fase (Graus)', color: '#64748b', font: { weight: 'bold' } } } } }
+            });
+        }
+
+        function updateBodePlot() {
+            const fs = parseFloat(document.getElementById('fsInput').value);
+            let b = parseCoefficients(document.getElementById('bInput').value);
+            let a = parseCoefficients(document.getElementById('aInput').value);
+
+            if (!fs || fs <= 0 || b === null || a === null || a.length === 0) {
+                alert("⚠️ Erro nos dados de entrada. Verifique Fs e a formatação dos coeficientes.");
+                return;
+            }
+
+            const stability = checkStability(a);
+            if (stability.status === 'unstable') alert(stability.message);
+
+            renderDynamicEquation(b, a);
+            const { freqs, mags, phases } = calculateFrequencyResponse(b, a, fs);
+
+            magChartInstance.data.labels = freqs.map(f => f.toFixed(2));
+            magChartInstance.data.datasets[0].data = mags;
+            phaseChartInstance.data.labels = freqs.map(f => f.toFixed(2));
+            phaseChartInstance.data.datasets[0].data = phases;
+
+            resetIterView();
+        }
+
+        initCharts();
+        updateBodePlot();
+    </script>
+</body>
+</html>
