@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSP NOTCH Designer - Frequency Response</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        .glow-focus:focus-within { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); border-color: #3b82f6; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-900 font-sans">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        
+        <div class="mb-10">
+            <h1 class="text-4xl font-black text-slate-800 tracking-tighter italic">DSP<span class="text-blue-600">NOTCH</span></h1>
+            <p class="text-slate-500 font-medium">Filtro Rejeita-Faixa de Alta Precisão</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-4 space-y-6">
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 text-center flex flex-col justify-center min-h-[140px]">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Equação de Diferenças Resultante</span>
+                    <div id="dynamicEquation" class="w-full"></div>
+                </div>
+                
+                <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
+                    <div class="space-y-4">
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 glow-focus transition-all">
+                                <label class="text-[10px] font-bold text-indigo-500 uppercase block mb-1">Freq. Central (Hz)</label>
+                                <input type="number" id="f0Input" value="60" class="w-full bg-transparent font-black text-indigo-700 focus:outline-none">
+                            </div>
+
+                            <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 glow-focus transition-all">
+                                <label class="text-[10px] font-bold text-indigo-500 uppercase block mb-1">Qualidade (Q)</label>
+                                <input type="number" id="qInput" value="30" step="0.1" class="w-full bg-transparent font-black text-indigo-700 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 glow-focus transition-all">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Fs - Amostragem (Hz)</label>
+                            <input type="number" id="fsInput" value="1000" class="w-full bg-transparent font-black text-slate-700 focus:outline-none">
+                        </div>
+
+                        <hr class="border-slate-200 border-dashed my-4">
+
+                        <div>
+                            <div class="flex justify-between items-end mb-1">
+                                <label class="text-[10px] font-bold text-blue-500 uppercase block">Coeficientes B</label>
+                                <button onclick="copyCoefficients('b')" class="text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold py-1 px-3 rounded transition-colors active:scale-95">COPIAR</button>
+                            </div>
+                            <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 font-mono text-sm text-blue-700 overflow-x-auto custom-scrollbar whitespace-nowrap" id="bDisplay"></div>
+                        </div>
+
+                        <div class="mt-4">
+                            <div class="flex justify-between items-end mb-1">
+                                <label class="text-[10px] font-bold text-orange-500 uppercase block">Coeficientes A</label>
+                                <button onclick="copyCoefficients('a')" class="text-[10px] bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold py-1 px-3 rounded transition-colors active:scale-95">COPIAR</button>
+                            </div>
+                            <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 font-mono text-sm text-orange-700 overflow-x-auto custom-scrollbar whitespace-nowrap" id="aDisplay"></div>
+                        </div>
+
+                    </div>
+
+                    <button onclick="updateFilter()" class="w-full mt-8 py-4 bg-slate-800 text-white rounded-2xl font-black text-lg hover:bg-slate-900 shadow-xl active:scale-95 transition-all">
+                        PROJETAR NOTCH
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col">
+                            <h3 class="font-black text-slate-700 uppercase text-sm tracking-widest">Magnitude (dB)</h3>
+                            <span class="text-[10px] font-bold text-slate-400">Arraste para zoom no Notch</span>
+                        </div>
+                        <button onclick="resetIterView()" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-1 px-4 rounded-full transition-colors border border-slate-200">HOME</button>
+                    </div>
+                    <div class="h-[300px]" oncontextmenu="return false;">
+                        <canvas id="magChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col">
+                            <h3 class="font-black text-slate-700 uppercase text-sm tracking-widest">Fase (Graus)</h3>
+                        </div>
+                    </div>
+                    <div class="h-[300px]" oncontextmenu="return false;">
+                        <canvas id="phaseChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let magChartInstance = null;
+    let phaseChartInstance = null;
+    let currentBArray = [];
+    let currentAArray = [];
+
+    function resetIterView() {
+        if (magChartInstance) magChartInstance.resetZoom('none');
+        if (phaseChartInstance) phaseChartInstance.resetZoom('none');
+        if (magChartInstance && phaseChartInstance) {
+            delete magChartInstance.options.scales.x.min;
+            delete magChartInstance.options.scales.x.max;
+            delete phaseChartInstance.options.scales.x.min;
+            delete phaseChartInstance.options.scales.x.max;
+            magChartInstance.update();
+            phaseChartInstance.update();
+        }
+    }
+
+    function copyCoefficients(type) {
+        const arr = type === 'b' ? currentBArray : currentAArray;
+        const textToCopy = "[" + arr.map(v => v.toExponential(8)).join(", ") + "]";
+        navigator.clipboard.writeText(textToCopy);
+    }
+
+    function renderDynamicEquation(b, a) {
+        const fmt = (v) => v.toExponential(2);
+        let bTerms = b.map((val, i) => `<span class="whitespace-nowrap"><span class="text-blue-600 font-bold">${fmt(val)}</span>x[${i===0?'n':`n-${i}`}]</span>`).join(' <span class="text-slate-400 font-bold">+</span> ');
+        let aTerms = a.slice(1).map((val, i) => `<span class="whitespace-nowrap"><span class="text-orange-500 font-bold">${fmt(val)}</span>y[n-${i+1}]</span>`).join(' <span class="text-slate-400 font-bold">+</span> ');
+
+        let html = `<div class="flex flex-wrap items-center justify-center text-slate-700 font-serif text-sm md:text-base gap-x-1 gap-y-2 leading-relaxed w-full">`;
+        html += `<span class="font-black text-emerald-600 text-lg mr-1 whitespace-nowrap">y[n] =</span>`;
+        html += `<div class="flex flex-wrap items-center justify-center gap-x-1">${bTerms}</div>`;
+        if (aTerms) {
+            html += `<span class="font-black text-slate-400 text-lg mx-2">-</span>`;
+            html += `<div class="flex flex-wrap items-center justify-center gap-x-1"><span class="text-slate-400 font-light">(</span>${aTerms}<span class="text-slate-400 font-light">)</span></div>`;
+        }
+        html += `</div>`;
+        document.getElementById('dynamicEquation').innerHTML = html;
+    }
+
+    function calculateFrequencyResponse(b, a, fs) {
+        const points = 4096;
+        const freqs = [], mags = [], phasesWrapped = [], magsLin = [];
+        const nyquist = fs / 2;
+
+        for (let i = 0; i < points; i++) {
+            const f = (i / points) * nyquist;
+            const w = 2 * Math.PI * (f / fs);
+            
+            let reB = 0, imB = 0, reA = 0, imA = 0;
+            for (let k = 0; k < b.length; k++) { reB += b[k] * Math.cos(-w * k); imB += b[k] * Math.sin(-w * k); }
+            for (let k = 0; k < a.length; k++) { reA += a[k] * Math.cos(-w * k); imA += a[k] * Math.sin(-w * k); }
+
+            let den = reA * reA + imA * imA;
+            if (den < 1e-30) den = 1e-30;
+
+            const reH = (reB * reA + imB * imA) / den;
+            const imH = (imB * reA - reB * imA) / den;
+
+            const magLin = Math.max(Math.sqrt(reH * reH + imH * imH), 1e-30);
+            freqs.push(f);
+            magsLin.push(magLin);
+            mags.push(20 * Math.log10(magLin));
+            phasesWrapped.push(Math.atan2(imH, reH) * (180 / Math.PI));
+        }
+
+        const unwrapped = [phasesWrapped[0]];
+        let offset = 0;
+        for (let i = 1; i < phasesWrapped.length; i++) {
+            if (magsLin[i] < 1e-10) { unwrapped.push(phasesWrapped[i] + offset); continue; }
+            let delta = phasesWrapped[i] - phasesWrapped[i-1];
+            if (delta > 180) offset -= 360; else if (delta < -180) offset += 360;
+            unwrapped.push(phasesWrapped[i] + offset);
+        }
+
+        return { freqs, mags, phases: unwrapped };
+    }
+
+    function syncZoom(sourceChart) {
+        const min = sourceChart.scales.x.min;
+        const max = sourceChart.scales.x.max;
+        const target = (sourceChart.canvas.id === 'magChart') ? phaseChartInstance : magChartInstance;
+        if (target) {
+            target.options.scales.x.min = min;
+            target.options.scales.x.max = max;
+            target.update('none');
+        }
+    }
+
+    function initCharts() {
+        const commonOptions = {
+            responsive: true, maintainAspectRatio: false, elements: { point: { radius: 0 } },
+            plugins: { 
+                legend: { display: false },
+                zoom: { zoom: { drag: { enabled: true, backgroundColor: 'rgba(59, 130, 246, 0.2)' }, mode: 'x', onZoom: ({chart}) => syncZoom(chart) } }
+            },
+            scales: {
+                x: { title: { display: true, text: 'Frequência (Hz)', font: { weight: 'bold' } }, grid: { color: '#f1f5f9' } },
+                y: { grid: { color: '#f1f5f9' } }
+            }
+        };
+
+        magChartInstance = new Chart(document.getElementById('magChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ data: [], borderColor: '#3b82f6', fill: false, borderWidth: 2 }] },
+            options: { ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, title: { display: true, text: 'Magnitude (dB)' } } } }
+        });
+
+        phaseChartInstance = new Chart(document.getElementById('phaseChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ data: [], borderColor: '#f97316', fill: false, borderWidth: 2 }] },
+            options: { ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, title: { display: true, text: 'Fase (Graus)' } } } }
+        });
+    }
+
+    function updateFilter() {
+        const f0 = parseFloat(document.getElementById('f0Input').value);
+        const Q = parseFloat(document.getElementById('qInput').value);
+        const fs = parseFloat(document.getElementById('fsInput').value);
+
+        if (f0 >= fs/2) { alert("⚠️ Frequência central deve ser menor que Fs/2"); return; }
+
+        // Matemática do Filtro Notch
+        const w0 = 2 * Math.PI * f0 / fs;
+        const alpha = Math.sin(w0) / (2 * Q);
+        
+        const b0 = 1, b1 = -2 * Math.cos(w0), b2 = 1;
+        const a0 = 1 + alpha, a1 = -2 * Math.cos(w0), a2 = 1 - alpha;
+
+        // Normalizando por a0
+        currentBArray = [b0/a0, b1/a0, b2/a0];
+        currentAArray = [1, a1/a0, a2/a0];
+
+        document.getElementById('bDisplay').innerText = "[" + currentBArray.map(v => v.toExponential(4)).join(", ") + "]";
+        document.getElementById('aDisplay').innerText = "[" + currentAArray.map(v => v.toExponential(4)).join(", ") + "]";
+
+        renderDynamicEquation(currentBArray, currentAArray);
+        const { freqs, mags, phases } = calculateFrequencyResponse(currentBArray, currentAArray, fs);
+
+        magChartInstance.data.labels = freqs.map(f => f.toFixed(2));
+        magChartInstance.data.datasets[0].data = mags;
+        phaseChartInstance.data.labels = freqs.map(f => f.toFixed(2));
+        phaseChartInstance.data.datasets[0].data = phases;
+
+        resetIterView();
+    }
+
+    initCharts();
+    updateFilter();
+    </script>
+</body>
+</html>
