@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulador de Marés Exoplanetárias</title>
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-panel: #161e2d;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background-color: var(--bg-main); color: var(--text-main); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        h1 { margin-top: 0; color: var(--text-main); font-weight: 600; margin-bottom: 5px; }
+        .subtitle { color: var(--text-muted); margin-bottom: 25px; text-align: center; }
+        .dashboard { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 20px; background-color: var(--bg-panel); padding: 15px 30px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.5); width: 100%; max-width: 960px; box-sizing: border-box; }
+        .clock { font-family: 'Courier New', Courier, monospace; font-size: 1.8em; font-weight: bold; color: var(--warning); background: #000; padding: 8px 20px; border-radius: 6px; border: 1px solid #444; letter-spacing: 1px; margin-right: auto; }
+        button { background-color: var(--accent); color: white; border: none; padding: 10px 20px; font-size: 1em; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        button:hover { background-color: var(--accent-hover); transform: translateY(-1px); }
+        button:active { transform: translateY(1px); }
+        button.paused { background-color: var(--danger); }
+        button.paused:hover { background-color: #dc2626; }
+        button.secondary { background-color: #475569; }
+        button.secondary:hover { background-color: #334155; }
+        .container { display: flex; flex-direction: row; gap: 20px; margin-bottom: 20px; width: 100%; max-width: 1000px; justify-content: center; }
+        .canvas-container { background-color: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; }
+        .canvas-header { font-size: 1.1em; font-weight: 600; color: var(--text-muted); margin-top: 0; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        canvas { display: block; cursor: crosshair; border-radius: 6px; background-color: #000; }
+        .controls { background-color: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; width: 100%; max-width: 960px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; gap: 40px; justify-content: center; align-items: center; box-sizing: border-box; }
+        .control-group { display: flex; flex-direction: column; align-items: center; }
+        input[type=range] { width: 250px; cursor: pointer; accent-color: var(--accent); }
+        label { margin-bottom: 8px; font-weight: 600; color: var(--text-muted); }
+        .value-display { color: var(--accent); font-family: monospace; font-size: 1.2em; margin-top: 5px; font-weight: bold;}
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+        .modal-content { background-color: var(--bg-panel); margin: 10% auto; padding: 30px; border: 1px solid var(--border); border-radius: 12px; width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); position: relative; }
+        .close { color: var(--text-muted); float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 20px; }
+        .close:hover { color: white; }
+        .modal h2 { margin-top: 0; color: white; font-size: 1.4em; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; margin-bottom: 5px; font-size: 0.9em; }
+        .input-group input { width: 100%; padding: 10px; background-color: #0b0f19; border: 1px solid var(--border); color: white; border-radius: 6px; font-size: 1em; box-sizing: border-box; }
+        .input-group input:focus { outline: none; border-color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <h1>Laboratório Virtual: Marés Exoplanetárias</h1>
+
+    <div class="dashboard">
+        <div class="clock" id="clockDisplay">00:00</div>
+        <button id="playPauseBtn">⏸ Pausar Simulação</button>
+        <button id="btnOpenExport" class="secondary">💾 Extrair Dados (CSV)</button>
+    </div>
+    
+    <div class="container">
+        <div class="canvas-container">
+            <div class="canvas-header">Monitor Orbital</div>
+            <canvas id="spaceCanvas" width="450" height="450"></canvas>
+        </div>
+        <div class="canvas-container">
+            <div class="canvas-header">Osciloscópio (Sensor Fixo)</div>
+            <canvas id="graphCanvas" width="500" height="450"></canvas>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="timeSpeed">Velocidade da Simulação</label>
+            <input type="range" id="timeSpeed" min="0.01" max="1" value="0.2" step="0.01">
+            <span class="value-display" id="timeVal">0.20x</span>
+        </div>
+        <div style="color: var(--text-muted); font-size: 0.85em; line-height: 1.6; border-left: 2px solid var(--border); padding-left: 20px; min-width: 250px;">
+            <b style="color: white;">CÓDIGO DE IDENTIFICAÇÃO (HASH):</b><br>
+            <span id="hashDisplay" style="color:var(--warning); font-family: monospace; font-size: 0.85em; word-break: break-all; display: inline-block; margin-top: 5px; padding: 5px; background: #000; border-radius: 4px; border: 1px solid #444;">Gerando Segurança...</span>
+        </div>
+    </div>
+
+    <div id="exportModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Configuração da Aquisição</h2>
+            <div class="input-group">
+                <label for="samplePeriod">Período de Amostragem (horas)</label>
+                <input type="number" id="samplePeriod" value="1.0" min="0.1" step="0.1">
+            </div>
+            <div class="input-group">
+                <label for="acqTime">Tempo de Aquisição Total (horas)</label>
+                <input type="number" id="acqTime" value="24" min="1" step="1">
+            </div>
+            <button id="btnGenerateCSV" style="width: 100%; justify-content: center; padding: 12px; font-size: 1.1em; margin-top: 10px;">
+                Gerar e Baixar .CSV
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 🚨 TÉCNICAS ANTI-DEBUG 🚨
+         * 1. Desabilita clique direito
+         * 2. Desabilita atalhos de console (F12, Ctrl+Shift+I, etc)
+         * 3. Debugger Loop infinito se o console for forçado a abrir
+         */
+        window.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+        window.addEventListener('keydown', function(e) {
+            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'C' || e.key === 'J')) || (e.ctrlKey && e.key === 'U')) {
+                e.preventDefault();
+            }
+        });
+        setInterval(function() {
+            var _0xstart = performance.now();
+            debugger; // Trava o navegador se o DevTools estiver aberto
+            if (performance.now() - _0xstart > 100) { document.body.innerHTML = "<h2 style='color:red;text-align:center;margin-top:20%'>🕵️‍♀️ AMBIENTE DE PROVA VIOLADO. FECHE O CONSOLE.</h2>"; }
+        }, 1000);
+
+        // PROFESSOR: COLE SUA CHAVE PÚBLICA GERADA PELO PYTHON AQUI:
+        const CHAVE_PUBLICA_PEM = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsOs7+GVwGk/4F5pNpik2
+ULLmLpqXTIOtOzUI1fRaDHdcOC6ZkL/cFtkPc59DeGy/A5Pen/hl0DO44eTzUv7t
+qoA6cHR1KlWw3JzKqXISCtwJoBlLJw9eQamMa99xhMIzHVGxyDh2F1JBchM3IMcd
+AFxhFV9kaZ6Jl8tWs6lqWq3gfQ77zquFMxKSysUWovDgtISlc/ZnjdnSLksFsJZA
+VziN0X0b+UWMXQKjy1JSyyxbbi11HjOBIoxnmbNOJcZX1TwfFRS3zlYz8mp5YZfW
+Pr52vDFCrAKKQTG2CLv7thH6n7SaOc/paS6P+3vw1N/BxENLkjWX0eptFGpMU7qm
+0wIDAQAB
+-----END PUBLIC KEY-----`;
+
+        // IIFE Principal
+        (async function() {
+            // Ofuscamento pesado de variáveis
+            const _0x1a = (Math.floor(Math.random() * 231) + 10) / 10; // c1
+            const _0x2b = (Math.floor(Math.random() * 231) + 10) / 10; // c2
+            const _0xw1 = (Math.PI * 2 * _0x1a) / 24.0;
+            const _0xw2 = (Math.PI * 2 * _0x2b) / 24.0;
+            
+            // --- ROTINA DE CRIPTOGRAFIA RSA NATIVA DO NAVEGADOR ---
+            try {
+                // 1. Limpa o formato PEM para a API do navegador
+                const pemHeader = "-----BEGIN PUBLIC KEY-----";
+                const pemFooter = "-----END PUBLIC KEY-----";
+                const pemContents = CHAVE_PUBLICA_PEM.substring(CHAVE_PUBLICA_PEM.indexOf(pemHeader) + pemHeader.length, CHAVE_PUBLICA_PEM.indexOf(pemFooter)).replace(/\s/g, '');
+                
+                // 2. Converte Base64 para buffer binário
+                const binaryDerString = window.atob(pemContents);
+                const binaryDer = new Uint8Array(binaryDerString.length);
+                for (let i = 0; i < binaryDerString.length; i++) { binaryDer[i] = binaryDerString.charCodeAt(i); }
+                
+                // 3. Importa a Chave
+                const cryptoKey = await window.crypto.subtle.importKey(
+                    "spki", binaryDer.buffer, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
+                );
+
+                // 4. Criptografa o texto "c1|c2"
+                const textoPlano = _0x1a.toFixed(1) + "|" + _0x2b.toFixed(1);
+                const encodedMsg = new TextEncoder().encode(textoPlano);
+                const encryptedBuf = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, cryptoKey, encodedMsg);
+
+                // 5. Converte o resultado para Base64 para exibição
+                let binStr = '';
+                const bytes = new Uint8Array(encryptedBuf);
+                for (let i = 0; i < bytes.byteLength; i++) { binStr += String.fromCharCode(bytes[i]); }
+                document.getElementById('hashDisplay').innerText = window.btoa(binStr);
+            } catch (err) {
+                document.getElementById('hashDisplay').innerText = "ERRO_CRIPTOGRAFIA (Requer HTTPS ou localhost)";
+            }
+
+            // --- LÓGICA DO SIMULADOR ---
+            const spaceCanvas = document.getElementById('spaceCanvas');
+            const graphCanvas = document.getElementById('graphCanvas');
+            const spaceCtx = spaceCanvas.getContext('2d');
+            const graphCtx = graphCanvas.getContext('2d');
+            const timeSlider = document.getElementById('timeSpeed');
+            const timeVal = document.getElementById('timeVal');
+            const clockDisplay = document.getElementById('clockDisplay');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+
+            const modal = document.getElementById('exportModal');
+            const btnOpenExport = document.getElementById('btnOpenExport');
+            const spanClose = document.getElementsByClassName('close')[0];
+            const btnGenerateCSV = document.getElementById('btnGenerateCSV');
+
+            let isPlaying = true;
+            let timeHours = 0; 
+            let _0xa1 = 0; let _0xa2 = 0; // angulos
+            
+            const pRad = 40; const d1 = 120; const d2 = 190;
+            const am1 = 15; const am2 = 7; 
+            const history = []; const maxHistory = 800;
+            let draggingBody = null; 
+
+            timeSlider.addEventListener('input', () => { timeVal.innerText = parseFloat(timeSlider.value).toFixed(2) + "x"; });
+
+            playPauseBtn.addEventListener('click', () => {
+                isPlaying = !isPlaying;
+                playPauseBtn.innerHTML = isPlaying ? "⏸ Pausar Simulação" : "▶ Retomar Simulação";
+                playPauseBtn.className = isPlaying ? "" : "paused";
+            });
+
+            btnOpenExport.onclick = () => modal.style.display = "block";
+            spanClose.onclick = () => modal.style.display = "none";
+            window.onclick = (e) => { if (e.target == modal) modal.style.display = "none"; }
+
+            btnGenerateCSV.onclick = () => {
+                const freq = parseFloat(document.getElementById('samplePeriod').value);
+                const duration = parseFloat(document.getElementById('acqTime').value);
+                if (isNaN(freq) || isNaN(duration) || freq <= 0 || duration <= 0) { alert("Valores inválidos."); return; }
+
+                let csvContent = "Tempo_Aquisicao_h,Altura_Mare_m\n";
+                let steps = Math.floor(duration / freq);
+                let baseA1 = _0xa1; let baseA2 = _0xa2;
+
+                for (let i = 0; i <= steps; i++) {
+                    let current_t = i * freq;
+                    let projA1 = baseA1 + current_t * _0xw1;
+                    let projA2 = baseA2 + current_t * _0xw2;
+                    let tideHeight = am1 * Math.cos(2 * (0 - projA1)) + am2 * Math.cos(2 * (0 - projA2)) + 50;
+                    csvContent += `${current_t.toFixed(3)},${tideHeight.toFixed(3)}\n`;
+                }
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = "dados_mare_sensor.csv";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                modal.style.display = "none";
+            };
+
+            spaceCanvas.addEventListener('mousedown', (e) => {
+                const rect = spaceCanvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+                const s1x = 225 + d1 * Math.cos(_0xa1); const s1y = 225 + d1 * Math.sin(_0xa1);
+                const s2x = 225 + d2 * Math.cos(_0xa2); const s2y = 225 + d2 * Math.sin(_0xa2);
+                if (Math.hypot(mx - s1x, my - s1y) < 25) draggingBody = 'sat1';
+                else if (Math.hypot(mx - s2x, my - s2y) < 25) draggingBody = 'sat2';
+            });
+
+            window.addEventListener('mouseup', () => draggingBody = null);
+            window.addEventListener('mousemove', (e) => {
+                if (!draggingBody) return;
+                const rect = spaceCanvas.getBoundingClientRect();
+                let newAngle = Math.atan2((e.clientY - rect.top) - 225, (e.clientX - rect.left) - 225);
+                if (newAngle < 0) newAngle += Math.PI * 2;
+                if (draggingBody === 'sat1') _0xa1 = newAngle;
+                if (draggingBody === 'sat2') _0xa2 = newAngle;
+                if (!isPlaying) { history[history.length - 1] = drawSpace(225, 225); drawGraph(); }
+            });
+
+            function updateClock() {
+                let hStr = Math.floor(timeHours).toString().padStart(2, '0');
+                let mStr = Math.floor((timeHours % 1) * 60).toString().padStart(2, '0');
+                clockDisplay.innerText = `${hStr}:${mStr}`;
+            }
+
+            function drawSpace(cx, cy) {
+                spaceCtx.clearRect(0, 0, 450, 450);
+                spaceCtx.lineWidth = 1;
+                spaceCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                spaceCtx.beginPath(); spaceCtx.arc(cx, cy, d1, 0, Math.PI * 2); spaceCtx.stroke();
+                spaceCtx.beginPath(); spaceCtx.arc(cx, cy, d2, 0, Math.PI * 2); spaceCtx.stroke();
+
+                const s2x = cx + d2 * Math.cos(_0xa2); const s2y = cy + d2 * Math.sin(_0xa2);
+                spaceCtx.beginPath(); spaceCtx.arc(s2x, s2y, 14, 0, Math.PI * 2);
+                spaceCtx.fillStyle = draggingBody === 'sat2' ? '#d8b4fe' : '#a855f7'; spaceCtx.fill(); 
+
+                const s1x = cx + d1 * Math.cos(_0xa1); const s1y = cy + d1 * Math.sin(_0xa1);
+                spaceCtx.beginPath(); spaceCtx.arc(s1x, s1y, 16, 0, Math.PI * 2);
+                spaceCtx.fillStyle = draggingBody === 'sat1' ? '#fdba74' : '#f97316'; spaceCtx.fill();
+
+                spaceCtx.beginPath();
+                for (let a = 0; a <= Math.PI * 2; a += 0.05) {
+                    let r = pRad + am1 * Math.cos(2 * (a - _0xa1)) + am2 * Math.cos(2 * (a - _0xa2));
+                    let x = cx + r * Math.cos(a); let y = cy + r * Math.sin(a);
+                    if (a === 0) spaceCtx.moveTo(x, y); else spaceCtx.lineTo(x, y);
+                }
+                spaceCtx.closePath();
+                spaceCtx.fillStyle = 'rgba(59, 130, 246, 0.6)'; spaceCtx.fill();
+
+                spaceCtx.beginPath(); spaceCtx.arc(cx, cy, pRad, 0, Math.PI * 2);
+                spaceCtx.fillStyle = '#10b981'; spaceCtx.fill();
+
+                let sensorHeight = am1 * Math.cos(2 * (0 - _0xa1)) + am2 * Math.cos(2 * (0 - _0xa2));
+                let px = cx + (pRad + sensorHeight) * Math.cos(0); let py = cy + (pRad + sensorHeight) * Math.sin(0);
+                
+                spaceCtx.beginPath(); spaceCtx.moveTo(cx, cy); spaceCtx.lineTo(px, py);
+                spaceCtx.strokeStyle = 'rgba(239, 68, 68, 0.5)'; spaceCtx.lineWidth = 2; spaceCtx.stroke();
+                spaceCtx.beginPath(); spaceCtx.arc(px, py, 5, 0, Math.PI * 2); spaceCtx.fillStyle = '#ef4444'; spaceCtx.fill();
+
+                return sensorHeight; 
+            }
+
+            function drawGraph() {
+                graphCtx.clearRect(0, 0, 500, 450);
+                graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                graphCtx.lineWidth = 1;
+                for(let i=0; i<=450; i+=45) { graphCtx.beginPath(); graphCtx.moveTo(0, i); graphCtx.lineTo(500, i); graphCtx.stroke(); }
+                for(let i=0; i<=500; i+=50) { graphCtx.beginPath(); graphCtx.moveTo(i, 0); graphCtx.lineTo(i, 450); graphCtx.stroke(); }
+                graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                graphCtx.beginPath(); graphCtx.moveTo(0, 225); graphCtx.lineTo(500, 225); graphCtx.stroke();
+
+                if (history.length > 1) {
+                    graphCtx.beginPath(); graphCtx.strokeStyle = '#3b82f6'; graphCtx.lineWidth = 2; graphCtx.lineJoin = 'round';
+                    for (let i = 0; i < history.length; i++) {
+                        let x = (i / maxHistory) * 500; let y = 225 - (history[i] * 5); 
+                        if (i === 0) graphCtx.moveTo(x, y); else graphCtx.lineTo(x, y);
+                    }
+                    graphCtx.stroke();
+                }
+            }
+
+            function animate() {
+                if (isPlaying) {
+                    let speed = parseFloat(timeSlider.value) * 0.5;
+                    timeHours += speed;
+                    updateClock();
+                    if (draggingBody !== 'sat1') _0xa1 += _0xw1 * speed;
+                    if (draggingBody !== 'sat2') _0xa2 += _0xw2 * speed;
+                    _0xa1 %= Math.PI * 2; _0xa2 %= Math.PI * 2;
+
+                    history.push(drawSpace(225, 225));
+                    if (history.length > maxHistory) history.shift(); 
+                    drawGraph();
+                }
+                requestAnimationFrame(animate);
+            }
+
+            updateClock();
+            animate();
+        })();
+    </script>
+</body>
+</html>
