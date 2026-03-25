@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulação Contínua de Amortecimento</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #2c3e50; margin-bottom: 5px; }
+        p { color: #7f8c8d; margin-bottom: 20px; }
+        
+        canvas {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:hover { background-color: #27ae60; }
+
+        /* Estilos do Modal (Janela de Salvar) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .modal h3 { margin: 0 0 10px 0; color: #2c3e50; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        .input-group label { font-weight: bold; font-size: 0.9em; }
+        .input-group input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+        .modal-buttons { display: flex; justify-content: space-between; margin-top: 10px; }
+        .btn-cancel { background-color: #e74c3c; }
+        .btn-cancel:hover { background-color: #c0392b; }
+        .btn-confirm { background-color: #3498db; }
+        .btn-confirm:hover { background-color: #2980b9; }
+    </style>
+</head>
+<body>
+
+    <h1>Simulador de Pista</h1>
+
+    <div class="container">
+        <canvas id="simCanvas" width="800" height="250"></canvas>
+        <canvas id="chartCanvas" width="800" height="300"></canvas>
+        
+        <button id="btnOpenModal">Salvar Dados da Pista (CSV)</button>
+    </div>
+
+    <div class="modal-overlay" id="csvModal">
+        <div class="modal">
+            <h3>Parâmetros de Exportação</h3>
+            <div class="input-group">
+                <label for="acqTime">Tempo de Aquisição (segundos):</label>
+                <input type="number" id="acqTime" value="10" min="1">
+            </div>
+            <div class="input-group">
+                <label for="sampFreq">Frequência de Amostragem (Hz):</label>
+                <input type="number" id="sampFreq" value="100" min="1">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="btnCancel">Cancelar</button>
+                <button class="btn-confirm" id="btnConfirm">Gerar e Baixar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURAÇÕES GERAIS ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const speed = 300; // velocidade simulada (px/s)
+        const wheelRadius = 30;
+        const wheelX = 200; // posição estática da roda na tela
+        let startTime = Date.now();
+
+        // --- CONFIGURAÇÃO DO GRÁFICO ---
+        const ctxChart = document.getElementById('chartCanvas').getContext('2d');
+        const MAX_DATA_POINTS = 100; // Janela deslizante para não travar o PC
+        
+        let heightChart = new Chart(ctxChart, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Variação de Altura em Tempo Real (mm)',
+                    data: [],
+                    borderColor: '#2980b9',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false, // Sem preenchimento sob a curva, conforme solicitado
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    x: { title: { display: true, text: 'Tempo (s)' } },
+                    y: { 
+                        title: { display: true, text: 'Altura (mm)' },
+                        min: -60, max: 60
+                    }
+                }
+            }
+        });
+
+        // --- FUNÇÃO DO PERFIL DA ESTRADA ---
+        // Retorna a altura com base na posição X. Mistura senoides para criar os buracos.
+        function getRoadHeight(x) {
+            const bump1 = Math.sin(x * 0.01) * 15;
+            const bump2 = Math.sin(x * 0.025) * 10;
+            const bump3 = Math.sin(x * 0.08) * 5;
+            return bump1 + bump2 + bump3;
+        }
+
+        // --- LOOP DE ANIMAÇÃO CONTÍNUA ---
+        let lastChartUpdate = Date.now();
+        
+        function animate() {
+            const currentTime = Date.now();
+            const elapsedTime = (currentTime - startTime) / 1000;
+            const roadOffset = elapsedTime * speed;
+
+            // Limpa o canvas da animação
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Desenhar a Estrada de Terra
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+            for (let x = 0; x <= canvas.width; x += 5) {
+                let globalX = x + roadOffset;
+                let y = canvas.height / 2 + 50 - getRoadHeight(globalX);
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.fillStyle = '#d35400';
+            ctx.fill();
+            ctx.strokeStyle = '#a04000';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // 2. Desenhar a Roda
+            let wheelGlobalX = wheelX + roadOffset;
+            let currentBumpHeight = getRoadHeight(wheelGlobalX); 
+            let wheelY = canvas.height / 2 + 50 - wheelRadius - currentBumpHeight;
+            let rotation = roadOffset / wheelRadius;
+
+            ctx.save();
+            ctx.translate(wheelX, wheelY);
+            ctx.rotate(rotation);
+
+            // Pneu e Aro
+            ctx.beginPath(); ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#2c3e50'; ctx.fill();
+            ctx.lineWidth = 4; ctx.strokeStyle = '#1a252f'; ctx.stroke();
+            ctx.beginPath(); ctx.arc(0, 0, wheelRadius * 0.6, 0, Math.PI * 2);
+            ctx.fillStyle = '#bdc3c7'; ctx.fill();
+
+            // Raios para visualizar a rotação
+            ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 3;
+            for(let i=0; i<4; i++) {
+                ctx.beginPath(); ctx.moveTo(0, 0);
+                ctx.lineTo(wheelRadius * 0.6 * Math.cos(i * Math.PI/2), wheelRadius * 0.6 * Math.sin(i * Math.PI/2));
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // 3. Atualizar Gráfico (a cada ~50ms para visualização suave)
+            if (currentTime - lastChartUpdate > 50) {
+                let heightMm = currentBumpHeight * 2; // Escala para visualização
+                heightChart.data.labels.push(elapsedTime.toFixed(1));
+                heightChart.data.datasets[0].data.push(heightMm.toFixed(2));
+                
+                // Remove o ponto mais antigo para criar o efeito de "janela deslizante"
+                if (heightChart.data.labels.length > MAX_DATA_POINTS) {
+                    heightChart.data.labels.shift();
+                    heightChart.data.datasets[0].data.shift();
+                }
+                
+                heightChart.update();
+                lastChartUpdate = currentTime;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // Inicia a animação assim que a página carrega
+        requestAnimationFrame(animate);
+
+
+        // --- LÓGICA DO MODAL E GERAÇÃO DO CSV ---
+        const modal = document.getElementById('csvModal');
+        const btnOpenModal = document.getElementById('btnOpenModal');
+        const btnCancel = document.getElementById('btnCancel');
+        const btnConfirm = document.getElementById('btnConfirm');
+
+        btnOpenModal.addEventListener('click', () => {
+            modal.style.display = 'flex';
+        });
+
+        btnCancel.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        // Função para gerar matemática do CSV de forma independente
+        btnConfirm.addEventListener('click', () => {
+            const tempoStr = document.getElementById('acqTime').value;
+            const freqStr = document.getElementById('sampFreq').value;
+            
+            const timeLimit = parseFloat(tempoStr);
+            const freq = parseFloat(freqStr);
+            const dt = 1 / freq;
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Tempo (s),Altura Realista (mm)\n";
+
+            // Gera os dados varrendo o tempo de 0 até o limite escolhido
+            for (let t = 0; t <= timeLimit; t += dt) {
+                // A posição virtual na estrada (velocidade arbitrária de 300)
+                let virtualX = t * 300; 
+                
+                // Altura base (soma de senos)
+                let baseHeight = getRoadHeight(virtualX) * 2; 
+                
+                // Adiciona um "ruído" aleatório de alta frequência (+- 2mm) 
+                // para simular pedras e textura de terra na vida real
+                let noise = (Math.random() - 0.5) * 4; 
+                
+                let finalHeight = baseHeight;
+
+                csvContent += `${t.toFixed(4)},${finalHeight.toFixed(3)}\n`;
+            }
+
+            // Inicia o Download
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `perfil_pista_${freq}Hz_${timeLimit}s.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Fecha o modal
+            modal.style.display = 'none';
+        });
+
+    </script>
+</body>
+</html>
