@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador Didático de Pressão Arterial Invasiva</title>
+  <style>
+    :root{
+      --bg1:#07111f;
+      --bg2:#0b1e33;
+      --card:rgba(255,255,255,.08);
+      --line:rgba(255,255,255,.10);
+      --text:#eaf2ff;
+      --muted:#93a5c6;
+      --real:#7bdcff;
+      --meas:#ff7a9a;
+      --accent:#77f0c9;
+      --warning:#ffc971;
+      --good:#79ffb5;
+      --bad:#ff8b9f;
+      --mid:#9fb4ff;
+      --shadow:0 18px 48px rgba(0,0,0,.34);
+    }
+
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      height:100%;
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 15% 15%, rgba(66,130,255,.18), transparent 32%),
+        radial-gradient(circle at 85% 18%, rgba(0,214,170,.12), transparent 26%),
+        radial-gradient(circle at 50% 100%, rgba(255,102,140,.16), transparent 30%),
+        linear-gradient(145deg, var(--bg1), var(--bg2));
+      overflow:auto;
+    }
+
+    .shell{
+      width:min(1440px, 96vw);
+      height:min(900px, 95vh);
+      margin:2.5vh auto;
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:18px;
+    }
+
+    .panel, .main{
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
+      border:1px solid rgba(255,255,255,.09);
+      border-radius:28px;
+      box-shadow:var(--shadow);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .panel{
+      padding:22px 20px 18px;
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      min-width:0;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .title{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:2px;
+    }
+    .title h1{
+      font-size:1.12rem;
+      margin:0;
+      font-weight:700;
+      letter-spacing:.02em;
+    }
+    .title .tiny{
+      color:var(--muted);
+      font-size:.84rem;
+      letter-spacing:.03em;
+    }
+
+    .legend{
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+      color:var(--muted);
+      font-size:.82rem;
+    }
+    .legend .dot{
+      width:10px;height:10px;border-radius:50%;
+      display:inline-block;
+      margin-right:7px;
+      position:relative; top:1px;
+      box-shadow:0 0 14px currentColor;
+    }
+    .legend .real .dot{ background:var(--real); color:var(--real); }
+    .legend .meas .dot{ background:var(--meas); color:var(--meas); }
+
+    .control{
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:14px 14px 12px;
+    }
+
+    .control .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:8px;
+      gap:10px;
+    }
+    .label{
+      font-size:.9rem;
+      color:#eef5ff;
+      letter-spacing:.02em;
+    }
+    .value{
+      font-weight:700;
+      color:var(--accent);
+      font-variant-numeric: tabular-nums;
+      font-size:.92rem;
+      min-width:74px;
+      text-align:right;
+    }
+
+    input[type="range"]{
+      width:100%;
+      appearance:none;
+      height:6px;
+      border-radius:999px;
+      background:linear-gradient(90deg, rgba(255,255,255,.16), rgba(255,255,255,.05));
+      outline:none;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      appearance:none;
+      width:22px;height:22px;border-radius:50%;
+      background:linear-gradient(180deg,#ffffff,#b4ffe8);
+      border:2px solid rgba(0,0,0,.18);
+      box-shadow:0 6px 18px rgba(0,0,0,.35), 0 0 18px rgba(119,240,201,.42);
+      cursor:pointer;
+    }
+    input[type="range"]::-moz-range-thumb{
+      width:22px;height:22px;border:none;border-radius:50%;
+      background:linear-gradient(180deg,#ffffff,#b4ffe8);
+      box-shadow:0 6px 18px rgba(0,0,0,.35), 0 0 18px rgba(119,240,201,.42);
+      cursor:pointer;
+    }
+
+    .bubble-row{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+    }
+
+    .signal-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+
+    .toggle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:12px 14px;
+      border-radius:18px;
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--line);
+    }
+
+    .switch{
+      position:relative;
+      width:58px;height:32px;
+      flex:0 0 auto;
+    }
+    .switch input{display:none}
+    .slider{
+      position:absolute; inset:0;
+      border-radius:999px;
+      background:rgba(255,255,255,.12);
+      transition:.2s ease;
+      border:1px solid rgba(255,255,255,.12);
+    }
+    .slider:before{
+      content:"";
+      position:absolute;
+      width:24px;height:24px;border-radius:50%;
+      left:3px; top:3px;
+      background:#fff;
+      box-shadow:0 4px 12px rgba(0,0,0,.25);
+      transition:.2s ease;
+    }
+    .switch input:checked + .slider{
+      background:linear-gradient(90deg, rgba(119,240,201,.75), rgba(146,194,255,.65));
+    }
+    .switch input:checked + .slider:before{
+      transform:translateX(26px);
+      background:#fbffff;
+    }
+
+    .chips{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:10px;
+    }
+    .chip{
+      padding:12px 10px;
+      border-radius:18px;
+      background:rgba(255,255,255,.045);
+      border:1px solid var(--line);
+      min-width:0;
+    }
+    .chip .k{
+      color:var(--muted);
+      font-size:.72rem;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      margin-bottom:4px;
+    }
+    .chip .v{
+      font-size:1.02rem;
+      font-weight:800;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      font-variant-numeric:tabular-nums;
+    }
+
+    .schematic{
+      margin-top:auto;
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      border-radius:24px;
+      border:1px solid var(--line);
+      padding:18px 14px 16px;
+      min-height:138px;
+      position:relative;
+      overflow:hidden;
+    }
+    .schematic::after{
+      content:"";
+      position:absolute;
+      inset:auto -30px -50px auto;
+      width:140px;height:140px;
+      border-radius:50%;
+      background:radial-gradient(circle, rgba(123,220,255,.18), transparent 70%);
+      filter:blur(10px);
+      pointer-events:none;
+    }
+
+    .line-wrap{
+      position:relative;
+      height:74px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .source{
+      width:34px;height:34px;border-radius:50%;
+      background:radial-gradient(circle at 35% 30%, #ffd5df, #ff7a9a 58%, #a52e4c);
+      box-shadow:0 0 18px rgba(255,122,154,.35);
+      flex:0 0 auto;
+      position:relative;
+    }
+    .source::after{
+      content:"";
+      position:absolute;
+      inset:-7px;
+      border-radius:50%;
+      border:1px solid rgba(255,122,154,.18);
+    }
+
+    .tube{
+      position:relative;
+      margin:0 12px;
+      height:14px;
+      width:190px;
+      border-radius:999px;
+      background:
+        linear-gradient(180deg, rgba(180,230,255,.35), rgba(180,230,255,.12)),
+        linear-gradient(90deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+      border:1px solid rgba(180,230,255,.16);
+      box-shadow: inset 0 0 12px rgba(255,255,255,.08), 0 0 12px rgba(123,220,255,.08);
+      overflow:hidden;
+      flex:0 0 auto;
+      transition:width .25s ease, height .25s ease;
+    }
+
+    .flow{
+      position:absolute; inset:0;
+      background:
+        repeating-linear-gradient(90deg,
+          rgba(255,255,255,.06) 0 14px,
+          rgba(255,255,255,.14) 14px 20px,
+          rgba(255,255,255,.06) 20px 34px);
+      opacity:.55;
+      animation: moveFlow 1.2s linear infinite;
+      transform:translateX(0);
+    }
+    @keyframes moveFlow{
+      from{ transform:translateX(0); }
+      to{ transform:translateX(34px); }
+    }
+
+    .bubble{
+      position:absolute;
+      top:50%;
+      left:34%;
+      transform:translate(-50%,-50%);
+      width:12px;height:12px;border-radius:50%;
+      background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.95), rgba(202,237,255,.9) 60%, rgba(153,197,219,.85));
+      box-shadow:0 0 10px rgba(255,255,255,.4);
+      opacity:0;
+      transition:opacity .2s ease, width .2s ease, height .2s ease;
+    }
+
+    .sensor{
+      width:56px;height:40px;border-radius:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,.08));
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow:inset 0 0 10px rgba(255,255,255,.08), 0 0 18px rgba(119,240,201,.12);
+      position:relative;
+      flex:0 0 auto;
+    }
+    .sensor::before{
+      content:"";
+      position:absolute;
+      width:18px;height:18px;border-radius:50%;
+      inset:10px auto auto 18px;
+      background:radial-gradient(circle, rgba(119,240,201,.9), rgba(24,114,92,.9));
+      box-shadow:0 0 18px rgba(119,240,201,.35);
+      animation:pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse{
+      0%,100%{ transform:scale(.9); opacity:.85; }
+      50%{ transform:scale(1.08); opacity:1; }
+    }
+
+    .bottom-actions{
+      display:flex;
+      gap:10px;
+      margin-top:12px;
+      justify-content:center;
+    }
+    button{
+      border:none;
+      border-radius:999px;
+      padding:10px 16px;
+      color:#f3f8ff;
+      background:rgba(255,255,255,.09);
+      border:1px solid rgba(255,255,255,.12);
+      cursor:pointer;
+      font-weight:700;
+      letter-spacing:.02em;
+      transition:.18s ease;
+      box-shadow:0 10px 24px rgba(0,0,0,.18);
+    }
+    button:hover{ transform:translateY(-1px); background:rgba(255,255,255,.14); }
+    button.primary{
+      background:linear-gradient(90deg, rgba(255,122,154,.28), rgba(123,220,255,.22));
+    }
+
+    .main{
+      padding:16px 16px 14px;
+      display:grid;
+      grid-template-rows:auto minmax(520px, 1fr) auto;
+      gap:14px;
+      min-width:0;
+      min-height:0;
+      overflow:auto;
+    }
+
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      padding:2px 4px 0;
+    }
+
+    .numbers{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    .big{
+      min-width:154px;
+      padding:12px 14px;
+      border-radius:18px;
+      background:rgba(255,255,255,.05);
+      border:1px solid var(--line);
+    }
+    .big .k{
+      color:var(--muted);
+      font-size:.76rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin-bottom:4px;
+    }
+    .big .v{
+      font-size:1.52rem;
+      font-weight:850;
+      letter-spacing:.02em;
+      font-variant-numeric: tabular-nums;
+      line-height:1.05;
+    }
+    .big.real .v{ color:var(--real);}
+    .big.meas .v{ color:var(--meas);}
+
+    .plot-card{
+      position:relative;
+      min-height:0;
+      border-radius:24px;
+      overflow:hidden;
+      background:linear-gradient(180deg, rgba(4,12,22,.56), rgba(7,18,31,.72));
+      border:1px solid rgba(255,255,255,.08);
+    }
+
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+
+    .plot-overlay{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      display:flex;
+      justify-content:space-between;
+      padding:12px 14px;
+      color:rgba(255,255,255,.58);
+      font-size:.78rem;
+      letter-spacing:.05em;
+    }
+    .overlay-left,.overlay-right{
+      display:flex; flex-direction:column; gap:8px;
+    }
+
+    .footer-strip{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:14px;
+      flex-wrap:wrap;
+      padding:0 4px 2px;
+    }
+
+    .micro{
+      color:var(--muted);
+      font-size:.8rem;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .badge{
+      padding:7px 10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.05);
+      border:1px solid var(--line);
+      font-variant-numeric:tabular-nums;
+    }
+
+    @media (max-width: 1100px){
+      .shell{
+        grid-template-columns: 1fr;
+        height:auto;
+        width:min(1080px, 96vw);
+        margin:16px auto;
+      }
+      body{ overflow:auto; }
+      .panel{ order:2; }
+      .main{ min-height:600px; }
+    }
+
+    @media (max-width: 680px){
+      .chips{
+        grid-template-columns:1fr;
+      }
+      .numbers{
+        width:100%;
+      }
+      .big{
+        flex:1 1 100%;
+      }
+      .topbar{
+        align-items:stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="panel">
+      <div class="title">
+        <div>
+          <h1>Pressão arterial invasiva</h1>
+        </div>
+        <div class="tiny">simulação</div>
+      </div>
+
+      <div class="legend">
+        <div class="real"><span class="dot"></span>real</div>
+        <div class="meas"><span class="dot"></span>medida</div>
+      </div>
+
+      <div class="signal-grid">
+        <div class="toggle" id="toggleRealWrap">
+          <div class="label">Sinal real</div>
+          <label class="switch">
+            <input id="showReal" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle" id="toggleMeasWrap">
+          <div class="label">Sinal medido</div>
+          <label class="switch">
+            <input id="showMeas" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="control">
+        <div class="top">
+          <div class="label">Comprimento</div>
+          <div class="value" id="lenVal">120 cm</div>
+        </div>
+        <input id="length" type="range" min="20" max="220" step="1" value="120" />
+      </div>
+
+      <div class="control">
+        <div class="top">
+          <div class="label">Diâmetro interno</div>
+          <div class="value" id="diamVal">1.6 mm</div>
+        </div>
+        <input id="diameter" type="range" min="0.8" max="4.0" step="0.01" value="3.5" />
+      </div>
+
+      <div class="control">
+        <div class="top">
+          <div class="label">Complacência</div>
+          <div class="value" id="compVal">0.40</div>
+        </div>
+        <input id="compliance" type="range" min="0.01" max="1.2" step="0.01" value="0.11" />
+      </div>
+
+      <div class="bubble-row">
+        <div class="toggle">
+          <div class="label">Bolha de ar</div>
+          <label class="switch">
+            <input id="bubbleToggle" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control" id="bubbleControl" style="opacity:.5">
+          <div class="top">
+            <div class="label">Volume da bolha</div>
+            <div class="value" id="bubbleVal">0.03 mL</div>
+          </div>
+          <input id="bubble" type="range" min="0.01" max="0.90" step="0.005" value="0.24" disabled />
+        </div>
+      </div>
+
+      <div class="chips">
+        <div class="chip">
+          <div class="k">f natural</div>
+          <div class="v" id="fnVal">-- Hz</div>
+        </div>
+        <div class="chip">
+          <div class="k">amort</div>
+          <div class="v" id="zetaVal">--</div>
+        </div>
+      </div>
+
+      <div class="schematic">
+        <div class="line-wrap">
+          <div class="source"></div>
+          <div class="tube" id="tubeVis">
+            <div class="flow"></div>
+            <div class="bubble" id="bubbleVis"></div>
+          </div>
+          <div class="sensor"></div>
+        </div>
+        <div class="bottom-actions">
+          <button class="primary" id="flushBtn">flush</button>
+          <button id="pauseBtn">pausar</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="numbers">
+          <div class="big real">
+            <div class="k">real</div>
+            <div class="v" id="currentReal">120 / 80</div>
+          </div>
+          <div class="big meas">
+            <div class="k">medida</div>
+            <div class="v" id="currentMeas">118 / 82</div>
+          </div>
+        </div>
+
+        <div class="micro">
+          <div class="badge" id="mapBadge">PAM 93</div>
+          <div class="badge" id="hrBadge">75 bpm</div>
+          <div class="badge" id="scaleBadge">janela 8 s</div>
+        </div>
+      </div>
+
+      <div class="plot-card">
+        <canvas id="plot"></canvas>
+        <div class="plot-overlay">
+          <div class="overlay-left">
+            <div>mmHg</div>
+          </div>
+          <div class="overlay-right">
+            <div>tempo real</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-strip">
+        <div class="micro">
+          <span class="badge">real</span>
+          <span class="badge">distorcida</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  
+  <script>
+    const MMHG_TO_PA = 133.32236842105263;
+    const PA_TO_MMHG = 1.0 / MMHG_TO_PA;
+
+    const PHYS = {
+      rho: 998.2,                   // kg/m^3 (salina ~ água)
+      mu: 1.003e-3,                 // Pa.s
+      K: 2.2e9,                     // Pa
+      wallE: 140e6,                 // Pa (PVC flex do seu params)
+      wallNu: 0.40,
+      tubeWallThickness: 0.8e-3,    // m por lado -> OD = ID + 1.6 mm
+      catheterLength: 0.05,         // m
+      catheterID: 0.8e-3,           // m
+      tubeResistanceScale: 1.25,    // perdas extras discretas (conexões/torneiras)
+      transducerCompliance: 2.5e-13,// m^3/Pa
+      bubbleGamma: 1.3,
+      bubblePabs: 101325.0 + 80.0 * MMHG_TO_PA,
+      bubblePositionFrac: 0.65,
+      flushBagPressure: 300.0 * MMHG_TO_PA,
+      flushResistance: 7.04e9
+    };
+
+    const els = {
+      length: document.getElementById('length'),
+      diameter: document.getElementById('diameter'),
+      compliance: document.getElementById('compliance'),
+      bubbleToggle: document.getElementById('bubbleToggle'),
+      bubble: document.getElementById('bubble'),
+      bubbleControl: document.getElementById('bubbleControl'),
+
+      lenVal: document.getElementById('lenVal'),
+      diamVal: document.getElementById('diamVal'),
+      compVal: document.getElementById('compVal'),
+      bubbleVal: document.getElementById('bubbleVal'),
+
+      fnVal: document.getElementById('fnVal'),
+      zetaVal: document.getElementById('zetaVal'),
+
+      currentReal: document.getElementById('currentReal'),
+      currentMeas: document.getElementById('currentMeas'),
+      mapBadge: document.getElementById('mapBadge'),
+      hrBadge: document.getElementById('hrBadge'),
+      scaleBadge: document.getElementById('scaleBadge'),
+
+      tubeVis: document.getElementById('tubeVis'),
+      bubbleVis: document.getElementById('bubbleVis'),
+
+      flushBtn: document.getElementById('flushBtn'),
+      pauseBtn: document.getElementById('pauseBtn'),
+      plot: document.getElementById('plot'),
+      showReal: document.getElementById('showReal'),
+      showMeas: document.getElementById('showMeas'),
+      toggleRealWrap: document.getElementById('toggleRealWrap'),
+      toggleMeasWrap: document.getElementById('toggleMeasWrap')
+    };
+
+    const ctx = els.plot.getContext('2d');
+    let width = 0, height = 0;
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+    function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+    function fmt1(x){ return Number(x).toFixed(1); }
+    function fmt2(x){ return Number(x).toFixed(2); }
+    function getCss(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+    const SIM = {
+      running: true,
+      simTime: 0,
+      lastTime: performance.now(),
+      accumulator: 0,
+      historySeconds: 8,
+      plotRate: 300,
+      plotAccumulator: 0,
+      realHistory: [],
+      measHistory: [],
+      maxPoints: 8 * 300,
+
+      currentReal: 80,
+      currentMeas: 80,
+      currentHr: 75,
+
+      displayRealSys: 120,
+      displayRealDia: 80,
+      displayMeasSys: 120,
+      displayMeasDia: 80,
+      displayMap: 93,
+
+      beatActive: false,
+      beatIndex: -1,
+      beatRealMax: 80,
+      beatRealMin: 80,
+      beatMeasMax: 80,
+      beatMeasMin: 80,
+      beatMeasSum: 80,
+      beatSamples: 1,
+
+      flushUntil: -1,
+      flushDrive: 0,
+      model: null,
+      derived: { fn: 0, zeta: 0 }
+    };
+
+    function wallCompliancePerLength(id_m, od_m, wallScale){
+      const ri = id_m * 0.5;
+      const ro = od_m * 0.5;
+      const A = Math.PI * ri * ri;
+
+      if (ro <= ri) {
+        return A / PHYS.K;
+      }
+
+      const uiOverP =
+        (ri / (PHYS.wallE * (ro * ro - ri * ri))) *
+        (((1 - PHYS.wallNu) * ri * ri) + ((1 + PHYS.wallNu) * ro * ro));
+
+      const Cwall = 2 * Math.PI * ri * uiOverP * wallScale;
+      const Cfluid = A / PHYS.K;
+      return Cfluid + Cwall;
+    }
+
+    function currentWallScale(){
+      const v = +els.compliance.value;
+      return Math.pow(10, (v - 0.40) / 0.80);
+    }
+
+    function bubbleCompliancePa(){
+      if (!els.bubbleToggle.checked) return 0;
+      const V = (+els.bubble.value) * 1e-6; // mL -> m^3
+      return V / (PHYS.bubbleGamma * PHYS.bubblePabs);
+    }
+
+    function mmHgToPa(x){ return x * MMHG_TO_PA; }
+    function paToMmHg(x){ return x * PA_TO_MMHG; }
+
+    function buildModel(){
+      const tubeLength = +els.length.value / 100.0;
+      const tubeID = +els.diameter.value / 1000.0;
+      const tubeOD = tubeID + 2 * PHYS.tubeWallThickness;
+      const wallScale = currentWallScale();
+
+      const N = clamp(Math.round(tubeLength / 0.07), 12, 28);
+      const dx = tubeLength / N;
+      const r = tubeID * 0.5;
+      const area = Math.PI * r * r;
+
+      const LsegBase = PHYS.rho * dx / area;
+      const RsegBase = PHYS.tubeResistanceScale * (8 * PHYS.mu * dx) / (Math.PI * Math.pow(r, 4));
+
+      const rc = PHYS.catheterID * 0.5;
+      const catheterArea = Math.PI * rc * rc;
+      const Lcat = PHYS.rho * PHYS.catheterLength / catheterArea;
+      const Rcat = (8 * PHYS.mu * PHYS.catheterLength) / (Math.PI * Math.pow(rc, 4));
+
+      const Cprime = wallCompliancePerLength(tubeID, tubeOD, wallScale);
+
+      const L = new Float64Array(N);
+      const R = new Float64Array(N);
+      const C = new Float64Array(N);
+      const a = new Float64Array(N);
+      const b = new Float64Array(N);
+
+      for (let j = 0; j < N; j++){
+        L[j] = LsegBase;
+        R[j] = RsegBase;
+        C[j] = Cprime * dx;
+      }
+
+      L[0] += Lcat;
+      R[0] += Rcat;
+
+      C[N - 1] += PHYS.transducerCompliance;
+
+      if (els.bubbleToggle.checked){
+        const idx = clamp(Math.round(PHYS.bubblePositionFrac * (N - 1)), 0, N - 1);
+        C[idx] += bubbleCompliancePa();
+      }
+
+      let minTau = Infinity;
+      for (let j = 0; j < N; j++){
+        const tau = Math.sqrt(L[j] * C[j]);
+        if (Number.isFinite(tau) && tau > 0) minTau = Math.min(minTau, tau);
+      }
+      const dt = clamp(0.22 * minTau, 1 / 18000, 1 / 9000);
+
+      for (let j = 0; j < N; j++){
+        const alpha = dt * R[j] / (2 * L[j]);
+        a[j] = (1 - alpha) / (1 + alpha);
+        b[j] = (dt / L[j]) / (1 + alpha);
+      }
+
+      return {
+        N, dx, dt,
+        L, R, C, a, b,
+        p: new Float64Array(N),
+        q: new Float64Array(N)
+      };
+    }
+
+    function cloneModel(model){
+      return {
+        N: model.N,
+        dx: model.dx,
+        dt: model.dt,
+        L: model.L.slice(),
+        R: model.R.slice(),
+        C: model.C.slice(),
+        a: model.a.slice(),
+        b: model.b.slice(),
+        p: model.p.slice(),
+        q: model.q.slice()
+      };
+    }
+
+    function smoothStep(t){
+      t = clamp(t, 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function arterialTemplate(phase, sys, dia){
+      const A = sys - dia;
+
+      if (phase < 0.10){
+        const u = phase / 0.10;
+        return dia + A * 0.98 * Math.pow(Math.sin(0.5 * Math.PI * u), 1.45);
+      }
+
+      if (phase < 0.18){
+        const u = (phase - 0.10) / 0.08;
+        return sys - A * (0.05 * smoothStep(u));
+      }
+
+      if (phase < 0.28){
+        const u = (phase - 0.18) / 0.10;
+        return sys - A * (0.05 + 0.19 * smoothStep(u));
+      }
+
+      if (phase < 0.34){
+        const u = (phase - 0.28) / 0.06;
+        return sys - A * (0.24 - 0.08 * smoothStep(u));
+      }
+
+      const u = (phase - 0.34) / 0.66;
+      const p0 = sys - A * 0.16;
+      return dia + (p0 - dia) * Math.exp(-3.35 * u);
+    }
+
+    function arterialPressure(t){
+      const hr = 75;
+      const T = 60 / hr;
+      const phase = (t % T) / T;
+      const resp = Math.sin(2 * Math.PI * 0.22 * t);
+      const sys = 120 + 3.2 * resp;
+      const dia = 80 + 1.6 * resp;
+      const p = arterialTemplate(phase, sys, dia);
+      return { p, hr, T, phase };
+    }
+
+    function initStateFromPressure(model, pPa){
+      model.p.fill(pPa);
+      model.q.fill(0);
+    }
+
+    function stepDistributed(model, pinPa, flushDrive){
+      const { N, p, q, a, b, C, dt } = model;
+
+      let left = pinPa;
+      for (let j = 0; j < N; j++){
+        q[j] = a[j] * q[j] + b[j] * (left - p[j]);
+        left = p[j];
+      }
+
+      for (let i = 0; i < N - 1; i++){
+        p[i] += dt * (q[i] - q[i + 1]) / C[i];
+      }
+
+      let qFlush = 0;
+      if (flushDrive > 1e-6){
+        qFlush = flushDrive * (PHYS.flushBagPressure - p[N - 1]) / PHYS.flushResistance;
+      }
+      p[N - 1] += dt * (q[N - 1] + qFlush) / C[N - 1];
+
+      return p[N - 1];
+    }
+
+    function equivalentFallback(){
+      const model = SIM.model;
+      if (!model) return { fn: 0, zeta: 0 };
+      let Ltot = 0, Rtot = 0, Ctot = 0;
+      for (let i = 0; i < model.N; i++){
+        Ltot += model.L[i];
+        Rtot += model.R[i];
+        Ctot += model.C[i];
+      }
+      const fn = 1 / (2 * Math.PI * Math.sqrt(Math.max(1e-30, Ltot * Ctot)));
+      const zeta = 0.5 * Rtot * Math.sqrt(Ctot / Math.max(Ltot, 1e-30));
+      return { fn, zeta };
+    }
+
+    function estimateDominantDynamics(){
+      const fb = equivalentFallback();
+      let fn = fb.fn;
+      let zeta = fb.zeta;
+
+      const probe = buildModel();
+      const base = 80 * MMHG_TO_PA;
+      initStateFromPressure(probe, base);
+
+      const settleSteps = Math.round(0.35 / probe.dt);
+      for (let k = 0; k < settleSteps; k++){
+        stepDistributed(probe, base, false);
+      }
+
+      const openSteps = Math.round(0.06 / probe.dt);
+      for (let k = 0; k < openSteps; k++){
+        stepDistributed(probe, base, true);
+      }
+
+      const recSteps = Math.round(0.40 / probe.dt);
+      const t = new Float64Array(recSteps);
+      const y = new Float64Array(recSteps);
+
+      for (let k = 0; k < recSteps; k++){
+        t[k] = k * probe.dt;
+        y[k] = paToMmHg(stepDistributed(probe, base, false) - base);
+      }
+
+      const ys = new Float64Array(recSteps);
+      for (let i = 0; i < recSteps; i++){
+        const ym = y[Math.max(0, i - 1)];
+        const yc = y[i];
+        const yp = y[Math.min(recSteps - 1, i + 1)];
+        ys[i] = 0.25 * ym + 0.5 * yc + 0.25 * yp;
+      }
+
+      const extrema = [];
+      const minDetectTime = 0.012;
+      for (let i = 1; i < recSteps - 1; i++){
+        if (t[i] < minDetectTime) continue;
+        const ym = ys[i - 1], yc = ys[i], yp = ys[i + 1];
+        const isMax = yc > ym && yc >= yp;
+        const isMin = yc < ym && yc <= yp;
+        if ((isMax || isMin) && Math.abs(yc) > 0.5){
+          extrema.push({ t: t[i], y: yc, sign: Math.sign(yc) || 1 });
+        }
+      }
+
+      let ringFn = 0;
+      let ringZeta = 0;
+      if (extrema.length >= 3){
+        let first = null, second = null;
+        for (let i = 0; i < extrema.length; i++){
+          for (let j = i + 2; j < extrema.length; j++){
+            if (extrema[i].sign !== extrema[j].sign) continue;
+            const Td = extrema[j].t - extrema[i].t;
+            if (Td < 0.02 || Td > 0.50) continue; 
+            if (Math.abs(extrema[j].y) >= Math.abs(extrema[i].y)) continue;
+            first = extrema[i];
+            second = extrema[j];
+            break;
+          }
+          if (first && second) break;
+        }
+
+        if (first && second){
+          const Td = second.t - first.t;
+          const fd = 1 / Td;
+          const ampRatio = Math.abs(first.y) / Math.max(1e-6, Math.abs(second.y));
+          const delta = Math.log(ampRatio);
+          const z = delta / Math.sqrt(4 * Math.PI * Math.PI + delta * delta);
+          ringFn = fd / Math.sqrt(Math.max(1e-6, 1 - z * z));
+          ringZeta = clamp(z, 0, 2);
+        }
+      }
+
+      fn = fb.fn;
+      zeta = fb.zeta;
+
+      return { fn, zeta };
+    }
+
+    function syncTraceToggleUI(){
+      if (els.toggleRealWrap && els.showReal){
+        els.toggleRealWrap.style.opacity = els.showReal.checked ? '1' : '0.45';
+      }
+      if (els.toggleMeasWrap && els.showMeas){
+        els.toggleMeasWrap.style.opacity = els.showMeas.checked ? '1' : '0.45';
+      }
+    }
+
+    function updateLabels(){
+      els.lenVal.textContent = `${Math.round(+els.length.value)} cm`;
+      els.diamVal.textContent = `${fmt1(+els.diameter.value)} mm`;
+      els.compVal.textContent = `${fmt2(+els.compliance.value)}`;
+      els.bubbleVal.textContent = `${fmt2(+els.bubble.value)} mL`;
+
+      const enabled = els.bubbleToggle.checked;
+      els.bubble.disabled = !enabled;
+      els.bubbleControl.style.opacity = enabled ? '1' : '.5';
+
+      const L = +els.length.value;
+      const D = +els.diameter.value;
+      const B = enabled ? +els.bubble.value : 0;
+
+      const w = 120 + (L - 20) * 0.75;
+      const h = 8 + (D - 0.8) * 7.5;
+      els.tubeVis.style.width = `${clamp(w, 120, 270)}px`;
+      els.tubeVis.style.height = `${clamp(h, 8, 20)}px`;
+
+      const bubblePx = enabled ? 10 + ((B - 0.01) / 0.19) * 12 : 0;
+      els.bubbleVis.style.opacity = enabled ? '1' : '0';
+      els.bubbleVis.style.width = `${clamp(bubblePx, 10, 22)}px`;
+      els.bubbleVis.style.height = `${clamp(bubblePx, 10, 22)}px`;
+    }
+
+    function updateDerivedUI(){
+      SIM.derived = estimateDominantDynamics();
+      els.fnVal.textContent = `${fmt1(SIM.derived.fn)} Hz`;
+      els.zetaVal.textContent = `${fmt2(SIM.derived.zeta)}`;
+    }
+
+    function finalizeBeat(){
+      if (!SIM.beatActive || SIM.beatSamples <= 0) return;
+
+      SIM.displayRealSys = Math.round(clamp(SIM.beatRealMax, 40, 320));
+      SIM.displayRealDia = Math.round(clamp(SIM.beatRealMin, 20, 240));
+      SIM.displayMeasSys = Math.round(clamp(SIM.beatMeasMax, 40, 320));
+      SIM.displayMeasDia = Math.round(clamp(SIM.beatMeasMin, 20, 240));
+      SIM.displayMap = Math.round(clamp(SIM.beatMeasSum / SIM.beatSamples, 20, 320));
+    }
+
+    function resetBeatTracking(){
+      SIM.beatActive = false;
+      SIM.beatIndex = -1;
+      SIM.beatRealMax = 80;
+      SIM.beatRealMin = 80;
+      SIM.beatMeasMax = 80;
+      SIM.beatMeasMin = 80;
+      SIM.beatMeasSum = 80;
+      SIM.beatSamples = 1;
+    }
+
+    function resetTransient(){
+      SIM.model = buildModel();
+      initStateFromPressure(SIM.model, 80 * MMHG_TO_PA);
+
+      SIM.simTime = 0;
+      SIM.accumulator = 0;
+      SIM.plotAccumulator = 0;
+      SIM.realHistory = [];
+      SIM.measHistory = [];
+      resetBeatTracking();
+
+      // Zera o estado do flush para evitar repetição acidental ao reconstruir o tempo
+      SIM.flushUntil = -1;
+      SIM.flushDrive = 0;
+
+      const warmupTime = 2.0;
+      const warmupSteps = Math.round(warmupTime / SIM.model.dt);
+      for (let k = 0; k < warmupSteps; k++){
+        const art = arterialPressure(SIM.simTime);
+        const measuredPa = stepDistributed(SIM.model, mmHgToPa(art.p), false);
+        const measured = paToMmHg(measuredPa);
+
+        const beatIndex = Math.floor(SIM.simTime / art.T);
+        if (!SIM.beatActive || SIM.beatIndex !== beatIndex){
+          finalizeBeat();
+          SIM.beatActive = true;
+          SIM.beatIndex = beatIndex;
+          SIM.beatRealMax = art.p;
+          SIM.beatRealMin = art.p;
+          SIM.beatMeasMax = measured;
+          SIM.beatMeasMin = measured;
+          SIM.beatMeasSum = measured;
+          SIM.beatSamples = 1;
+        } else {
+          SIM.beatRealMax = Math.max(SIM.beatRealMax, art.p);
+          SIM.beatRealMin = Math.min(SIM.beatRealMin, art.p);
+          SIM.beatMeasMax = Math.max(SIM.beatMeasMax, measured);
+          SIM.beatMeasMin = Math.min(SIM.beatMeasMin, measured);
+          SIM.beatMeasSum += measured;
+          SIM.beatSamples += 1;
+        }
+
+        SIM.plotAccumulator += SIM.model.dt;
+        if (SIM.plotAccumulator >= 1 / SIM.plotRate){
+          SIM.plotAccumulator -= 1 / SIM.plotRate;
+          SIM.realHistory.push(art.p);
+          SIM.measHistory.push(measured);
+        }
+
+        SIM.currentReal = art.p;
+        SIM.currentMeas = measured;
+        SIM.currentHr = art.hr;
+        SIM.simTime += SIM.model.dt;
+      }
+
+      finalizeBeat();
+      while (SIM.realHistory.length > SIM.maxPoints) SIM.realHistory.shift();
+      while (SIM.measHistory.length > SIM.maxPoints) SIM.measHistory.shift();
+      SIM.lastTime = performance.now();
+    }
+
+    function simulateOneStep(){
+      const art = arterialPressure(SIM.simTime);
+
+      const flushTarget = (SIM.simTime < SIM.flushUntil) ? 1 : 0;
+      const flushTau = flushTarget > SIM.flushDrive ? 0.010 : 0.018;
+      const flushAlpha = 1 - Math.exp(-SIM.model.dt / flushTau);
+      SIM.flushDrive += (flushTarget - SIM.flushDrive) * flushAlpha;
+
+      const measuredPa = stepDistributed(SIM.model, mmHgToPa(art.p), SIM.flushDrive);
+      const measured = paToMmHg(measuredPa);
+
+      SIM.currentReal = art.p;
+      SIM.currentMeas = measured;
+      SIM.currentHr = art.hr;
+
+      SIM.plotAccumulator += SIM.model.dt;
+      if (SIM.plotAccumulator >= 1 / SIM.plotRate){
+        SIM.plotAccumulator -= 1 / SIM.plotRate;
+        SIM.realHistory.push(art.p);
+        SIM.measHistory.push(measured);
+
+        if (SIM.realHistory.length > SIM.maxPoints) SIM.realHistory.shift();
+        if (SIM.measHistory.length > SIM.maxPoints) SIM.measHistory.shift();
+      }
+
+      const flushActive = SIM.flushDrive > 0.02 || SIM.simTime < SIM.flushUntil;
+      if (!flushActive){
+        const beatIndex = Math.floor(SIM.simTime / art.T);
+        if (!SIM.beatActive || SIM.beatIndex !== beatIndex){
+          finalizeBeat();
+          SIM.beatActive = true;
+          SIM.beatIndex = beatIndex;
+          SIM.beatRealMax = art.p;
+          SIM.beatRealMin = art.p;
+          SIM.beatMeasMax = measured;
+          SIM.beatMeasMin = measured;
+          SIM.beatMeasSum = measured;
+          SIM.beatSamples = 1;
+        } else {
+          SIM.beatRealMax = Math.max(SIM.beatRealMax, art.p);
+          SIM.beatRealMin = Math.min(SIM.beatRealMin, art.p);
+          SIM.beatMeasMax = Math.max(SIM.beatMeasMax, measured);
+          SIM.beatMeasMin = Math.min(SIM.beatMeasMin, measured);
+          SIM.beatMeasSum += measured;
+          SIM.beatSamples += 1;
+        }
+      }
+
+      SIM.simTime += SIM.model.dt;
+    }
+
+    function resizeCanvas(){
+      const rect = els.plot.getBoundingClientRect();
+      width = Math.max(300, Math.floor(rect.width));
+      height = Math.max(260, Math.floor(rect.height));
+      els.plot.width = Math.floor(width * dpr);
+      els.plot.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function yMap(p){
+      const pMin = 20;
+      const pMax = 320;
+      const padTop = 18;
+      const padBottom = 24;
+      const h = height - padTop - padBottom;
+      const t = (p - pMin) / (pMax - pMin);
+      return height - padBottom - h * t;
+    }
+
+    function drawGrid(){
+      ctx.clearRect(0, 0, width, height);
+
+      const bg = ctx.createLinearGradient(0, 0, 0, height);
+      bg.addColorStop(0, 'rgba(10,20,35,0.28)');
+      bg.addColorStop(1, 'rgba(4,10,18,0.16)');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.lineWidth = 1;
+
+      const hLines = [50, 100, 150, 200, 250, 300];
+      hLines.forEach(v => {
+        const y = yMap(v);
+        ctx.strokeStyle = v === 100 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)';
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = '12px Inter, sans-serif';
+        ctx.fillText(String(v), 8, y - 5);
+      });
+
+      const segments = 8;
+      for(let i = 0; i <= segments; i++){
+        const x = i / segments * width;
+        ctx.strokeStyle = i === segments ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)';
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+    }
+
+    function drawTrace(history, color, glowWidth){
+      if (history.length < 2) return;
+
+      const n = history.length;
+      const xStep = width / Math.max(1, n - 1);
+
+      ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.shadowBlur = glowWidth;
+      ctx.shadowColor = color;
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = color;
+
+      ctx.beginPath();
+      for(let i = 0; i < n; i++){
+        const x = i * xStep;
+        const y = yMap(history[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function draw(){
+      drawGrid();
+
+      if (!els.showReal || els.showReal.checked) drawTrace(SIM.realHistory, getCss('--real'), 14);
+      if (!els.showMeas || els.showMeas.checked) drawTrace(SIM.measHistory, getCss('--meas'), 18);
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.setLineDash([5, 6]);
+      ctx.beginPath();
+      ctx.moveTo(width - 1, 0);
+      ctx.lineTo(width - 1, height);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function updateNumbers(){
+      els.currentReal.textContent = `${SIM.displayRealSys} / ${SIM.displayRealDia}`;
+      els.currentMeas.textContent = `${SIM.displayMeasSys} / ${SIM.displayMeasDia}`;
+      els.mapBadge.textContent = `PAM ${SIM.displayMap}`;
+      els.hrBadge.textContent = `${Math.round(SIM.currentHr)} bpm`;
+      els.scaleBadge.textContent = `janela ${SIM.historySeconds} s`;
+    }
+
+    function frame(now){
+      const elapsed = Math.min(0.05, (now - SIM.lastTime) / 1000);
+      SIM.lastTime = now;
+
+      if (SIM.running && SIM.model){
+        SIM.accumulator += elapsed;
+        while (SIM.accumulator >= SIM.model.dt){
+          simulateOneStep();
+          SIM.accumulator -= SIM.model.dt;
+        }
+      }
+
+      draw();
+      updateNumbers();
+      requestAnimationFrame(frame);
+    }
+
+    function recalc(){
+      updateLabels();
+      SIM.model = buildModel();
+      updateDerivedUI();
+      resetTransient();
+      draw();
+      updateNumbers();
+    }
+
+    ['input', 'change'].forEach(evt => {
+      els.length.addEventListener(evt, recalc);
+      els.diameter.addEventListener(evt, recalc);
+      els.compliance.addEventListener(evt, recalc);
+      els.bubble.addEventListener(evt, recalc);
+      els.bubbleToggle.addEventListener(evt, recalc);
+    });
+
+    els.flushBtn.addEventListener('click', () => {
+      // Duração aumentada de 0.11s para 0.8s para criar um platô nítido (Onda Quadrada).
+      SIM.flushUntil = SIM.simTime + 0.8;
+      SIM.flushDrive = 0;
+    });
+
+    els.pauseBtn.addEventListener('click', () => {
+      SIM.running = !SIM.running;
+      els.pauseBtn.textContent = SIM.running ? 'pausar' : 'retomar';
+      SIM.lastTime = performance.now();
+    });
+
+    if (els.showReal){
+      els.showReal.addEventListener('change', () => {
+        syncTraceToggleUI();
+        draw();
+      });
+    }
+
+    if (els.showMeas){
+      els.showMeas.addEventListener('change', () => {
+        syncTraceToggleUI();
+        draw();
+      });
+    }
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      draw();
+    });
+
+    syncTraceToggleUI();
+    resizeCanvas();
+    recalc();
+    requestAnimationFrame(frame);
+  </script>
+
+</body>
+</html>

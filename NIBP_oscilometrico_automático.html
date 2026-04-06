@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NIBP Automático</title>
+  <style>
+    :root{
+      --bg:#07111c;
+      --bg2:#0d1627;
+      --panel:rgba(13,22,39,.78);
+      --line:rgba(255,255,255,.08);
+      --text:#eef4ff;
+      --muted:#8fa4c6;
+      --cyan:#80e9ff;
+      --pink:#ff7db7;
+      --gold:#ffd07f;
+      --red:#ff5f6d;
+      --shadow:0 24px 70px rgba(0,0,0,.35);
+      --radius:24px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 16% 14%, rgba(128,233,255,.10), transparent 24%),
+        radial-gradient(circle at 82% 12%, rgba(255,125,183,.10), transparent 22%),
+        linear-gradient(145deg,var(--bg),var(--bg2));
+      overflow-x:hidden;
+    }
+    body::before{
+      content:"";
+      position:fixed; inset:0; pointer-events:none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size:28px 28px;
+      mask-image:radial-gradient(circle at center, black, transparent 86%);
+      opacity:.5;
+    }
+    .app{
+      width:min(1180px, calc(100vw - 28px));
+      margin:18px auto;
+      display:grid;
+      gap:16px;
+    }
+    .panel{
+      background:linear-gradient(180deg, rgba(12,20,36,.82), rgba(13,23,42,.72));
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+    }
+    .top{
+      padding:18px 20px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .title h1{
+      margin:0;
+      font-size:clamp(24px,2vw,34px);
+      line-height:1;
+      letter-spacing:-.04em;
+      font-weight:800;
+    }
+    .chips{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
+    .chip{
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);
+      font-size:13px;
+      color:var(--muted);
+      font-variant-numeric:tabular-nums;
+    }
+    .chip b{color:var(--text); font-weight:800}
+    .actions{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    button{
+      border:0;
+      border-radius:16px;
+      padding:12px 18px;
+      font-size:14px;
+      font-weight:800;
+      cursor:pointer;
+      transition:transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+    }
+    button:hover{transform:translateY(-1px)}
+    button:active{transform:translateY(0)}
+    .primary{
+      background:linear-gradient(135deg, rgba(128,233,255,.98), rgba(255,208,127,.96));
+      color:#07111c;
+      box-shadow:0 12px 28px rgba(128,233,255,.18);
+    }
+    .ghost{
+      color:var(--text);
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.10);
+    }
+    .readout{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+      font-variant-numeric:tabular-nums;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:999px;
+      background:rgba(255,255,255,.18);
+      box-shadow:0 0 0 0 rgba(128,233,255,.3);
+      transition:background .15s ease, box-shadow .15s ease;
+    }
+    .dot.live{
+      background:var(--cyan);
+      box-shadow:0 0 0 6px rgba(128,233,255,.12);
+    }
+    .content{
+      padding:0 16px 16px;
+      display:grid;
+      gap:16px;
+    }
+    .chart-card{
+      padding:14px;
+      display:grid;
+      gap:10px;
+      position:relative;
+    }
+    .chart-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      min-height:24px;
+    }
+    .caption{
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .legend{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .legend span{
+      display:flex;
+      align-items:center;
+      gap:7px;
+    }
+    .sw{
+      width:18px;
+      height:4px;
+      border-radius:999px;
+      display:inline-block;
+    }
+    .sw.cyan{background:var(--cyan)}
+    .sw.pink{background:var(--pink)}
+    .sw.gold{background:var(--gold)}
+    .sw.red{background:var(--red)}
+    canvas{
+      width:100%;
+      display:block;
+      border-radius:18px;
+      background:linear-gradient(180deg, rgba(255,255,255,.020), rgba(255,255,255,.010));
+      border:1px solid rgba(255,255,255,.06);
+    }
+    #timeChart,#acChart,#peakChart{height:290px}
+    .tooltip{
+      position:fixed;
+      left:0;
+      top:0;
+      z-index:9999;
+      pointer-events:none;
+      padding:10px 12px;
+      border-radius:14px;
+      background:rgba(8,14,24,.98);
+      border:1px solid rgba(255,255,255,.12);
+      color:var(--text);
+      font-size:12px;
+      line-height:1.35;
+      box-shadow:0 12px 28px rgba(0,0,0,.42);
+      opacity:0;
+      transform:translate(-9999px,-9999px);
+      transition:opacity .12s ease;
+      white-space:nowrap;
+      font-variant-numeric:tabular-nums;
+    }
+    .tooltip.show{opacity:1}
+    @media (max-width:760px){
+      .top{padding:16px}
+      .content{padding:0 12px 12px}
+      #timeChart,#acChart,#peakChart{height:250px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="panel">
+      <div class="top">
+        <div class="title">
+          <h1>NIBP automático</h1>
+          <div class="chips">
+            <div class="chip">PAS <b id="sbpVal">120 mmHg</b></div>
+            <div class="chip">PAD <b id="dbpVal">80 mmHg</b></div>
+            <div class="chip">PAM <b id="mapVal">93 mmHg</b></div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="startBtn">Start</button>
+          <button class="ghost" id="resetBtn">Reset</button>
+          <div class="readout">
+            <span class="dot" id="stateDot"></span>
+            <span id="stateText">pronto</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="panel chart-card">
+          <div class="chart-head">
+            <div class="caption">tempo (s) × pressão (mmHg)</div>
+            <div class="legend">
+              <span><i class="sw cyan"></i> arterial</span>
+              <span><i class="sw pink"></i> manguito</span>
+            </div>
+          </div>
+          <canvas id="timeChart"></canvas>
+        </div>
+
+        <div class="panel chart-card">
+          <div class="chart-head">
+            <div class="caption">tempo (s) × componente AC do manguito (mmHg)</div>
+            <div class="legend">
+              <span><i class="sw gold"></i> AC</span>
+            </div>
+          </div>
+          <canvas id="acChart"></canvas>
+        </div>
+
+        <div class="panel chart-card">
+          <div class="chart-head">
+            <div class="caption">pressão do manguito (mmHg) × pico a pico (mmHg)</div>
+            <div class="legend">
+              <span><i class="sw red"></i> pico a pico dentro da janela</span>
+            </div>
+          </div>
+          <canvas id="peakChart"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const cfg = {
+    sbp: 120,
+    dbp: 80,
+    map: 93,
+    hr: 72,
+    inflateTarget: 180,
+    minCuff: 40,
+    stepSize: 5,
+    stepHold: 1.61,
+    inflateRate: 55,
+    stepDropRate: 85,
+    finalDeflateRate: 95,
+    windowS: 28
+  };
+
+  const els = {
+    sbpVal: document.getElementById("sbpVal"),
+    dbpVal: document.getElementById("dbpVal"),
+    mapVal: document.getElementById("mapVal"),
+    startBtn: document.getElementById("startBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    stateDot: document.getElementById("stateDot"),
+    stateText: document.getElementById("stateText"),
+    timeChart: document.getElementById("timeChart"),
+    acChart: document.getElementById("acChart"),
+    peakChart: document.getElementById("peakChart"),
+    tooltip: document.getElementById("tooltip")
+  };
+
+  const timeCtx = els.timeChart.getContext("2d");
+  const acCtx = els.acChart.getContext("2d");
+  const peakCtx = els.peakChart.getContext("2d");
+
+  let audioCtx = null;
+  let masterGain = null;
+  let pumpNoise = null;
+  let pumpGain = null;
+  let pumpFilter = null;
+
+  const state = {
+    running:false,
+    phase:"idle", // idle, inflating, stepping, dropping, finalDeflate, done
+    t:0,
+    lastTs:performance.now(),
+    cuffBase:0,
+    targetCuff:0,
+    stepTimer:0,
+    stepPeak:0,
+    stepPeakTime:0,
+    stepStartTime:0,
+    stepEndTime:0,
+    dropEndTime:0,
+    stepStartCuff:0,
+    timeData:[],
+    peakPoints:[],
+    stepWindows:[],
+    dispTimeMax:200,
+    dispAcAbs:8,
+    dispPeakMax:8,
+    hoverIndex:-1,
+    peakHitboxes:[]
+  };
+
+  els.sbpVal.textContent = `${cfg.sbp} mmHg`;
+  els.dbpVal.textContent = `${cfg.dbp} mmHg`;
+  els.mapVal.textContent = `${cfg.map} mmHg`;
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+  function beatPeriod(){ return 60 / cfg.hr; }
+  function stepCycle(){ return 2 * beatPeriod(); }   // 2 batimentos por degrau
+  function dropDuration(){ return cfg.stepSize / cfg.stepDropRate; }
+  function holdDuration(){ return Math.max(0.9, stepCycle() - dropDuration()); }
+  function nextBeatBoundary(t){
+    const T = beatPeriod();
+    return Math.ceil((t - 1e-9) / T) * T;
+  }
+  function phaseAt(t){ return (t % beatPeriod()) / beatPeriod(); }
+  function smoothstep01(x){ x = clamp(x,0,1); return x*x*(3 - 2*x); }
+  function mix(a,b,t){ return a + (b-a)*t; }
+
+  function arterialShape(phase){
+    if (phase < 0.12) return mix(0,1,smoothstep01(phase/0.12));
+    if (phase < 0.30) return mix(1,0.72,smoothstep01((phase-0.12)/0.18));
+    if (phase < 0.40) return mix(0.72,0.56,smoothstep01((phase-0.30)/0.10));
+    if (phase < 0.48) return mix(0.56,0.66,smoothstep01((phase-0.40)/0.08));
+    return mix(0.66,0,smoothstep01((phase-0.48)/0.52));
+  }
+
+  function arterialPressureAt(t){
+    return cfg.dbp + (cfg.sbp - cfg.dbp) * arterialShape(phaseAt(t));
+  }
+
+  function cuffEnvelope(cuff){
+    const span = Math.max(10, cfg.sbp - cfg.dbp);
+    const sigma = span * 0.34;
+    const x = cuff - cfg.map;
+    let g = Math.exp(-(x*x) / (2*sigma*sigma));
+    if (cuff > cfg.sbp + 18 || cuff < cfg.dbp - 18) g *= 0.18;
+    return g;
+  }
+
+  function cuffPulseShape(phase){
+    const th = 2 * Math.PI * phase;
+    return 0.78 * Math.sin(th - Math.PI/2) + 0.22 * Math.sin(2*th - Math.PI/2);
+  }
+
+  function cuffACAt(t, cuff){
+    const amp = 0.35 + 5.6 * cuffEnvelope(cuff);
+    return amp * cuffPulseShape(phaseAt(t));
+  }
+
+  function setStatus(text, live=false){
+    els.stateText.textContent = text;
+    els.stateDot.classList.toggle("live", live);
+  }
+
+
+  async function ensureAudio(){
+    try{
+      const AudioContextCls = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextCls) return false;
+      if (!audioCtx){
+        audioCtx = new AudioContextCls();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.42;
+        masterGain.connect(audioCtx.destination);
+      }
+      if (audioCtx.state !== "running") await audioCtx.resume();
+      return audioCtx.state === "running";
+    }catch(e){
+      return false;
+    }
+  }
+
+  function startPumpSound(){
+    if (!audioCtx || !masterGain || pumpNoise) return;
+
+    const bufferSize = Math.max(256, Math.floor(audioCtx.sampleRate * 0.12));
+    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i=0; i<data.length; i++){
+      data[i] = (Math.random() * 2 - 1) * 0.55;
+    }
+
+    pumpNoise = audioCtx.createBufferSource();
+    pumpNoise.buffer = noiseBuffer;
+    pumpNoise.loop = true;
+
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 90;
+
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 820;
+
+    const trem = audioCtx.createOscillator();
+    trem.type = "sawtooth";
+    trem.frequency.value = 10.5;
+
+    const tremGain = audioCtx.createGain();
+    tremGain.gain.value = 0.18;
+
+    pumpGain = audioCtx.createGain();
+    pumpGain.gain.value = 0.0001;
+
+    trem.connect(tremGain);
+    tremGain.connect(pumpGain.gain);
+
+    pumpNoise.connect(hp);
+    hp.connect(lp);
+    lp.connect(pumpGain);
+    pumpGain.connect(masterGain);
+
+    pumpFilter = { hp, lp, trem, tremGain };
+
+    const now = audioCtx.currentTime;
+    pumpGain.gain.cancelScheduledValues(now);
+    pumpGain.gain.setValueAtTime(0.0001, now);
+    pumpGain.gain.exponentialRampToValueAtTime(0.16, now + 0.12);
+
+    trem.start(now);
+    pumpNoise.start(now);
+  }
+
+  function stopPumpSound(){
+    if (!audioCtx || !pumpNoise || !pumpGain) return;
+    const now = audioCtx.currentTime;
+    try{
+      pumpGain.gain.cancelScheduledValues(now);
+      pumpGain.gain.setValueAtTime(Math.max(0.0001, pumpGain.gain.value), now);
+      pumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+      pumpNoise.stop(now + 0.16);
+      if (pumpFilter?.trem) pumpFilter.trem.stop(now + 0.16);
+    }catch(e){}
+    setTimeout(() => {
+      pumpNoise = null;
+      pumpGain = null;
+      pumpFilter = null;
+    }, 220);
+  }
+
+  function playFinishTune(){
+    if (!audioCtx || !masterGain) return;
+    const notes = [880, 1174.66, 1396.91];
+    const start = audioCtx.currentTime + 0.02;
+
+    notes.forEach((freq, i) => {
+      const t0 = start + i * 0.13;
+      const osc = audioCtx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, t0);
+
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 1800;
+
+      osc.connect(lp);
+      lp.connect(g);
+      g.connect(masterGain);
+
+      osc.start(t0);
+      osc.stop(t0 + 0.24);
+    });
+  }
+
+  function playStepHiss(){
+    if (!audioCtx || !masterGain) return;
+
+    const dur = 0.16;
+    const t0 = audioCtx.currentTime + 0.002;
+
+    const buffer = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+    const d = buffer.getChannelData(0);
+    for (let i = 0; i < d.length; i++){
+      const env = Math.exp(-3.6 * i / d.length);
+      d[i] = (Math.random() * 2 - 1) * env;
+    }
+
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 700;
+
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1800;
+    bp.Q.value = 0.8;
+
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    src.connect(hp);
+    hp.connect(bp);
+    bp.connect(g);
+    g.connect(masterGain);
+
+    src.start(t0);
+    src.stop(t0 + dur + 0.01);
+  }
+
+  function resizeCanvas(canvas){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const r = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(r.width * dpr));
+    const h = Math.max(1, Math.round(r.height * dpr));
+    if (canvas.width !== w || canvas.height !== h){
+      canvas.width = w;
+      canvas.height = h;
+    }
+  }
+
+  function resizeAll(){
+    resizeCanvas(els.timeChart);
+    resizeCanvas(els.acChart);
+    resizeCanvas(els.peakChart);
+  }
+
+  function clearChart(ctx, canvas){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.scale(dpr,dpr);
+  }
+
+  function pushTimePoint(t, art, cuff, ac){
+    state.timeData.push({t, art, cuff, ac});
+    const cutoff = t - cfg.windowS;
+    while (state.timeData.length && state.timeData[0].t < cutoff) state.timeData.shift();
+  }
+
+  function updateScales(){
+    let maxMain = cfg.inflateTarget;
+    for (const p of state.timeData){
+      if (p.art > maxMain) maxMain = p.art;
+      if (p.cuff > maxMain) maxMain = p.cuff;
+    }
+    const targetMax = Math.ceil((maxMain + 8) / 10) * 10;
+    state.dispTimeMax += (targetMax - state.dispTimeMax) * 0.12;
+
+    let acAbs = 4;
+    for (const p of state.timeData) acAbs = Math.max(acAbs, Math.abs(p.ac));
+    const targetAc = Math.max(4, Math.ceil((acAbs * 1.25) / 1) * 1);
+    state.dispAcAbs += (targetAc - state.dispAcAbs) * 0.16;
+
+    let peakMax = 4;
+    for (const p of state.peakPoints) peakMax = Math.max(peakMax, p.peak);
+    const targetPeak = Math.max(4, Math.ceil(peakMax * 1.2));
+    state.dispPeakMax += (targetPeak - state.dispPeakMax) * 0.15;
+  }
+
+  function drawGrid(ctx, x0, y0, w, h, vx=10, hy=5, zeroY=null){
+    const grad = ctx.createLinearGradient(0, y0, 0, y0+h);
+    grad.addColorStop(0, "rgba(255,255,255,.03)");
+    grad.addColorStop(1, "rgba(255,255,255,.01)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(x0,y0,w,h);
+
+    ctx.strokeStyle = "rgba(255,255,255,.06)";
+    ctx.lineWidth = 1;
+    for (let i=0;i<=vx;i++){
+      const x = x0 + i*w/vx;
+      ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y0+h); ctx.stroke();
+    }
+    for (let i=0;i<=hy;i++){
+      const y = y0 + i*h/hy;
+      ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+w,y); ctx.stroke();
+    }
+
+    if (Number.isFinite(zeroY)){
+      ctx.strokeStyle = "rgba(255,255,255,.16)";
+      ctx.beginPath(); ctx.moveTo(x0,zeroY); ctx.lineTo(x0+w,zeroY); ctx.stroke();
+    }
+
+    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.strokeRect(x0,y0,w,h);
+  }
+
+  function drawHatchedWindow(ctx, x1, x2, y0, h){
+    const left = Math.min(x1, x2);
+    const right = Math.max(x1, x2);
+    const w = right - left;
+    if (w <= 1) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, y0, w, h);
+    ctx.clip();
+
+    ctx.fillStyle = "rgba(255,95,109,.06)";
+    ctx.fillRect(left, y0, w, h);
+
+    ctx.strokeStyle = "rgba(255,95,109,.18)";
+    ctx.lineWidth = 1;
+
+    const step = 10;
+    for (let x = left - h; x < right + h; x += step){
+      ctx.beginPath();
+      ctx.moveTo(x, y0 + h);
+      ctx.lineTo(x + h, y0);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = "rgba(255,95,109,.22)";
+    ctx.strokeRect(left, y0, w, h);
+    ctx.restore();
+  }
+
+  function drawText(ctx, txt, x, y, align="center"){
+    ctx.fillStyle = "rgba(238,244,255,.74)";
+    ctx.font = "12px Inter, system-ui, sans-serif";
+    ctx.textAlign = align;
+    ctx.textBaseline = "middle";
+    ctx.fillText(txt, x, y);
+  }
+
+  function drawYAxis(ctx, x0, vals, mapFn){
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.fillStyle = "rgba(238,244,255,.74)";
+    ctx.font = "12px Inter, system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (const v of vals){
+      const y = mapFn(v);
+      ctx.beginPath();
+      ctx.moveTo(x0 - 5, y);
+      ctx.lineTo(x0, y);
+      ctx.stroke();
+      ctx.fillText(String(v), x0 - 8, y);
+    }
+    ctx.restore();
+  }
+
+  function drawXAxisTime(ctx, x0, y0, w, tStart, tEnd){
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.fillStyle = "rgba(238,244,255,.74)";
+    ctx.font = "12px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    const n = 7;
+    for (let i=0;i<=n;i++){
+      const frac = i / n;
+      const x = x0 + frac*w;
+      const val = tStart + frac*(tEnd - tStart);
+      ctx.beginPath();
+      ctx.moveTo(x,y0);
+      ctx.lineTo(x,y0+5);
+      ctx.stroke();
+      ctx.fillText(val.toFixed(0), x, y0+8);
+    }
+    ctx.restore();
+  }
+
+  function drawXAxisCuff(ctx, x0, y0, w, xMin, xMax){
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.fillStyle = "rgba(238,244,255,.74)";
+    ctx.font = "12px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (let v=xMax; v>=xMin; v-=20){
+      const frac = (xMax - v) / (xMax - xMin);
+      const x = x0 + frac*w;
+      ctx.beginPath();
+      ctx.moveTo(x,y0);
+      ctx.lineTo(x,y0+5);
+      ctx.stroke();
+      ctx.fillText(String(v), x, y0+8);
+    }
+    ctx.restore();
+  }
+
+  function drawLine(ctx, data, getX, getY, color, width){
+    if (data.length < 2) return;
+    ctx.beginPath();
+    let started = false;
+    for (const p of data){
+      const x = getX(p), y = getY(p);
+      if (!started){ ctx.moveTo(x,y); started = true; }
+      else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawTimeChart(){
+    clearChart(timeCtx, els.timeChart);
+    const rect = els.timeChart.getBoundingClientRect();
+    const left = 58, right = 18, top = 16, bottom = 42;
+    const w = rect.width - left - right;
+    const h = rect.height - top - bottom;
+
+    drawGrid(timeCtx, left, top, w, h, 10, 5);
+
+    const tEnd = state.t;
+    const tStart = Math.max(0, tEnd - cfg.windowS);
+    const yMin = 0;
+    const yMax = Math.max(120, state.dispTimeMax);
+
+    const mapX = p => left + ((p.t - tStart) / Math.max(0.001, cfg.windowS)) * w;
+    const mapY = v => top + h - ((v - yMin) / (yMax - yMin)) * h;
+
+    drawYAxis(timeCtx, left, [0,40,80,120,160,200], mapY);
+    drawXAxisTime(timeCtx, left, top + h, w, tStart, tEnd);
+    drawText(timeCtx, "mmHg", 22, top + 10);
+    drawText(timeCtx, "s", left + w - 4, top + h + 26, "right");
+
+    drawLine(timeCtx, state.timeData, mapX, p => mapY(p.art), "rgba(128,233,255,.98)", 2.2);
+    drawLine(timeCtx, state.timeData, mapX, p => mapY(p.cuff), "rgba(255,125,183,.96)", 2.0);
+  }
+
+  function drawAcChart(){
+    clearChart(acCtx, els.acChart);
+    const rect = els.acChart.getBoundingClientRect();
+    const left = 58, right = 18, top = 16, bottom = 42;
+    const w = rect.width - left - right;
+    const h = rect.height - top - bottom;
+
+    const yAbs = Math.max(4, state.dispAcAbs);
+    const zeroY = top + h / 2;
+    drawGrid(acCtx, left, top, w, h, 10, 6, zeroY);
+
+    const tEnd = state.t;
+    const tStart = Math.max(0, tEnd - cfg.windowS);
+
+    const mapX = p => left + ((p.t - tStart) / Math.max(0.001, cfg.windowS)) * w;
+    const mapY = v => top + h - ((v + yAbs) / (2 * yAbs)) * h;
+
+    for (const m of state.stepWindows){
+      if (m.t2 < tStart) continue;
+      const x1 = left + ((m.t1 - tStart) / Math.max(0.001, cfg.windowS)) * w;
+      const x2 = left + ((m.t2 - tStart) / Math.max(0.001, cfg.windowS)) * w;
+      drawHatchedWindow(acCtx, x1, x2, top, h);
+    }
+
+    drawYAxis(acCtx, left, [-yAbs, -yAbs/2, 0, yAbs/2, yAbs].map(v => Math.round(v*10)/10), mapY);
+    drawXAxisTime(acCtx, left, top + h, w, tStart, tEnd);
+    drawText(acCtx, "mmHg", 22, top + 10);
+    drawText(acCtx, "s", left + w - 4, top + h + 26, "right");
+
+    drawLine(acCtx, state.timeData, mapX, p => mapY(p.ac), "rgba(255,208,127,.96)", 2.1);
+  }
+
+  function drawPeakChart(){
+    clearChart(peakCtx, els.peakChart);
+    state.peakHitboxes = [];
+
+    const rect = els.peakChart.getBoundingClientRect();
+    const left = 58, right = 18, top = 16, bottom = 42;
+    const w = rect.width - left - right;
+    const h = rect.height - top - bottom;
+
+    drawGrid(peakCtx, left, top, w, h, 7, 5);
+
+    const xMin = cfg.minCuff;
+    const xMax = cfg.inflateTarget;
+    const yMin = 0;
+    const yMax = Math.max(4, state.dispPeakMax);
+
+    const mapX = v => left + ((xMax - v) / (xMax - xMin)) * w;
+    const mapY = v => top + h - ((v - yMin) / (yMax - yMin)) * h;
+
+    const yStep = Math.max(1, Math.round(yMax / 4));
+    const yTicks = [];
+    for (let v=0; v<=yStep*4; v+=yStep) yTicks.push(v);
+
+    drawYAxis(peakCtx, left, yTicks, mapY);
+    drawXAxisCuff(peakCtx, left, top + h, w, xMin, xMax);
+    drawText(peakCtx, "mmHg", 22, top + 10);
+    drawText(peakCtx, "mmHg", left + w - 4, top + h + 26, "right");
+
+    if (state.peakPoints.length >= 2){
+      drawLine(
+        peakCtx,
+        state.peakPoints,
+        p => mapX(p.cuff),
+        p => mapY(p.peak),
+        "rgba(255,95,109,.96)",
+        2.2
+      );
+    }
+
+    state.peakPoints.forEach((p, i) => {
+      const x = mapX(p.cuff);
+      const y = mapY(p.peak);
+      const active = i === state.hoverIndex;
+
+      peakCtx.beginPath();
+      peakCtx.arc(x, y, active ? 5.8 : 4.2, 0, Math.PI * 2);
+      peakCtx.fillStyle = active ? "rgba(255,160,170,.99)" : "rgba(255,95,109,.98)";
+      peakCtx.shadowColor = "rgba(255,95,109,.98)";
+      peakCtx.shadowBlur = active ? 18 : 12;
+      peakCtx.fill();
+      peakCtx.shadowBlur = 0;
+
+      if (active){
+        peakCtx.beginPath();
+        peakCtx.arc(x, y, 10, 0, Math.PI * 2);
+        peakCtx.strokeStyle = "rgba(255,95,109,.35)";
+        peakCtx.lineWidth = 1.5;
+        peakCtx.stroke();
+      }
+
+      state.peakHitboxes.push({x, y, cuff:p.cuff, peak:p.peak});
+    });
+  }
+
+  function drawAll(){
+    drawTimeChart();
+    drawAcChart();
+    drawPeakChart();
+  }
+
+  function hideTooltip(){
+    els.tooltip.classList.remove("show");
+    els.tooltip.style.transform = "translate(-9999px,-9999px)";
+  }
+
+  function showTooltip(x, y, point){
+    els.tooltip.innerHTML = `Manguito: <b>${point.cuff.toFixed(0)} mmHg</b><br>pico a pico: <b>${point.peak.toFixed(2)} mmHg</b>`;
+
+    const pad = 16;
+    const tipW = 150;
+    const tipH = 54;
+    let tx = x + 16;
+    let ty = y + 16;
+
+    if (tx + tipW > window.innerWidth - pad) tx = x - tipW - 12;
+    if (ty + tipH > window.innerHeight - pad) ty = y - tipH - 12;
+
+    els.tooltip.style.transform = `translate(${Math.max(pad, tx)}px, ${Math.max(pad, ty)}px)`;
+    els.tooltip.classList.add("show");
+  }
+
+  function resetState(){
+    stopPumpSound();
+    state.running = false;
+    state.phase = "idle";
+    state.t = 0;
+    state.lastTs = performance.now();
+    state.cuffBase = 0;
+    state.targetCuff = 0;
+    state.stepTimer = 0;
+    state.stepPeak = 0;
+    state.stepPeakTime = 0;
+    state.stepStartTime = 0;
+    state.stepEndTime = 0;
+    state.dropEndTime = 0;
+    state.stepStartCuff = 0;
+    state.timeData = [];
+    state.peakPoints = [];
+    state.stepWindows = [];
+    state.dispTimeMax = 200;
+    state.dispAcAbs = 8;
+    state.dispPeakMax = 8;
+    state.hoverIndex = -1;
+    state.peakHitboxes = [];
+    setStatus("pronto", false);
+    hideTooltip();
+    drawAll();
+  }
+
+  async function startRun(){
+    await ensureAudio();
+    resetState();
+    state.running = true;
+    state.phase = "inflating";
+    startPumpSound();
+    setStatus("medindo", true);
+  }
+
+  function commitStepPeak(){
+    if (state.stepStartCuff < cfg.minCuff) return;
+
+    let minAc = Infinity;
+    let maxAc = -Infinity;
+    let found = false;
+
+    for (const p of state.timeData){
+      if (p.t < state.stepStartTime) continue;
+      if (p.t > state.stepEndTime) continue;
+      if (p.ac < minAc) minAc = p.ac;
+      if (p.ac > maxAc) maxAc = p.ac;
+      found = true;
+    }
+
+    if (!found) return;
+
+    const p2p = maxAc - minAc;
+
+    state.peakPoints.push({
+      cuff: state.stepStartCuff,
+      peak: p2p
+    });
+
+    state.stepWindows.push({
+      t1: state.stepStartTime,
+      t2: state.stepEndTime,
+      cuff: state.stepStartCuff,
+      peak: p2p
+    });
+  }
+
+  function updateMachine(dt){
+    if (!state.running) return;
+
+    if (state.phase === "inflating"){
+      state.cuffBase += cfg.inflateRate * dt;
+      if (state.cuffBase >= cfg.inflateTarget){
+        state.cuffBase = cfg.inflateTarget;
+        stopPumpSound();
+        state.stepStartCuff = cfg.inflateTarget;
+        state.stepPeak = 0;
+        state.stepPeakTime = 0;
+        state.stepStartTime = nextBeatBoundary(state.t);
+        state.stepEndTime = state.stepStartTime + holdDuration();
+        state.phase = "syncing";
+      }
+      return;
+    }
+
+    if (state.phase === "syncing"){
+      if (state.t >= state.stepStartTime){
+        state.stepPeak = 0;
+        state.stepPeakTime = state.stepStartTime;
+        state.stepTimer = 0;
+        state.phase = "stepping";
+      }
+      return;
+    }
+
+    if (state.phase === "stepping"){
+      state.stepTimer = state.t - state.stepStartTime;
+      if (state.t >= state.stepEndTime){
+        commitStepPeak();
+        if (state.stepStartCuff <= cfg.minCuff){
+          state.phase = "finalDeflate";
+          return;
+        }
+        state.targetCuff = state.stepStartCuff - cfg.stepSize;
+        state.dropEndTime = state.stepStartTime + stepCycle();
+        playStepHiss();
+        state.phase = "dropping";
+      }
+      return;
+    }
+
+    if (state.phase === "dropping"){
+      const remaining = Math.max(1e-6, state.dropEndTime - state.t);
+      state.cuffBase += (state.targetCuff - state.cuffBase) * Math.min(1, dt / remaining);
+      if (state.t >= state.dropEndTime || state.cuffBase <= state.targetCuff){
+        state.cuffBase = state.targetCuff;
+        state.stepStartCuff = state.targetCuff;
+        state.stepPeak = 0;
+        state.stepPeakTime = 0;
+        state.stepStartTime = state.dropEndTime;
+        state.stepEndTime = state.stepStartTime + holdDuration();
+        state.stepTimer = 0;
+        state.phase = "stepping";
+      }
+      return;
+    }
+
+    if (state.phase === "finalDeflate"){
+      state.cuffBase -= cfg.finalDeflateRate * dt;
+      if (state.cuffBase <= 0){
+        state.cuffBase = 0;
+        state.running = false;
+        state.phase = "done";
+        setStatus("fim", false);
+        playFinishTune();
+      }
+    }
+  }
+
+  function tick(now){
+    const dt = Math.min(0.05, Math.max(0.001, (now - state.lastTs) / 1000));
+    state.lastTs = now;
+    state.t += dt;
+
+    updateMachine(dt);
+
+    const art = arterialPressureAt(state.t);
+    const ac = cuffACAt(state.t, state.cuffBase);
+    const cuffTotal = state.cuffBase + ac;
+
+    if (state.running && state.phase === "stepping"){
+      if (ac >= state.stepPeak){
+        state.stepPeak = ac;
+        state.stepPeakTime = state.t;
+      }
+    }
+
+    pushTimePoint(state.t, art, cuffTotal, ac);
+    updateScales();
+    drawAll();
+
+    requestAnimationFrame(tick);
+  }
+
+  els.startBtn.addEventListener("click", startRun);
+  els.resetBtn.addEventListener("click", resetState);
+
+  els.peakChart.addEventListener("mousemove", (ev) => {
+    const rect = els.peakChart.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
+
+    let best = -1;
+    let bestD = 9999;
+
+    state.peakHitboxes.forEach((p, i) => {
+      const d = Math.hypot(x - p.x, y - p.y);
+      if (d < bestD){
+        bestD = d;
+        best = i;
+      }
+    });
+
+    if (best >= 0 && bestD <= 22){
+      state.hoverIndex = best;
+      const p = state.peakHitboxes[best];
+      showTooltip(ev.clientX, ev.clientY, p);
+    } else {
+      state.hoverIndex = -1;
+      hideTooltip();
+    }
+    drawPeakChart();
+  });
+
+  els.peakChart.addEventListener("mouseleave", () => {
+    state.hoverIndex = -1;
+    hideTooltip();
+    drawPeakChart();
+  });
+
+  els.peakChart.addEventListener("click", (ev) => {
+    const rect = els.peakChart.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
+
+    let best = -1;
+    let bestD = 9999;
+    state.peakHitboxes.forEach((p, i) => {
+      const d = Math.hypot(x - p.x, y - p.y);
+      if (d < bestD){
+        bestD = d;
+        best = i;
+      }
+    });
+
+    if (best >= 0 && bestD <= 26){
+      state.hoverIndex = best;
+      showTooltip(ev.clientX, ev.clientY, state.peakHitboxes[best]);
+      drawPeakChart();
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    resizeAll();
+    drawAll();
+  });
+
+  resizeAll();
+  resetState();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

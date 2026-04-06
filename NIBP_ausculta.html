@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador NIBP por Ausculta</title>
+  <style>
+    :root{
+      --bg1:#07111f;
+      --bg2:#0a1b2d;
+      --card:rgba(255,255,255,.055);
+      --line:rgba(255,255,255,.085);
+      --text:#ecf3ff;
+      --muted:#8ea3c5;
+      --arterial:#7bdcff;
+      --cuff:#ffc971;
+      --cuff2:#ffb347;
+      --flow:#79ffb5;
+      --audio:#f7f9fd;
+      --shadow:0 16px 40px rgba(0,0,0,.28);
+    }
+
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 14% 14%, rgba(66,130,255,.16), transparent 30%),
+        radial-gradient(circle at 84% 20%, rgba(255,201,113,.08), transparent 26%),
+        linear-gradient(145deg, var(--bg1), var(--bg2));
+    }
+
+    .shell{
+      width:min(1520px, calc(100vw - 18px));
+      height:calc(100vh - 18px);
+      margin:9px auto;
+      display:grid;
+      grid-template-columns:250px 1fr;
+      gap:10px;
+    }
+
+    .panel,.main{
+      min-height:0;
+      background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:24px;
+      box-shadow:var(--shadow);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .panel{
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      overflow:hidden;
+    }
+
+    .main{
+      padding:10px;
+      display:grid;
+      grid-template-rows:repeat(3, minmax(0, 1fr));
+      gap:10px;
+      overflow:hidden;
+    }
+
+    .title{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .title h1{
+      margin:0;
+      font-size:.98rem;
+      line-height:1.1;
+      font-weight:800;
+      letter-spacing:.01em;
+    }
+    .tiny{
+      color:var(--muted);
+      font-size:.68rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      white-space:nowrap;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:12px;
+      min-height:0;
+    }
+
+    .fixed-grid{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:8px;
+    }
+    .metric{
+      border-radius:16px;
+      padding:12px 14px;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.06);
+      min-width:0;
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .metric .k{
+      color:var(--muted);
+      font-size:.70rem;
+      text-transform:uppercase;
+      letter-spacing:.10em;
+      flex:0 0 auto;
+    }
+    .metric .v{
+      font-size:1.18rem;
+      font-weight:850;
+      font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+      text-align:right;
+    }
+
+    .cuff-control{
+      flex:1 1 auto;
+      min-height:0;
+      display:grid;
+      grid-template-rows:auto 1fr;
+      gap:14px;
+      padding:14px;
+    }
+
+    .cuff-top{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+    }
+
+    .cuff-top .left{
+      min-width:0;
+    }
+
+    .cuff-top .left .label{
+      font-size:.72rem;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.10em;
+      margin-bottom:6px;
+    }
+
+    .cuff-top .left .value{
+      font-size:1.45rem;
+      font-weight:850;
+      color:var(--cuff);
+      font-variant-numeric:tabular-nums;
+      line-height:1;
+      white-space:nowrap;
+    }
+
+    .slider-wrap{
+      min-height:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:8px 0 2px;
+    }
+
+    .slider-track-box{
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .control-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      margin-bottom:10px;
+    }
+    .control-head .label{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .control-head .value{font-size:1.1rem;font-weight:850;color:var(--cuff);font-variant-numeric:tabular-nums}
+
+    input[type="range"]{
+      width:100%;
+      appearance:none;
+      height:8px;
+      border-radius:999px;
+      outline:none;
+      background:linear-gradient(90deg, var(--cuff), var(--cuff2));
+    }
+
+    .vertical-slider{
+      width:250px !important;
+      height:10px;
+      transform:rotate(-90deg);
+      transform-origin:center;
+      display:block;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      appearance:none;
+      width:22px;height:22px;border-radius:50%;
+      background:linear-gradient(180deg,#fff6dc,#ffe3a5);
+      border:2px solid rgba(0,0,0,.16);
+      box-shadow:0 6px 18px rgba(0,0,0,.26), 0 0 16px rgba(255,201,113,.34);
+      cursor:pointer;
+    }
+    input[type="range"]::-moz-range-thumb{
+      width:22px;height:22px;border:none;border-radius:50%;
+      background:linear-gradient(180deg,#fff6dc,#ffe3a5);
+      box-shadow:0 6px 18px rgba(0,0,0,.26), 0 0 16px rgba(255,201,113,.34);
+      cursor:pointer;
+    }
+
+    .plot-card{
+      min-height:0;
+      position:relative;
+      border-radius:22px;
+      overflow:hidden;
+      background:linear-gradient(180deg, rgba(4,12,22,.54), rgba(7,18,31,.72));
+      border:1px solid rgba(255,255,255,.08);
+    }
+
+    .plot-label{
+      position:absolute;
+      top:10px;
+      left:12px;
+      z-index:2;
+      font-size:.68rem;
+      color:rgba(236,243,255,.72);
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      pointer-events:none;
+    }
+
+    canvas{width:100%;height:100%;display:block}
+
+    @media (max-width: 980px){
+      html,body{overflow:auto}
+      .shell{
+        width:min(96vw, 960px);
+        height:auto;
+        margin:10px auto 14px;
+        grid-template-columns:1fr;
+      }
+      .panel,.main{overflow:visible}
+      .panel{display:flex;flex-direction:column}
+      .main{min-height:720px}
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="panel">
+      <div class="title">
+        <h1>NIBP por ausculta</h1>
+        <div class="tiny">didático</div>
+      </div>
+
+      <div class="card">
+        <div class="fixed-grid">
+          <div class="metric"><div class="k">PA</div><div class="v" id="artFixed">120 / 80 mmHg</div></div>
+          <div class="metric"><div class="k">PAM</div><div class="v" id="pamFixed">93 mmHg</div></div>
+          <div class="metric"><div class="k">FC</div><div class="v" id="hrFixed">75 bpm</div></div>
+        </div>
+      </div>
+
+      <div class="card cuff-control">
+        <div class="cuff-top">
+          <div class="left">
+            <div class="label">Manguito</div>
+            <div class="value" id="targetValue">160 mmHg</div>
+          </div>
+        </div>
+        <div class="slider-wrap">
+          <div class="slider-track-box">
+            <input class="vertical-slider" id="cuffTarget" type="range" min="0" max="220" step="1" value="160" />
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="plot-card">
+        <div class="plot-label">pressões</div>
+        <canvas id="pressureCanvas"></canvas>
+      </div>
+      <div class="plot-card">
+        <div class="plot-label">fluxo</div>
+        <canvas id="flowCanvas"></canvas>
+      </div>
+      <div class="plot-card">
+        <div class="plot-label">ausculta</div>
+        <canvas id="audioCanvas"></canvas>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const FIXED = { sys:120, dia:80, map:93, hr:75 };
+
+    const els = {
+      cuffTarget: document.getElementById('cuffTarget'),
+      targetValue: document.getElementById('targetValue'),
+      pressureCanvas: document.getElementById('pressureCanvas'),
+      flowCanvas: document.getElementById('flowCanvas'),
+      audioCanvas: document.getElementById('audioCanvas'),
+      artFixed: document.getElementById('artFixed'),
+      pamFixed: document.getElementById('pamFixed'),
+      hrFixed: document.getElementById('hrFixed')
+    };
+
+    const pressureCtx = els.pressureCanvas.getContext('2d');
+    const flowCtx = els.flowCanvas.getContext('2d');
+    const audioCtx2D = els.audioCanvas.getContext('2d');
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    let pressureW = 0, pressureH = 0, flowW = 0, flowH = 0, audioW = 0, audioH = 0;
+
+    function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+    function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+    const SIM = {
+      running:true,
+      t:0,
+      dt:1/240,
+      acc:0,
+      lastNow:performance.now(),
+      plotRate:120,
+      plotAcc:0,
+      historySeconds:10,
+      maxPoints:1200,
+      cuffTarget:160,
+      cuffActual:0,
+      cuffRipple:0,
+      prevArt:FIXED.dia,
+      artHistory:[],
+      cuffHistory:[],
+      flowHistory:[],
+      audioHistory:[],
+      audioReady:false,
+      audioArmed:false,
+      audio:null,
+      lastSoundTime:-10,
+      burstVisuals:[],
+      flowState:0
+    };
+
+    function smoothStep(t){
+      t = clamp(t, 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function arterialTemplate(phase, sys, dia){
+      const A = sys - dia;
+      if (phase < 0.10){
+        const u = phase / 0.10;
+        return dia + A * 0.98 * Math.pow(Math.sin(0.5 * Math.PI * u), 1.45);
+      }
+      if (phase < 0.18){
+        const u = (phase - 0.10) / 0.08;
+        return sys - A * (0.05 * smoothStep(u));
+      }
+      if (phase < 0.28){
+        const u = (phase - 0.18) / 0.10;
+        return sys - A * (0.05 + 0.19 * smoothStep(u));
+      }
+      if (phase < 0.34){
+        const u = (phase - 0.28) / 0.06;
+        return sys - A * (0.24 - 0.08 * smoothStep(u));
+      }
+      const u = (phase - 0.34) / 0.66;
+      const p0 = sys - A * 0.16;
+      return dia + (p0 - dia) * Math.exp(-3.35 * u);
+    }
+
+    function arterialPressure(t){
+      const T = 60 / FIXED.hr;
+      const phase = (t % T) / T;
+      return { p: arterialTemplate(phase, FIXED.sys, FIXED.dia), phase, T };
+    }
+
+    function computeFlow(art, cuff){
+      if (cuff >= FIXED.sys) return 0;
+
+      const pulseShape = clamp((art - FIXED.dia) / Math.max(FIXED.sys - FIXED.dia, 1), 0, 1);
+      let target = 0;
+
+      if (cuff > FIXED.dia){
+        const openFrac = clamp((art - cuff) / Math.max(FIXED.sys - cuff, 6), 0, 1);
+        const perf = 0.08 + 0.52 * (FIXED.sys - cuff) / Math.max(FIXED.sys - FIXED.dia, 1);
+        target = perf * Math.pow(openFrac, 1.55);
+      } else {
+        const releaseFrac = 1 - cuff / Math.max(FIXED.dia, 1);
+        const baseline = 0.05 + 0.06 * releaseFrac;
+        const pulse = (0.58 + 0.18 * releaseFrac) * Math.pow(pulseShape, 1.55);
+        target = baseline + pulse;
+      }
+
+      const tau = target > SIM.flowState ? 0.030 : 0.085;
+      SIM.flowState += (target - SIM.flowState) * (1 - Math.exp(-SIM.dt / tau));
+      return clamp(SIM.flowState, 0, 0.92);
+    }
+
+    function updateSliderStyle(){
+      const min = Number(els.cuffTarget.min);
+      const max = Number(els.cuffTarget.max);
+      const val = Number(els.cuffTarget.value);
+      const pct = ((val - min) / (max - min)) * 100;
+      els.cuffTarget.style.background = `linear-gradient(90deg,
+        rgba(255,201,113,0.98) 0%,
+        rgba(255,179,71,0.98) ${pct}%,
+        rgba(255,255,255,0.10) ${pct}%,
+        rgba(255,255,255,0.05) 100%)`;
+    }
+
+    function resizeCanvases(){
+      const pressureRect = els.pressureCanvas.getBoundingClientRect();
+      pressureW = Math.max(320, Math.floor(pressureRect.width));
+      pressureH = Math.max(180, Math.floor(pressureRect.height));
+      els.pressureCanvas.width = Math.floor(pressureW * dpr);
+      els.pressureCanvas.height = Math.floor(pressureH * dpr);
+      pressureCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const flowRect = els.flowCanvas.getBoundingClientRect();
+      flowW = Math.max(320, Math.floor(flowRect.width));
+      flowH = Math.max(140, Math.floor(flowRect.height));
+      els.flowCanvas.width = Math.floor(flowW * dpr);
+      els.flowCanvas.height = Math.floor(flowH * dpr);
+      flowCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+
+      const audioRect = els.audioCanvas.getBoundingClientRect();
+      audioW = Math.max(320, Math.floor(audioRect.width));
+      audioH = Math.max(140, Math.floor(audioRect.height));
+      els.audioCanvas.width = Math.floor(audioW * dpr);
+      els.audioCanvas.height = Math.floor(audioH * dpr);
+      audioCtx2D.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function pressureToY(p){
+      const top = 16;
+      const bottom = pressureH - 16;
+      const h = bottom - top;
+      return bottom - clamp(p, 0, 220) / 220 * h;
+    }
+
+    function flowToY(f){
+      const top = 16;
+      const bottom = flowH - 16;
+      const h = bottom - top;
+      return bottom - clamp(f, 0, 1.0) * h;
+    }
+
+    function audioToY(v){
+      return audioH * 0.5 - clamp(v, -1, 1) * (audioH * 0.34);
+    }
+
+    function drawCommonGrid(ctx, w, h, divs = 10){
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, 'rgba(10,20,35,0.18)');
+      bg.addColorStop(1, 'rgba(4,10,18,0.10)');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      for(let i = 0; i <= divs; i++){
+        const x = i / divs * w;
+        ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+    }
+
+    function drawTrace(ctx, width, history, color, yFn, lineWidth = 2.0, glow = 10){
+      if (history.length < 2) return;
+      const stepX = width / Math.max(1, history.length - 1);
+      ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.shadowBlur = glow;
+      ctx.shadowColor = color;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      for(let i = 0; i < history.length; i++){
+        const x = i * stepX;
+        const y = yFn(history[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPressurePlot(){
+      pressureCtx.clearRect(0, 0, pressureW, pressureH);
+      drawCommonGrid(pressureCtx, pressureW, pressureH, 10);
+
+      [80, 120, 160].forEach(v => {
+        const y = pressureToY(v);
+        pressureCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+        pressureCtx.beginPath();
+        pressureCtx.moveTo(0, y);
+        pressureCtx.lineTo(pressureW, y);
+        pressureCtx.stroke();
+      });
+
+      drawTrace(pressureCtx, pressureW, SIM.artHistory, cssVar('--arterial'), pressureToY, 2.2, 13);
+      drawTrace(pressureCtx, pressureW, SIM.cuffHistory, cssVar('--cuff'), pressureToY, 1.9, 10);
+    }
+
+    function drawFlowPlot(){
+      flowCtx.clearRect(0, 0, flowW, flowH);
+      drawCommonGrid(flowCtx, flowW, flowH, 10);
+
+      [0.25, 0.50, 0.75].forEach(v => {
+        const y = flowToY(v);
+        flowCtx.strokeStyle = 'rgba(255,255,255,0.045)';
+        flowCtx.beginPath();
+        flowCtx.moveTo(0, y);
+        flowCtx.lineTo(flowW, y);
+        flowCtx.stroke();
+      });
+
+      drawTrace(flowCtx, flowW, SIM.flowHistory, cssVar('--flow'), flowToY, 2.1, 12);
+    }
+
+    function drawAudioPlot(){
+      audioCtx2D.clearRect(0, 0, audioW, audioH);
+      drawCommonGrid(audioCtx2D, audioW, audioH, 10);
+
+      const mid = audioH * 0.5;
+      audioCtx2D.strokeStyle = 'rgba(255,255,255,0.08)';
+      audioCtx2D.beginPath();
+      audioCtx2D.moveTo(0, mid);
+      audioCtx2D.lineTo(audioW, mid);
+      audioCtx2D.stroke();
+
+      drawTrace(audioCtx2D, audioW, SIM.audioHistory, cssVar('--audio'), audioToY, 1.8, 8);
+    }
+
+    function initAudio(){
+      if (SIM.audioReady) return;
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const master = ctx.createGain();
+      master.gain.value = 1.55;
+
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -28;
+      compressor.knee.value = 24;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0.002;
+      compressor.release.value = 0.14;
+
+      const limiter = ctx.createGain();
+      limiter.gain.value = 0.95;
+
+      master.connect(compressor);
+      compressor.connect(limiter);
+      limiter.connect(ctx.destination);
+      SIM.audio = { ctx, master, compressor, limiter };
+      SIM.audioReady = true;
+    }
+
+    async function armAudio(){
+      if (!SIM.audioReady) initAudio();
+      if (!SIM.audio) return;
+      if (SIM.audio.ctx.state === 'suspended') await SIM.audio.ctx.resume();
+      SIM.audioArmed = true;
+    }
+
+    function scheduleTap(now, intensity, detune = 0, delay = 0){
+      const { ctx, master } = SIM.audio;
+      const dur = 0.050 + 0.040 * intensity;
+      const frameCount = Math.max(1024, Math.floor(ctx.sampleRate * dur));
+      const buffer = ctx.createBuffer(1, frameCount, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i = 0; i < frameCount; i++){
+        const env = Math.exp(-5.6 * i / frameCount);
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
+
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 150;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 240 + 70 * intensity + detune;
+      bp.Q.value = 1.15;
+      const g = ctx.createGain();
+      const t0 = now + delay;
+      const peak = 1.25 + 1.05 * intensity;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(peak, t0 + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+      src.connect(hp); hp.connect(bp); bp.connect(g); g.connect(master);
+      src.start(t0); src.stop(t0 + dur + 0.02);
+
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = 205 + 40 * intensity + detune * 0.25;
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(0.0001, t0);
+      og.gain.exponentialRampToValueAtTime(0.24 + 0.12 * intensity, t0 + 0.008);
+      og.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.82);
+      osc.connect(og); og.connect(master);
+      osc.start(t0); osc.stop(t0 + dur * 0.84);
+    }
+
+    function playKorotkoffBurst(intensity = 0.75){
+      if (!SIM.audioArmed || !SIM.audioReady || !SIM.audio) return;
+      const now = SIM.audio.ctx.currentTime;
+      scheduleTap(now, intensity, 0, 0.000);
+      scheduleTap(now, intensity * 0.78, 28, 0.026);
+    }
+
+    function computeAudioVisual(){
+      let y = 0;
+      const f = 220;
+      for(let i = SIM.burstVisuals.length - 1; i >= 0; i--){
+        const b = SIM.burstVisuals[i];
+        const age = SIM.t - b.t0;
+        if (age > 0.18){
+          SIM.burstVisuals.splice(i, 1);
+          continue;
+        }
+        const env = Math.exp(-18 * age);
+        y += b.amp * env * (
+          0.65 * Math.sin(2 * Math.PI * f * age) +
+          0.30 * Math.sin(2 * Math.PI * 1.9 * f * age) +
+          0.12 * Math.sin(2 * Math.PI * 3.1 * f * age)
+        );
+      }
+      return clamp(y, -1, 1);
+    }
+
+    function triggerKorotkoff(intensity){
+      playKorotkoffBurst(intensity);
+      SIM.burstVisuals.push({ t0: SIM.t, amp: 1.05 * intensity + 0.16 });
+      SIM.lastSoundTime = SIM.t;
+    }
+
+    function maybeTriggerSound(art, prevArt, cuff){
+      const inZone = cuff < FIXED.sys && cuff > FIXED.dia;
+      const crossingUp = prevArt < cuff && art >= cuff && art > prevArt;
+      if (!inZone || !crossingUp) return;
+      if (SIM.t - SIM.lastSoundTime < 0.22) return;
+
+      const zone = clamp((FIXED.sys - cuff) / Math.max(FIXED.sys - FIXED.dia, 1), 0, 1);
+      const envelope = Math.sin(Math.PI * zone);
+      const intensity = 0.30 + 0.95 * Math.max(0.12, envelope);
+      triggerKorotkoff(intensity);
+    }
+
+    function simulateOneStep(){
+      const artObj = arterialPressure(SIM.t);
+      const art = artObj.p;
+
+      const tau = SIM.cuffTarget > SIM.cuffActual ? 0.16 : 0.22;
+      SIM.cuffActual += (SIM.cuffTarget - SIM.cuffActual) * (1 - Math.exp(-SIM.dt / tau));
+
+      const pulsatileWindow = clamp((FIXED.sys - SIM.cuffActual) / 90, 0, 1) * clamp((SIM.cuffActual - 18) / 95, 0, 1);
+      SIM.cuffRipple = 0.18 * pulsatileWindow * Math.max(0, Math.sin(2 * Math.PI * artObj.phase));
+      const cuffDisplayed = SIM.cuffActual + SIM.cuffRipple;
+
+      const flow = computeFlow(art, SIM.cuffActual);
+      maybeTriggerSound(art, SIM.prevArt, SIM.cuffActual);
+      const audioVisual = computeAudioVisual();
+
+      SIM.plotAcc += SIM.dt;
+      if (SIM.plotAcc >= 1 / SIM.plotRate){
+        SIM.plotAcc -= 1 / SIM.plotRate;
+        SIM.artHistory.push(art);
+        SIM.cuffHistory.push(cuffDisplayed);
+        SIM.flowHistory.push(flow);
+        SIM.audioHistory.push(audioVisual);
+        if (SIM.artHistory.length > SIM.maxPoints) SIM.artHistory.shift();
+        if (SIM.cuffHistory.length > SIM.maxPoints) SIM.cuffHistory.shift();
+        if (SIM.flowHistory.length > SIM.maxPoints) SIM.flowHistory.shift();
+        if (SIM.audioHistory.length > SIM.maxPoints) SIM.audioHistory.shift();
+      }
+
+      SIM.prevArt = art;
+      SIM.t += SIM.dt;
+    }
+
+    function updateUI(){
+      els.targetValue.textContent = `${Math.round(SIM.cuffTarget)} mmHg`;
+      updateSliderStyle();
+    }
+
+    function render(){
+      drawPressurePlot();
+      drawFlowPlot();
+      drawAudioPlot();
+      updateUI();
+    }
+
+    function frame(now){
+      const elapsed = Math.min(0.05, (now - SIM.lastNow) / 1000);
+      SIM.lastNow = now;
+      if (SIM.running){
+        SIM.acc += elapsed;
+        while (SIM.acc >= SIM.dt){
+          simulateOneStep();
+          SIM.acc -= SIM.dt;
+        }
+      }
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function warmup(){
+      SIM.artHistory = [];
+      SIM.cuffHistory = [];
+      SIM.flowHistory = [];
+      SIM.audioHistory = [];
+      SIM.burstVisuals = [];
+      SIM.flowState = 0;
+      for(let i = 0; i < 2.5 / SIM.dt; i++) simulateOneStep();
+      while (SIM.artHistory.length > SIM.maxPoints) SIM.artHistory.shift();
+      while (SIM.cuffHistory.length > SIM.maxPoints) SIM.cuffHistory.shift();
+      while (SIM.flowHistory.length > SIM.maxPoints) SIM.flowHistory.shift();
+      while (SIM.audioHistory.length > SIM.maxPoints) SIM.audioHistory.shift();
+    }
+
+    function armAudioOnce(){
+      armAudio().catch(() => {});
+      window.removeEventListener('pointerdown', armAudioOnce);
+      window.removeEventListener('keydown', armAudioOnce);
+      window.removeEventListener('touchstart', armAudioOnce);
+    }
+
+    els.cuffTarget.addEventListener('input', e => {
+      SIM.cuffTarget = Number(e.target.value);
+      armAudio().catch(() => {});
+      updateSliderStyle();
+    });
+
+    window.addEventListener('pointerdown', armAudioOnce, { passive:true });
+    window.addEventListener('keydown', armAudioOnce, { passive:true });
+    window.addEventListener('touchstart', armAudioOnce, { passive:true });
+    window.addEventListener('resize', () => {
+      resizeCanvases();
+      render();
+    });
+
+    els.artFixed.textContent = `${FIXED.sys} / ${FIXED.dia} mmHg`;
+    els.pamFixed.textContent = `${FIXED.map} mmHg`;
+    els.hrFixed.textContent = `${FIXED.hr} bpm`;
+    updateSliderStyle();
+    resizeCanvases();
+    warmup();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
