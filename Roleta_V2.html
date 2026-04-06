@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sorteio Cassino de Grupos</title>
+  <style>
+    :root{
+      --bg1:#0b1020;
+      --bg2:#121a30;
+      --panel:#161f39cc;
+      --line:#ffffff18;
+      --gold:#ffd166;
+      --gold-2:#ffb703;
+      --red:#ef476f;
+      --green:#06d6a0;
+      --cyan:#6ee7ff;
+      --text:#f8fafc;
+      --muted:#b8c1d1;
+      --shadow: 0 20px 60px rgba(0,0,0,.35);
+      --radius: 22px;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 15% 20%, rgba(255,209,102,.18), transparent 25%),
+        radial-gradient(circle at 85% 10%, rgba(239,71,111,.15), transparent 25%),
+        radial-gradient(circle at 50% 100%, rgba(6,214,160,.12), transparent 30%),
+        linear-gradient(160deg, var(--bg1), var(--bg2));
+      overflow-x:hidden;
+    }
+
+    .lights{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      opacity:.8;
+      background-image:
+        radial-gradient(circle, rgba(255,209,102,.9) 0 2px, transparent 3px);
+      background-size: 24px 24px;
+      -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,.95), rgba(0,0,0,.1) 12%, rgba(0,0,0,.1) 88%, rgba(0,0,0,.95)),
+                          linear-gradient(to bottom, rgba(0,0,0,.95), rgba(0,0,0,.1) 12%, rgba(0,0,0,.1) 88%, rgba(0,0,0,.95));
+      mask-image: linear-gradient(to right, rgba(0,0,0,.95), rgba(0,0,0,.1) 12%, rgba(0,0,0,.1) 88%, rgba(0,0,0,.95)),
+                  linear-gradient(to bottom, rgba(0,0,0,.95), rgba(0,0,0,.1) 12%, rgba(0,0,0,.1) 88%, rgba(0,0,0,.95));
+      animation: blink 1.2s linear infinite alternate;
+    }
+
+    @keyframes blink {
+      from { opacity:.45; filter:drop-shadow(0 0 0 rgba(255,209,102,0)); }
+      to   { opacity:.9; filter:drop-shadow(0 0 6px rgba(255,209,102,.4)); }
+    }
+
+    .wrap{
+      width:min(1100px, calc(100% - 32px));
+      margin:28px auto;
+      position:relative;
+      z-index:1;
+    }
+
+    .hero{
+      text-align:center;
+      padding:16px 10px 8px;
+    }
+
+    .hero h1{
+      margin:0;
+      font-size:clamp(2rem, 4vw, 3.2rem);
+      line-height:1.05;
+      letter-spacing:.02em;
+      text-shadow: 0 0 18px rgba(255,209,102,.18);
+    }
+
+    .hero p{
+      margin:10px auto 0;
+      max-width:760px;
+      color:var(--muted);
+      font-size:1rem;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:22px;
+      margin-top:18px;
+    }
+
+    .card{
+      background:var(--panel);
+      backdrop-filter: blur(10px);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+
+    .panel{
+      padding:20px;
+    }
+
+    .panel h2{
+      margin:0 0 14px;
+      font-size:1.1rem;
+      color:#fff;
+    }
+
+    .uploader{
+      display:grid;
+      gap:12px;
+    }
+
+    .filebox{
+      border:1.5px dashed rgba(255,255,255,.22);
+      border-radius:18px;
+      padding:20px;
+      background:rgba(255,255,255,.03);
+    }
+
+    .filebox input{display:none}
+
+    .file-label{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      gap:10px;
+      min-height:120px;
+      border-radius:14px;
+      cursor:pointer;
+      padding:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      transition:.18s ease;
+      color:#fff;
+      font-weight:700;
+    }
+
+    .file-label:hover{ transform:translateY(-1px); }
+
+    .hint{
+      font-size:.92rem;
+      color:var(--muted);
+      line-height:1.4;
+    }
+
+    .status{
+      border-radius:14px;
+      padding:12px 14px;
+      background:rgba(255,255,255,.05);
+      border:1px solid var(--line);
+      color:#fef3c7;
+      font-size:.95rem;
+      min-height:48px;
+    }
+
+    .actions{
+      display:grid;
+      gap:12px;
+      margin-top:16px;
+    }
+
+    .btn{
+      appearance:none;
+      border:0;
+      cursor:pointer;
+      border-radius:16px;
+      padding:14px 16px;
+      font-size:1rem;
+      font-weight:800;
+      letter-spacing:.02em;
+      color:#111827;
+      box-shadow: 0 10px 25px rgba(0,0,0,.18);
+      transition: transform .12s ease, filter .12s ease, opacity .12s ease;
+    }
+
+    .btn:hover{ transform:translateY(-1px); filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px) scale(.995); }
+    .btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; filter:none; }
+
+    .btn-gold{ background:linear-gradient(180deg, var(--gold), var(--gold-2)); }
+    .btn-red{ background:linear-gradient(180deg, #ff8fab, var(--red)); color:white; }
+    .btn-green{ background:linear-gradient(180deg, #57f0c2, var(--green)); }
+
+    .main{
+      padding:22px;
+      display:grid;
+      gap:18px;
+    }
+
+    .marquee{
+      position:relative;
+      overflow:hidden;
+      border-radius:26px;
+      padding:18px;
+      border:1px solid rgba(255,209,102,.22);
+      background:
+        linear-gradient(180deg, rgba(255,209,102,.08), rgba(255,255,255,.02)),
+        rgba(12,18,34,.75);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.03),
+        0 18px 40px rgba(0,0,0,.28);
+    }
+
+    .marquee::before,
+    .marquee::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      border-radius:26px;
+    }
+
+    .marquee::before{
+      box-shadow: inset 0 0 40px rgba(255,209,102,.08);
+    }
+
+    .screen{
+      position:relative;
+      border-radius:22px;
+      min-height:170px;
+      display:grid;
+      place-items:center;
+      text-align:center;
+      padding:20px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)),
+        radial-gradient(circle at top, rgba(110,231,255,.08), transparent 45%),
+        #0c1222;
+      border:1px solid rgba(255,255,255,.08);
+      overflow:hidden;
+    }
+
+    .screen::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(180deg, transparent, rgba(255,255,255,.03), transparent);
+      pointer-events:none;
+    }
+
+    .label{
+      position:absolute;
+      top:14px;
+      left:16px;
+      font-size:.82rem;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.12em;
+    }
+
+    .result{
+      font-weight:900;
+      line-height:1.08;
+      letter-spacing:.01em;
+      text-wrap:balance;
+      text-shadow:0 0 18px rgba(255,209,102,.16);
+      padding-top:18px;
+      transition: transform .12s ease;
+    }
+
+    .result.group{
+      font-size:clamp(2.2rem, 7vw, 5rem);
+      color:var(--gold);
+    }
+
+    .result.student{
+      font-size:clamp(1.6rem, 4vw, 3rem);
+    }
+
+    .ticker{
+      position:absolute;
+      inset:0;
+      display:none;
+      place-items:center;
+      font-weight:900;
+      color:#fff;
+      opacity:.95;
+      font-size:clamp(1.4rem, 4vw, 2.7rem);
+      padding:24px;
+      text-align:center;
+      text-shadow:0 0 14px rgba(255,255,255,.18);
+    }
+
+    .screen.spinning .ticker{ display:grid; animation: flicker .08s linear infinite alternate; }
+    .screen.spinning .result{ opacity:0; }
+
+    @keyframes flicker{
+      from { transform: translateY(-1px); opacity:.7; }
+      to   { transform: translateY(1px); opacity:1; }
+    }
+
+    .meta{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:14px;
+    }
+
+    .stat{
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      background:rgba(255,255,255,.04);
+    }
+
+    .stat .k{
+      color:var(--muted);
+      font-size:.85rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+
+    .stat .v{
+      margin-top:6px;
+      font-size:1.6rem;
+      font-weight:900;
+    }
+
+    .mini{
+      margin-top:2px;
+      font-size:.93rem;
+      color:var(--muted);
+    }
+
+    .footer-note{
+      text-align:center;
+      margin-top:10px;
+      color:var(--muted);
+      font-size:.92rem;
+    }
+
+    @media (max-width: 900px){
+      .grid{ grid-template-columns:1fr; }
+      .meta{ grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="lights"></div>
+
+  <div class="wrap">
+    <div class="hero">
+      <h1>🎰 Sorteio Cassino</h1>
+      <p>Carregue um CSV com as colunas <strong>Nome do Aluno</strong> e <strong>Grupo</strong>. Depois, sorteie grupos e alunos com animação rápida e visual limpo.</p>
+    </div>
+
+    <div class="grid">
+      <aside class="card panel">
+        <h2>Arquivo</h2>
+
+        <div class="uploader">
+          <div class="filebox">
+            <label class="file-label" for="csvInput">
+              <span>📄 Escolher arquivo CSV</span>
+            </label>
+            <input id="csvInput" type="file" accept=".csv,text/csv" />
+          </div>
+
+          <div id="status" class="status">Nenhum arquivo carregado.</div>
+
+          <div class="hint">
+            Aceita CSV com separador por vírgula, ponto e vírgula ou tabulação.
+            Os nomes das colunas podem variar levemente, desde que exista uma coluna de nome e outra de grupo.
+          </div>
+
+          <label style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.04); cursor:pointer;">
+            <input id="includeProfessor" type="checkbox" style="margin-top:3px; transform:scale(1.15);" />
+            <span style="font-size:.95rem; color:var(--text); line-height:1.35;">
+              Incluir <strong>Professor</strong> nos sorteios. Quando marcado, ele também pode ser sorteado como grupo e como aluno.
+            </span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="drawGroupBtn" class="btn btn-gold" disabled>🎲 Sortear grupo</button>
+          <button id="drawStudentInGroupBtn" class="btn btn-red" disabled>🧑‍🎓 Sortear aluno do grupo</button>
+          <button id="drawAnyStudentBtn" class="btn btn-green" disabled>🎯 Sortear qualquer aluno</button>
+        </div>
+      </aside>
+
+      <main class="card main">
+        <section class="marquee">
+          <div id="groupScreen" class="screen">
+            <div class="label">Grupo sorteado</div>
+            <div id="groupResult" class="result group">—</div>
+            <div id="groupTicker" class="ticker">Preparando sorteio…</div>
+          </div>
+        </section>
+
+        <section class="marquee">
+          <div id="studentScreen" class="screen">
+            <div class="label">Aluno sorteado</div>
+            <div id="studentResult" class="result student">—</div>
+            <div id="studentTicker" class="ticker">Aguardando arquivo…</div>
+          </div>
+        </section>
+
+        <section class="meta">
+          <div class="stat">
+            <div class="k">Total de alunos</div>
+            <div id="totalStudents" class="v">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">Total de grupos</div>
+            <div id="totalGroups" class="v">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">Grupo atual</div>
+            <div id="currentGroup" class="v">—</div>
+            <div id="currentGroupSize" class="mini">0 alunos</div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="footer-note">
+      Resultado aleatório local, no navegador, sem depender de internet.
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      rows: [],
+      groups: new Map(),
+      currentGroup: null,
+      busy: false,
+      audioCtx: null,
+      spinAudioStopper: null
+    };
+
+    const csvInput = document.getElementById('csvInput');
+    const statusBox = document.getElementById('status');
+
+    const drawGroupBtn = document.getElementById('drawGroupBtn');
+    const drawStudentInGroupBtn = document.getElementById('drawStudentInGroupBtn');
+    const drawAnyStudentBtn = document.getElementById('drawAnyStudentBtn');
+    const includeProfessor = document.getElementById('includeProfessor');
+
+    const groupScreen = document.getElementById('groupScreen');
+    const studentScreen = document.getElementById('studentScreen');
+
+    const groupResult = document.getElementById('groupResult');
+    const studentResult = document.getElementById('studentResult');
+    const groupTicker = document.getElementById('groupTicker');
+    const studentTicker = document.getElementById('studentTicker');
+
+    const totalStudents = document.getElementById('totalStudents');
+    const totalGroups = document.getElementById('totalGroups');
+    const currentGroup = document.getElementById('currentGroup');
+    const currentGroupSize = document.getElementById('currentGroupSize');
+
+    csvInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        loadCsv(text, file.name);
+      } catch (err) {
+        console.error(err);
+        setStatus('Erro ao ler o arquivo.');
+      }
+    });
+
+    drawGroupBtn.addEventListener('click', async () => {
+      if (!ensureData() || state.busy) return;
+      const groups = [...state.groups.keys()].map(g => ({ label: `Grupo ${g}`, value: String(g) }));
+
+      if (includeProfessor.checked) {
+        groups.push({ label: 'Professor', value: 'Professor' });
+      }
+
+      const result = await fastSpin({
+        screen: groupScreen,
+        ticker: groupTicker,
+        finalTextEl: groupResult,
+        items: groups.map(g => g.label),
+        duration: 850
+      });
+
+      const selected = groups.find(g => g.label === result);
+      state.currentGroup = selected ? selected.value : null;
+      updateCurrentGroupInfo();
+
+      studentResult.textContent = '—';
+      studentTicker.textContent = 'Grupo sorteado. Pronto para aluno.';
+    });
+
+    drawStudentInGroupBtn.addEventListener('click', async () => {
+      if (!ensureData() || state.busy) return;
+      if (!state.currentGroup) {
+        setStatus('Primeiro sorteie um grupo.');
+        return;
+      }
+
+      if (state.currentGroup === 'Professor') {
+        await fastSpin({
+          screen: studentScreen,
+          ticker: studentTicker,
+          finalTextEl: studentResult,
+          items: ['Professor'],
+          duration: 650
+        });
+        return;
+      }
+
+      if (!state.groups.has(state.currentGroup)) {
+        setStatus('Primeiro sorteie um grupo válido.');
+        return;
+      }
+
+      const students = state.groups.get(state.currentGroup).map(s => s.name);
+      if (includeProfessor.checked) {
+        students.push('Professor');
+      }
+
+      await fastSpin({
+        screen: studentScreen,
+        ticker: studentTicker,
+        finalTextEl: studentResult,
+        items: students,
+        duration: 950
+      });
+    });
+
+    drawAnyStudentBtn.addEventListener('click', async () => {
+      if (!ensureData() || state.busy) return;
+
+      const candidates = state.rows.map(r => ({ name: r.name, group: r.group }));
+      if (includeProfessor.checked) {
+        candidates.push({ name: 'Professor', group: 'Professor' });
+      }
+
+      const chosen = await fastSpin({
+        screen: studentScreen,
+        ticker: studentTicker,
+        finalTextEl: studentResult,
+        items: candidates.map(c => c.name),
+        duration: 950
+      });
+
+      const row = candidates.find(r => r.name === chosen);
+      if (row) {
+        state.currentGroup = row.group;
+        groupResult.textContent = row.group === 'Professor' ? 'Professor' : `Grupo ${row.group}`;
+        updateCurrentGroupInfo();
+      }
+    });
+
+    includeProfessor.addEventListener('change', () => {
+      updateCurrentGroupInfo();
+      if (state.currentGroup === 'Professor' && !includeProfessor.checked) {
+        state.currentGroup = null;
+        groupResult.textContent = '—';
+        studentResult.textContent = '—';
+        updateCurrentGroupInfo();
+      }
+    });
+
+    function setStatus(message) {
+      statusBox.textContent = message;
+    }
+
+    function ensureData() {
+      if (!state.rows.length) {
+        setStatus('Carregue um CSV primeiro.');
+        return false;
+      }
+      return true;
+    }
+
+    function updateButtons() {
+      const enabled = state.rows.length > 0 && !state.busy;
+      drawGroupBtn.disabled = !enabled;
+      drawAnyStudentBtn.disabled = !enabled;
+      drawStudentInGroupBtn.disabled = !enabled || !state.currentGroup;
+    }
+
+    function updateCurrentGroupInfo() {
+      currentGroup.textContent = state.currentGroup ? String(state.currentGroup) : '—';
+
+      let count = 0;
+      if (state.currentGroup === 'Professor') {
+        count = 1;
+      } else if (state.currentGroup && state.groups.has(state.currentGroup)) {
+        count = state.groups.get(state.currentGroup).length + (includeProfessor.checked ? 1 : 0);
+      }
+
+      currentGroupSize.textContent = `${count} aluno${count === 1 ? '' : 's'}`;
+      drawStudentInGroupBtn.disabled = !state.currentGroup || state.busy;
+    }
+
+    function loadCsv(text, fileName) {
+      const rows = parseCsv(text);
+      if (!rows.length) {
+        throw new Error('CSV vazio.');
+      }
+
+      const headers = rows[0].map(normalizeHeader);
+      const nameIdx = headers.findIndex(h =>
+        ['nome', 'nome do aluno', 'aluno', 'student', 'name'].includes(h)
+      );
+      const groupIdx = headers.findIndex(h =>
+        ['grupo', 'group', 'turma', 'equipe'].includes(h)
+      );
+
+      if (nameIdx < 0 || groupIdx < 0) {
+        setStatus('Não encontrei colunas de nome e grupo no CSV.');
+        return;
+      }
+
+      const data = [];
+      const groups = new Map();
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const name = (row[nameIdx] ?? '').trim();
+        const group = (row[groupIdx] ?? '').trim();
+
+        if (!name || !group) continue;
+
+        const item = { name, group };
+        data.push(item);
+
+        if (!groups.has(group)) groups.set(group, []);
+        groups.get(group).push(item);
+      }
+
+      state.rows = data;
+      state.groups = new Map([...groups.entries()].sort((a, b) => compareMixed(a[0], b[0])));
+      state.currentGroup = null;
+
+      totalStudents.textContent = String(state.rows.length);
+      totalGroups.textContent = String(state.groups.size);
+      groupResult.textContent = '—';
+      studentResult.textContent = '—';
+      groupTicker.textContent = 'Pronto para sortear';
+      studentTicker.textContent = 'Pronto para sortear';
+      updateCurrentGroupInfo();
+      updateButtons();
+
+      setStatus(`Arquivo carregado: ${fileName}. ${state.rows.length} alunos em ${state.groups.size} grupos.`);
+    }
+
+    function normalizeHeader(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ');
+    }
+
+    function compareMixed(a, b) {
+      const na = Number(a), nb = Number(b);
+      const aIsNum = !Number.isNaN(na);
+      const bIsNum = !Number.isNaN(nb);
+      if (aIsNum && bIsNum) return na - nb;
+      return String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' });
+    }
+
+    function detectDelimiter(text) {
+      const firstLines = text.split(/\r?\n/).slice(0, 5).join('\n');
+      const candidates = [',', ';', '\t'];
+      let best = ',', bestCount = -1;
+
+      for (const c of candidates) {
+        const count = (firstLines.match(new RegExp(escapeRegex(c), 'g')) || []).length;
+        if (count > bestCount) {
+          bestCount = count;
+          best = c;
+        }
+      }
+      return best;
+    }
+
+    function escapeRegex(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function parseCsv(text) {
+      const delimiter = detectDelimiter(text);
+      const rows = [];
+      let row = [];
+      let cell = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"') {
+          if (inQuotes && next === '"') {
+            cell += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+
+        if (!inQuotes && char === delimiter) {
+          row.push(cell);
+          cell = '';
+          continue;
+        }
+
+        if (!inQuotes && (char === '\n' || char === '\r')) {
+          if (char === '\r' && next === '\n') i++;
+          row.push(cell);
+          if (row.some(col => String(col).trim() !== '')) rows.push(row);
+          row = [];
+          cell = '';
+          continue;
+        }
+
+        cell += char;
+      }
+
+      if (cell.length || row.length) {
+        row.push(cell);
+        if (row.some(col => String(col).trim() !== '')) rows.push(row);
+      }
+
+      return rows;
+    }
+
+    function randomItem(items) {
+      return items[Math.floor(Math.random() * items.length)];
+    }
+
+    function ensureAudioContext() {
+      if (!state.audioCtx) {
+        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (state.audioCtx.state === 'suspended') {
+        state.audioCtx.resume();
+      }
+      return state.audioCtx;
+    }
+
+    function startSpinMusic() {
+      const ctx = ensureAudioContext();
+      const master = ctx.createGain();
+      master.gain.value = 1.0;
+      master.connect(ctx.destination);
+
+      let stopped = false;
+      let timerId = null;
+      let step = 0;
+      const notes = [523.25, 659.25, 783.99, 659.25, 880.00, 783.99, 659.25, 523.25];
+
+      function blip(freq, duration = 0.06, type = 'triangle', volume = 0.95) {
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(volume, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(master);
+
+        osc.start(now);
+        osc.stop(now + duration + 0.02);
+      }
+
+      function loop() {
+        if (stopped) return;
+        blip(notes[step % notes.length], 0.055, 'triangle', 0.95);
+        if (step % 2 === 0) {
+          blip(notes[(step + 2) % notes.length] / 2, 0.08, 'sine', 0.45);
+        }
+        step++;
+        timerId = setTimeout(loop, 90);
+      }
+
+      loop();
+
+      return {
+        stop() {
+          stopped = true;
+          if (timerId) clearTimeout(timerId);
+
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(1046.5, now);
+          osc.frequency.exponentialRampToValueAtTime(1567.98, now + 0.12);
+
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(1.0, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+          osc.connect(gain);
+          gain.connect(master);
+          osc.start(now);
+          osc.stop(now + 0.22);
+
+          master.gain.setTargetAtTime(0.0001, now + 0.12, 0.05);
+        }
+      };
+    }
+
+    async function fastSpin({ screen, ticker, finalTextEl, items, duration = 900 }) {
+      state.busy = true;
+      updateButtons();
+
+      screen.classList.add('spinning');
+      state.spinAudioStopper = startSpinMusic();
+
+      const start = performance.now();
+      let lastChange = 0;
+      let displayed = '';
+      let final = '';
+
+      while (performance.now() - start < duration) {
+        const now = performance.now();
+        if (now - lastChange > 45) {
+          displayed = randomItem(items);
+          ticker.textContent = displayed;
+          lastChange = now;
+        }
+        await nextFrame();
+      }
+
+      final = randomItem(items);
+      ticker.textContent = final;
+      finalTextEl.textContent = final;
+
+      if (state.spinAudioStopper) {
+        state.spinAudioStopper.stop();
+        state.spinAudioStopper = null;
+      }
+
+      screen.classList.remove('spinning');
+      state.busy = false;
+      updateButtons();
+      return final;
+    }
+
+    function nextFrame() {
+      return new Promise(resolve => requestAnimationFrame(resolve));
+    }
+  </script>
+</body>
+</html>
