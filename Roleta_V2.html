@@ -330,6 +330,23 @@
       font-size:.92rem;
     }
 
+
+    select, option, optgroup{
+      color:#0f172a;
+      background:#ffffff;
+    }
+
+    #manualGroupSelect{
+      color:var(--text) !important;
+      background:rgba(255,255,255,.08) !important;
+    }
+
+    #manualGroupSelect option{
+      color:#0f172a !important;
+      background:#ffffff !important;
+      font-weight:700;
+    }
+
     @media (max-width: 900px){
       .grid{ grid-template-columns:1fr; }
       .meta{ grid-template-columns:1fr; }
@@ -370,6 +387,14 @@
               Incluir <strong>Professor</strong> nos sorteios. Quando marcado, ele também pode ser sorteado como grupo e como aluno.
             </span>
           </label>
+        </div>
+
+        <div style="margin-top:16px; display:grid; gap:10px;">
+          <label for="manualGroupSelect" style="font-size:.92rem; color:var(--muted); font-weight:700;">Selecionar grupo manualmente</label>
+          <select id="manualGroupSelect" disabled
+            style="width:100%; padding:13px 14px; border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,.10); color:#ffffff; font-size:1rem; font-weight:700; outline:none;">
+            <option value="">Escolha um grupo…</option>
+          </select>
         </div>
 
         <div class="actions">
@@ -436,6 +461,7 @@
     const drawStudentInGroupBtn = document.getElementById('drawStudentInGroupBtn');
     const drawAnyStudentBtn = document.getElementById('drawAnyStudentBtn');
     const includeProfessor = document.getElementById('includeProfessor');
+    const manualGroupSelect = document.getElementById('manualGroupSelect');
 
     const groupScreen = document.getElementById('groupScreen');
     const studentScreen = document.getElementById('studentScreen');
@@ -549,13 +575,22 @@
     });
 
     includeProfessor.addEventListener('change', () => {
-      updateCurrentGroupInfo();
       if (state.currentGroup === 'Professor' && !includeProfessor.checked) {
         state.currentGroup = null;
         groupResult.textContent = '—';
         studentResult.textContent = '—';
-        updateCurrentGroupInfo();
       }
+      populateManualGroupSelect();
+      updateCurrentGroupInfo();
+    });
+
+    manualGroupSelect.addEventListener('change', () => {
+      const value = manualGroupSelect.value;
+      state.currentGroup = value || null;
+      groupResult.textContent = !value ? '—' : (value === 'Professor' ? 'Professor' : `Grupo ${value}`);
+      studentResult.textContent = '—';
+      studentTicker.textContent = value ? 'Grupo selecionado manualmente. Pronto para aluno.' : 'Pronto para sortear';
+      updateCurrentGroupInfo();
     });
 
     function setStatus(message) {
@@ -570,11 +605,42 @@
       return true;
     }
 
+    function getManualGroupOptions() {
+      const options = [...state.groups.keys()].map(g => ({ value: String(g), label: `Grupo ${g}` }));
+      if (includeProfessor.checked) {
+        options.push({ value: 'Professor', label: 'Professor' });
+      }
+      return options;
+    }
+
+    function populateManualGroupSelect() {
+      const previous = state.currentGroup && getManualGroupOptions().some(o => o.value === state.currentGroup)
+        ? state.currentGroup
+        : '';
+
+      manualGroupSelect.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Escolha um grupo…';
+      manualGroupSelect.appendChild(placeholder);
+
+      for (const option of getManualGroupOptions()) {
+        const el = document.createElement('option');
+        el.value = option.value;
+        el.textContent = option.label;
+        manualGroupSelect.appendChild(el);
+      }
+
+      manualGroupSelect.value = previous;
+      manualGroupSelect.disabled = state.rows.length === 0 || state.busy;
+    }
+
     function updateButtons() {
       const enabled = state.rows.length > 0 && !state.busy;
       drawGroupBtn.disabled = !enabled;
       drawAnyStudentBtn.disabled = !enabled;
       drawStudentInGroupBtn.disabled = !enabled || !state.currentGroup;
+      manualGroupSelect.disabled = !enabled;
     }
 
     function updateCurrentGroupInfo() {
@@ -588,6 +654,13 @@
       }
 
       currentGroupSize.textContent = `${count} aluno${count === 1 ? '' : 's'}`;
+
+      if ([...manualGroupSelect.options].some(o => o.value === (state.currentGroup || ''))) {
+        manualGroupSelect.value = state.currentGroup || '';
+      } else {
+        manualGroupSelect.value = '';
+      }
+
       drawStudentInGroupBtn.disabled = !state.currentGroup || state.busy;
     }
 
@@ -637,6 +710,7 @@
       studentResult.textContent = '—';
       groupTicker.textContent = 'Pronto para sortear';
       studentTicker.textContent = 'Pronto para sortear';
+      populateManualGroupSelect();
       updateCurrentGroupInfo();
       updateButtons();
 
@@ -751,7 +825,7 @@
       let step = 0;
       const notes = [523.25, 659.25, 783.99, 659.25, 880.00, 783.99, 659.25, 523.25];
 
-      function blip(freq, duration = 0.06, type = 'triangle', volume = 0.95) {
+      function blip(freq, duration = 0.06, type = 'triangle', volume = 1.0) {
         const now = ctx.currentTime;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -772,9 +846,9 @@
 
       function loop() {
         if (stopped) return;
-        blip(notes[step % notes.length], 0.055, 'triangle', 0.95);
+        blip(notes[step % notes.length], 0.055, 'triangle', 1.0);
         if (step % 2 === 0) {
-          blip(notes[(step + 2) % notes.length] / 2, 0.08, 'sine', 0.45);
+          blip(notes[(step + 2) % notes.length] / 2, 0.08, 'sine', 0.7);
         }
         step++;
         timerId = setTimeout(loop, 90);
