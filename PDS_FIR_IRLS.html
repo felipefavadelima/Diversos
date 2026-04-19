@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projeto FIR: Síntese Iterativa Robusta (IRLS)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f0fdf4; color: #0f172a; }
+        .glass-panel { background: white; border: 1px solid #dcfce7; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        input[type=range] { accent-color: #10b981; cursor: pointer; }
+        
+        .segmented-control { display: flex; background: #f8fafc; padding: 4px; border-radius: 0.75rem; border: 1px solid #e2e8f0; }
+        .segmented-control label { flex: 1; text-align: center; padding: 8px 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer; border-radius: 0.5rem; transition: all 0.2s ease; color: #64748b; }
+        .segmented-control input[type="radio"] { display: none; }
+        .segmented-control input[type="radio"]:checked + label { background: white; color: #10b981; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* Remove setinhas dos inputs number para ficar mais limpo */
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-emerald-100">
+
+    <header class="bg-white border-b border-emerald-100 px-8 py-4 flex items-center justify-between shrink-0 z-10">
+        <div>
+            <h1 class="text-xl font-bold text-slate-800 tracking-tight text-emerald-600">Projeto FIR: Busca Automática</h1>
+            <p class="text-xs text-slate-500 font-medium mt-1">Otimização IRLS com Parada Inteligente e Alta Precisão</p>
+        </div>
+        <button onclick="downloadCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-5 py-2.5 rounded-lg text-sm font-semibold transition flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            Exportar b[n]
+        </button>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden p-6 gap-6">
+        
+        <aside class="w-80 flex flex-col gap-4 overflow-y-auto shrink-0 pr-2 hide-scrollbar">
+            
+            <div class="glass-panel p-4 space-y-4">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Filtro e Amostragem</h3>
+                <div class="segmented-control">
+                    <input type="radio" name="ftype" id="lp" value="lowpass" checked onchange="updateUI('type')">
+                    <label for="lp">LP</label>
+                    <input type="radio" name="ftype" id="bp" value="bandpass" onchange="updateUI('type')">
+                    <label for="bp">BP</label>
+                    <input type="radio" name="ftype" id="hp" value="highpass" onchange="updateUI('type')">
+                    <label for="hp">HP</label>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Fs (Hz)</label>
+                    <input type="number" id="fs_input" value="1000" class="w-full bg-slate-50 border border-slate-200 text-sm font-mono font-bold text-slate-700 rounded-lg p-2 outline-none focus:ring-2 focus:ring-emerald-500" onchange="updateUI('fs')">
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 space-y-5 border-l-4 border-l-sky-400">
+                <h3 class="text-[10px] font-bold text-sky-500 uppercase tracking-widest">Banda Passante</h3>
+                <div>
+                    <label class="flex justify-between text-xs font-semibold mb-1 text-slate-700">
+                        <span>Ripple Max (Rp)</span> <span class="text-sky-600 font-bold"><span id="rp_val">0.5</span> dB</span>
+                    </label>
+                    <input type="range" id="rp" min="0.01" max="3" step="0.01" value="0.5" class="w-full" oninput="updateUI('rp')">
+                </div>
+                <div id="fp1_box">
+                    <label class="flex justify-between text-xs font-semibold mb-1 text-slate-700">
+                        <span id="label_fp1">Fim Passante (Fp)</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="fp1_slider" min="0.05" step="0.05" value="100" class="w-full" oninput="syncInputs('fp1_slider', 'fp1_num')">
+                        <input type="number" id="fp1_num" min="0.05" step="0.05" value="100" class="w-16 bg-slate-50 border border-slate-200 rounded p-1 text-xs font-mono font-bold text-sky-600 text-center outline-none focus:ring-1 focus:ring-sky-500" onchange="syncInputs('fp1_num', 'fp1_slider')">
+                    </div>
+                </div>
+                <div id="fp2_box" class="hidden">
+                    <label class="flex justify-between text-xs font-semibold mb-1 text-slate-700">
+                        <span>Fim Passante 2 (Fp2)</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="fp2_slider" min="0.05" step="0.05" value="150" class="w-full" oninput="syncInputs('fp2_slider', 'fp2_num')">
+                        <input type="number" id="fp2_num" min="0.05" step="0.05" value="150" class="w-16 bg-slate-50 border border-slate-200 rounded p-1 text-xs font-mono font-bold text-sky-600 text-center outline-none focus:ring-1 focus:ring-sky-500" onchange="syncInputs('fp2_num', 'fp2_slider')">
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 space-y-5 border-l-4 border-l-rose-400">
+                <h3 class="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Banda de Rejeição</h3>
+                <div>
+                    <label class="flex justify-between text-xs font-semibold mb-1 text-slate-700">
+                        <span>Atenuação Min (As)</span> <span class="text-rose-600 font-bold"><span id="as_val">50</span> dB</span>
+                    </label>
+                    <input type="range" id="as" min="15" max="100" value="50" class="w-full" oninput="updateUI('as')">
+                </div>
+                <div id="fs1_box" class="hidden">
+                    <label class="flex justify-between text-xs font-semibold mb-1 text-slate-700">
+                        <span>Fim Rejeição 1 (Fs1)</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="fs1_slider" min="0.05" step="0.05" value="50" class="w-full" oninput="syncInputs('fs1_slider', 'fs1_num')">
+                        <input type="number" id="fs1_num" min="0.05" step="0.05" value="50" class="w-16 bg-slate-50 border border-slate-200 rounded p-1 text-xs font-mono font-bold text-rose-500 text-center outline-none focus:ring-1 focus:ring-rose-500" onchange="syncInputs('fs1_num', 'fs1_slider')">
+                    </div>
+                </div>
+                <div id="fs2_box">
+                    <label class="flex justify-between text-xs font-semibold mb-1 text-slate-700">
+                        <span id="label_fs2">Início Rejeição (Fs)</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="fs2_slider" min="0.05" step="0.05" value="200" class="w-full" oninput="syncInputs('fs2_slider', 'fs2_num')">
+                        <input type="number" id="fs2_num" min="0.05" step="0.05" value="200" class="w-16 bg-slate-50 border border-slate-200 rounded p-1 text-xs font-mono font-bold text-rose-500 text-center outline-none focus:ring-1 focus:ring-rose-500" onchange="syncInputs('fs2_num', 'fs2_slider')">
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="buscarFiltro()" id="btn_calc" class="mt-2 w-full bg-emerald-500 hover:bg-emerald-600 text-white p-4 rounded-xl text-base font-bold transition shadow-lg shadow-emerald-200 flex flex-col items-center justify-center gap-1">
+                <span>Projetar Filtro Ótimo</span>
+                <span class="text-[10px] font-medium opacity-80 uppercase tracking-wider">Busca Automática de Taps</span>
+            </button>
+
+        </aside>
+
+        <main class="flex-1 flex flex-col gap-6 overflow-hidden">
+            
+            <div class="flex gap-4 shrink-0">
+                <div class="glass-panel flex-1 p-3 border-none shadow-md flex justify-between items-center relative overflow-hidden bg-slate-100 transition-colors duration-300" id="card_n">
+                    <div>
+                        <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest transition-colors duration-300" id="label_status_n">Estimativa Teórica (Kaiser)</p>
+                        <p class="text-3xl font-black text-slate-800" id="text_n"><span id="res_n">--</span> Taps</p>
+                    </div>
+                </div>
+                
+                <div class="glass-panel flex-1 p-3 bg-white border-none shadow-md flex justify-between items-center relative overflow-hidden">
+                    <div>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Performance Real Obtida</p>
+                        <p class="text-sm font-bold text-sky-600 mt-1">Rp: <span id="real_rp">--</span> dB</p>
+                        <p class="text-sm font-bold text-rose-600">As: <span id="real_as">--</span> dB</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel flex-1 flex flex-col p-2 overflow-hidden relative">
+                <div id="bodePlot" class="w-full h-full"></div>
+            </div>
+
+        </main>
+    </div>
+
+
+<script>
+    /*
+      Terminologia adotada internamente:
+      - Este arquivo usa IRLS robusto (Iteratively Reweighted Least Squares) com fallback WLS/Kaiser.
+      - Não é o algoritmo clássico de Remez/Parks-McClellan.
+      - "numTaps" = número de coeficientes do FIR (comprimento do filtro).
+      - "order" = numTaps - 1. A interface continua exibindo "Taps" exatamente como antes.
+    */
+
+    let sampleRateHz = 1000;
+    const plotFFTSize = 8192;
+    let currentCoeffs = [];
+
+    let currentSpecEdgesHz = [];
+    let currentBandWeights = [];
+    let estimatedNumTaps = 0;
+    let requestedRpDb = 0;
+    let requestedAsDb = 0;
+    let currentFilterType = 'lowpass';
+    let currentMaskShapes = [];
+
+    const ROBUST_CONFIG = {
+        maxOrder: 601,
+        timeBudgetMs: 4500,
+        yieldEveryMs: 12,
+        gridPointCeiling: 2600,
+        coarsePerfPoints: 1200,
+        densePerfPoints: 2600,
+        irlsPSequence: [2, 4, 6, 8, 10, 12],
+        irlsInnerIterations: 2
+    };
+
+    const plotConfig = { responsive: true, displayModeBar: false };
+    const baseLayout = {
+        font: { family: 'Inter, sans-serif' },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        margin: { t: 20, b: 40, l: 60, r: 30 },
+        showlegend: true,
+        legend: { orientation: "h", y: 1.05, x: 1, xanchor: 'right' }
+    };
+
+    const waitForBrowser = () => new Promise(resolve => setTimeout(resolve, 0));
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const makeOddAtLeast = (value, min = 5) => {
+        let n = Math.max(min, Math.round(value));
+        if (n % 2 === 0) n += 1;
+        return n;
+    };
+    const arrayIsFinite = (arr) => Array.from(arr).every(Number.isFinite);
+
+    async function cooperativeYield(state) {
+        const now = performance.now();
+        if (now - state.lastYield >= ROBUST_CONFIG.yieldEveryMs) {
+            state.lastYield = now;
+            await waitForBrowser();
+        }
+    }
+
+    function syncInputs(sourceId, targetId) {
+        let val = parseFloat(document.getElementById(sourceId).value);
+        if (!isNaN(val)) {
+            document.getElementById(targetId).value = val;
+            updateUI('freq');
+        }
+    }
+
+    function choleskySolve(matrix, rhs) {
+        const n = rhs.length;
+        const L = Array.from({ length: n }, () => new Float64Array(n));
+
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j <= i; j++) {
+                let sum = matrix[i][j];
+                for (let k = 0; k < j; k++) sum -= L[i][k] * L[j][k];
+
+                if (i === j) {
+                    if (!(sum > 0) || !Number.isFinite(sum)) return null;
+                    L[i][j] = Math.sqrt(sum);
+                } else {
+                    if (Math.abs(L[j][j]) < 1e-18) return null;
+                    L[i][j] = sum / L[j][j];
+                }
+            }
+        }
+
+        const y = new Float64Array(n);
+        for (let i = 0; i < n; i++) {
+            let sum = rhs[i];
+            for (let k = 0; k < i; k++) sum -= L[i][k] * y[k];
+            y[i] = sum / L[i][i];
+        }
+
+        const x = new Float64Array(n);
+        for (let i = n - 1; i >= 0; i--) {
+            let sum = y[i];
+            for (let k = i + 1; k < n; k++) sum -= L[k][i] * x[k];
+            x[i] = sum / L[i][i];
+        }
+        return x;
+    }
+
+    function solveRegularizedSPD(matrix, rhs) {
+        const n = rhs.length;
+        let meanDiag = 0;
+        for (let i = 0; i < n; i++) meanDiag += Math.abs(matrix[i][i]);
+        meanDiag = meanDiag / Math.max(n, 1);
+        if (!Number.isFinite(meanDiag) || meanDiag <= 0) meanDiag = 1;
+
+        const ridgeFactors = [1e-10, 1e-8, 1e-6, 1e-4, 1e-2, 1e-1];
+        for (const factor of ridgeFactors) {
+            const A = Array.from({ length: n }, (_, i) => {
+                const row = new Float64Array(matrix[i]);
+                row[i] += factor * meanDiag;
+                return row;
+            });
+            const b = new Float64Array(rhs);
+            const solution = choleskySolve(A, b);
+            if (solution && arrayIsFinite(solution)) return solution;
+        }
+        return null;
+    }
+
+    function buildBandDefinitions(type, edgesHz, bandWeights) {
+        const nyq = sampleRateHz / 2;
+        if (type === 'lowpass') {
+            return [
+                { startHz: 0, endHz: edgesHz[0], desired: 1, weight: bandWeights[0], bandType: 'pass' },
+                { startHz: edgesHz[1], endHz: nyq, desired: 0, weight: bandWeights[1], bandType: 'stop' }
+            ];
+        }
+        if (type === 'highpass') {
+            return [
+                { startHz: 0, endHz: edgesHz[0], desired: 0, weight: bandWeights[1], bandType: 'stop' },
+                { startHz: edgesHz[1], endHz: nyq, desired: 1, weight: bandWeights[0], bandType: 'pass' }
+            ];
+        }
+        return [
+            { startHz: 0, endHz: edgesHz[0], desired: 0, weight: bandWeights[1], bandType: 'stop' },
+            { startHz: edgesHz[1], endHz: edgesHz[2], desired: 1, weight: bandWeights[0], bandType: 'pass' },
+            { startHz: edgesHz[3], endHz: nyq, desired: 0, weight: bandWeights[1], bandType: 'stop' }
+        ];
+    }
+
+    async function buildDesignGrid(numTaps, type, edgesHz, bandWeights, state) {
+        const M = Math.floor((numTaps - 1) / 2);
+        const bands = buildBandDefinitions(type, edgesHz, bandWeights);
+        const totalWidth = bands.reduce((acc, band) => acc + Math.max(0, band.endHz - band.startHz), 0) || 1;
+        const targetPoints = clamp(500 + 12 * M, 700, ROBUST_CONFIG.gridPointCeiling);
+
+        const omega = [];
+        const desired = [];
+        const baseWeights = [];
+        const bandTypes = [];
+
+        for (const band of bands) {
+            const width = Math.max(0, band.endHz - band.startHz);
+            if (width <= 0) continue;
+            let numPoints = Math.round(targetPoints * width / totalWidth);
+            numPoints = clamp(numPoints, 140, 1200);
+            for (let i = 0; i < numPoints; i++) {
+                const frac = (i + 0.5) / numPoints;
+                const fHz = band.startHz + frac * width;
+                omega.push(Math.PI * fHz / (sampleRateHz / 2));
+                desired.push(band.desired);
+                baseWeights.push(band.weight);
+                bandTypes.push(band.bandType);
+                if ((i & 63) === 63) await cooperativeYield(state);
+            }
+        }
+
+        return {
+            omega: Float64Array.from(omega),
+            desired: Float64Array.from(desired),
+            baseWeights: Float64Array.from(baseWeights),
+            bandTypes
+        };
+    }
+
+    async function precomputeCosineBasis(omega, M, state) {
+        const basisRows = new Array(omega.length);
+        for (let k = 0; k < omega.length; k++) {
+            const row = new Float64Array(M + 1);
+            row[0] = 1;
+            if (M >= 1) {
+                const c = Math.cos(omega[k]);
+                row[1] = c;
+                for (let n = 2; n <= M; n++) row[n] = 2 * c * row[n - 1] - row[n - 2];
+            }
+            basisRows[k] = row;
+            if ((k & 31) === 31) await cooperativeYield(state);
+        }
+        return basisRows;
+    }
+
+    async function buildNormalEquations(basisRows, desired, effectiveWeights, M, state) {
+        const ATA = Array.from({ length: M + 1 }, () => new Float64Array(M + 1));
+        const ATd = new Float64Array(M + 1);
+
+        for (let k = 0; k < basisRows.length; k++) {
+            const row = basisRows[k];
+            const wk = effectiveWeights[k];
+            const dk = desired[k];
+            for (let i = 0; i <= M; i++) {
+                const ri = row[i];
+                const wr = wk * ri;
+                ATd[i] += wr * dk;
+                for (let j = 0; j <= i; j++) ATA[i][j] += wr * row[j];
+            }
+            if ((k & 31) === 31) await cooperativeYield(state);
+        }
+
+        for (let i = 0; i <= M; i++) {
+            for (let j = i + 1; j <= M; j++) ATA[i][j] = ATA[j][i];
+        }
+        return { ATA, ATd };
+    }
+
+    function cosineCoeffsToImpulseResponse(hCos, numTaps) {
+        const M = Math.floor((numTaps - 1) / 2);
+        const coeffs = new Float64Array(numTaps);
+        coeffs[M] = hCos[0];
+        for (let n = 1; n <= M; n++) {
+            const v = hCos[n] / 2;
+            coeffs[M - n] = v;
+            coeffs[M + n] = v;
+        }
+        return coeffs;
+    }
+
+    function evaluateAmplitudeFromBasis(hCos, row) {
+        let acc = 0;
+        for (let i = 0; i < hCos.length; i++) acc += hCos[i] * row[i];
+        return acc;
+    }
+
+    function getReferenceFrequencyHz(type, edgesHz) {
+        if (type === 'lowpass') return 0;
+        if (type === 'highpass') return (edgesHz[1] + sampleRateHz / 2) / 2;
+        return (edgesHz[1] + edgesHz[2]) / 2;
+    }
+
+    function evaluateFIRMagnitudeAt(coeffs, freqHz) {
+        const omega = 2 * Math.PI * freqHz / sampleRateHz;
+        let re = 0, im = 0;
+        for (let n = 0; n < coeffs.length; n++) {
+            re += coeffs[n] * Math.cos(omega * n);
+            im -= coeffs[n] * Math.sin(omega * n);
+        }
+        return Math.sqrt(re * re + im * im);
+    }
+
+    function normalizeCoefficients(coeffs, type, edgesHz) {
+        const refHz = getReferenceFrequencyHz(type, edgesHz);
+        const gain = evaluateFIRMagnitudeAt(coeffs, refHz);
+        if (!Number.isFinite(gain) || gain < 1e-9) return coeffs;
+        const out = new Float64Array(coeffs.length);
+        for (let i = 0; i < coeffs.length; i++) out[i] = coeffs[i] / gain;
+        return out;
+    }
+
+    function evaluatePerformance(coeffs, type, edgesHz, numPoints = ROBUST_CONFIG.densePerfPoints) {
+        const nyq = sampleRateHz / 2;
+        let maxPassDb = 0;
+        let maxStopDb = -Infinity;
+        let sawPass = false;
+        let sawStop = false;
+
+        for (let i = 0; i <= numPoints; i++) {
+            const f = (i / numPoints) * nyq;
+            let isPass = false;
+            let isStop = false;
+
+            if (type === 'lowpass') {
+                if (f <= edgesHz[0]) isPass = true;
+                else if (f >= edgesHz[1]) isStop = true;
+            } else if (type === 'highpass') {
+                if (f <= edgesHz[0]) isStop = true;
+                else if (f >= edgesHz[1]) isPass = true;
+            } else {
+                if (f <= edgesHz[0] || f >= edgesHz[3]) isStop = true;
+                else if (f >= edgesHz[1] && f <= edgesHz[2]) isPass = true;
+            }
+
+            if (!isPass && !isStop) continue;
+
+            const mag = Math.max(evaluateFIRMagnitudeAt(coeffs, f), 1e-12);
+            const magDb = 20 * Math.log10(mag);
+
+            if (isPass) {
+                sawPass = true;
+                maxPassDb = Math.max(maxPassDb, Math.abs(magDb));
+            }
+            if (isStop) {
+                sawStop = true;
+                maxStopDb = Math.max(maxStopDb, magDb);
+            }
+        }
+
+        const actualRp = sawPass ? maxPassDb : Infinity;
+        const actualAs = sawStop ? -maxStopDb : -Infinity;
+        return { actualRp, actualAs };
+    }
+
+    function performanceScore(perf) {
+        const rpPenalty = Math.max(0, perf.actualRp - requestedRpDb) / Math.max(requestedRpDb, 0.1);
+        const asPenalty = Math.max(0, requestedAsDb - perf.actualAs) / Math.max(requestedAsDb, 1);
+        return 4 * rpPenalty + 4 * asPenalty;
+    }
+
+    function kaiserBeta(asDb) {
+        if (asDb > 50) return 0.1102 * (asDb - 8.7);
+        if (asDb >= 21) return 0.5842 * Math.pow(asDb - 21, 0.4) + 0.07886 * (asDb - 21);
+        return 0;
+    }
+
+    function besselI0(x) {
+        let sum = 1;
+        let term = 1;
+        const half = x / 2;
+        for (let k = 1; k < 30; k++) {
+            term *= (half * half) / (k * k);
+            sum += term;
+            if (term < 1e-12 * sum) break;
+        }
+        return sum;
+    }
+
+    function kaiserWindow(numTaps, beta) {
+        const denom = besselI0(beta);
+        const M = (numTaps - 1) / 2;
+        const w = new Float64Array(numTaps);
+        for (let n = 0; n < numTaps; n++) {
+            const r = M === 0 ? 0 : (n - M) / M;
+            w[n] = besselI0(beta * Math.sqrt(Math.max(0, 1 - r * r))) / denom;
+        }
+        return w;
+    }
+
+    function idealLowpass(numTaps, cutoffHz) {
+        const M = (numTaps - 1) / 2;
+        const wc = 2 * Math.PI * cutoffHz / sampleRateHz;
+        const h = new Float64Array(numTaps);
+        for (let n = 0; n < numTaps; n++) {
+            const m = n - M;
+            h[n] = m === 0 ? wc / Math.PI : Math.sin(wc * m) / (Math.PI * m);
+        }
+        return h;
+    }
+
+    function designKaiserFallback(numTaps, type, edgesHz) {
+        const beta = kaiserBeta(requestedAsDb);
+        const window = kaiserWindow(numTaps, beta);
+        let ideal;
+
+        if (type === 'lowpass') {
+            const cutoff = (edgesHz[0] + edgesHz[1]) / 2;
+            ideal = idealLowpass(numTaps, cutoff);
+        } else if (type === 'highpass') {
+            const cutoff = (edgesHz[0] + edgesHz[1]) / 2;
+            const lp = idealLowpass(numTaps, cutoff);
+            ideal = new Float64Array(numTaps);
+            const M = (numTaps - 1) / 2;
+            for (let n = 0; n < numTaps; n++) ideal[n] = (n === M ? 1 : 0) - lp[n];
+        } else {
+            const lowCut = (edgesHz[0] + edgesHz[1]) / 2;
+            const highCut = (edgesHz[2] + edgesHz[3]) / 2;
+            const lp1 = idealLowpass(numTaps, lowCut);
+            const lp2 = idealLowpass(numTaps, highCut);
+            ideal = new Float64Array(numTaps);
+            for (let n = 0; n < numTaps; n++) ideal[n] = lp2[n] - lp1[n];
+        }
+
+        const coeffs = new Float64Array(numTaps);
+        for (let n = 0; n < numTaps; n++) coeffs[n] = ideal[n] * window[n];
+        return normalizeCoefficients(coeffs, type, edgesHz);
+    }
+
+    async function designRobustIRLS(numTaps, type, edgesHz, bandWeights, state) {
+        const M = Math.floor((numTaps - 1) / 2);
+        const grid = await buildDesignGrid(numTaps, type, edgesHz, bandWeights, state);
+        const basisRows = await precomputeCosineBasis(grid.omega, M, state);
+
+        const K = basisRows.length;
+        let pointWeights = new Float64Array(K).fill(1);
+        let bestH = null;
+        let bestObjective = Infinity;
+        let bestTag = 'IRLS';
+
+        const solveOnce = async (effectiveWeights, tag) => {
+            const { ATA, ATd } = await buildNormalEquations(basisRows, grid.desired, effectiveWeights, M, state);
+            const hCos = solveRegularizedSPD(ATA, ATd);
+            if (!hCos || !arrayIsFinite(hCos)) return null;
+
+            let maxWeightedErr = 0;
+            let maxRawErr = 0;
+            for (let k = 0; k < K; k++) {
+                const approx = evaluateAmplitudeFromBasis(hCos, basisRows[k]);
+                const err = Math.abs(approx - grid.desired[k]);
+                maxRawErr = Math.max(maxRawErr, err);
+                maxWeightedErr = Math.max(maxWeightedErr, effectiveWeights[k] * err * err);
+                if ((k & 127) === 127) await cooperativeYield(state);
+            }
+
+            if (!Number.isFinite(maxWeightedErr)) return null;
+            if (maxWeightedErr < bestObjective) {
+                bestObjective = maxWeightedErr;
+                bestH = hCos;
+                bestTag = tag;
+            }
+            return hCos;
+        };
+
+        const fixedWeights = new Float64Array(K);
+        for (let k = 0; k < K; k++) fixedWeights[k] = grid.baseWeights[k];
+
+        let hCos = await solveOnce(fixedWeights, 'WLS');
+        if (!hCos) {
+            return { coeffs: designKaiserFallback(numTaps, type, edgesHz), method: 'Kaiser' };
+        }
+
+        for (const p of ROBUST_CONFIG.irlsPSequence) {
+            for (let iter = 0; iter < ROBUST_CONFIG.irlsInnerIterations; iter++) {
+                const effectiveWeights = new Float64Array(K);
+                const updatedPointWeights = new Float64Array(K);
+                let meanWeight = 0;
+
+                for (let k = 0; k < K; k++) {
+                    const approx = evaluateAmplitudeFromBasis(hCos, basisRows[k]);
+                    const err = Math.abs(approx - grid.desired[k]);
+                    const emphasis = clamp(Math.pow(Math.max(err, 1e-4), p - 2), 0.15, 80);
+                    updatedPointWeights[k] = 0.65 * pointWeights[k] + 0.35 * emphasis;
+                    meanWeight += updatedPointWeights[k];
+                    if ((k & 127) === 127) await cooperativeYield(state);
+                }
+
+                meanWeight = meanWeight / Math.max(K, 1);
+                if (!Number.isFinite(meanWeight) || meanWeight <= 0) meanWeight = 1;
+
+                for (let k = 0; k < K; k++) {
+                    pointWeights[k] = updatedPointWeights[k] / meanWeight;
+                    effectiveWeights[k] = grid.baseWeights[k] * pointWeights[k];
+                }
+
+                const nextHCos = await solveOnce(effectiveWeights, `IRLS p=${p}`);
+                if (!nextHCos) break;
+
+                let diff = 0;
+                for (let i = 0; i < nextHCos.length; i++) diff = Math.max(diff, Math.abs(nextHCos[i] - hCos[i]));
+                hCos = nextHCos;
+                if (diff < 1e-7) break;
+            }
+        }
+
+        if (!bestH || !arrayIsFinite(bestH)) {
+            return { coeffs: designKaiserFallback(numTaps, type, edgesHz), method: 'Kaiser' };
+        }
+
+        const coeffs = normalizeCoefficients(cosineCoeffsToImpulseResponse(bestH, numTaps), type, edgesHz);
+        return { coeffs, method: bestTag };
+    }
+
+    async function designCandidate(numTaps, state) {
+        const robustDesign = await designRobustIRLS(numTaps, currentFilterType, currentSpecEdgesHz, currentBandWeights, state);
+        let coeffs = robustDesign.coeffs;
+        if (!coeffs || !arrayIsFinite(coeffs)) {
+            coeffs = designKaiserFallback(numTaps, currentFilterType, currentSpecEdgesHz);
+            return { coeffs, method: 'Kaiser', perf: evaluatePerformance(coeffs, currentFilterType, currentSpecEdgesHz, ROBUST_CONFIG.coarsePerfPoints) };
+        }
+        return {
+            coeffs,
+            method: robustDesign.method,
+            perf: evaluatePerformance(coeffs, currentFilterType, currentSpecEdgesHz, ROBUST_CONFIG.coarsePerfPoints)
+        };
+    }
+
+    function updateUI(source = null) {
+        sampleRateHz = parseFloat(document.getElementById('fs_input').value) || 1000;
+        const nyq = sampleRateHz / 2;
+        currentFilterType = document.querySelector('input[name="ftype"]:checked').value;
+
+        requestedRpDb = parseFloat(document.getElementById('rp').value);
+        requestedAsDb = parseFloat(document.getElementById('as').value);
+
+        const deltaPass = 1 - Math.pow(10, -requestedRpDb / 20);
+        const deltaStop = Math.pow(10, -requestedAsDb / 20);
+        currentBandWeights = [1, deltaPass / Math.max(deltaStop, 1e-12)];
+
+        ['fs1_slider', 'fp1_slider', 'fp2_slider', 'fs2_slider'].forEach(id => {
+            document.getElementById(id).max = (nyq - 0.05).toFixed(2);
+        });
+
+        let fs1 = parseFloat(document.getElementById('fs1_num').value);
+        let fp1 = parseFloat(document.getElementById('fp1_num').value);
+        let fp2 = parseFloat(document.getElementById('fp2_num').value);
+        let fs2 = parseFloat(document.getElementById('fs2_num').value);
+
+        let minTransitionHz = 0;
+        currentSpecEdgesHz = [];
+
+        document.getElementById('fs1_box').classList.toggle('hidden', currentFilterType !== 'bandpass');
+        document.getElementById('fp2_box').classList.toggle('hidden', currentFilterType !== 'bandpass');
+
+        const gap = 0.05;
+
+        if (currentFilterType === 'lowpass') {
+            document.getElementById('label_fp1').innerText = "Fim Passante (Fp)";
+            document.getElementById('label_fs2').innerText = "Início Rejeição (Fs)";
+            if (fs2 <= fp1 + gap) fs2 = Math.min(fp1 + gap, nyq - gap);
+            minTransitionHz = fs2 - fp1;
+            currentSpecEdgesHz = [fp1, fs2];
+        } else if (currentFilterType === 'highpass') {
+            document.getElementById('label_fs2').innerText = "Fim Rejeição (Fs)";
+            document.getElementById('label_fp1').innerText = "Início Passante (Fp)";
+            if (fp1 <= fs2 + gap) fp1 = Math.min(fs2 + gap, nyq - gap);
+            minTransitionHz = fp1 - fs2;
+            currentSpecEdgesHz = [fs2, fp1];
+        } else {
+            document.getElementById('label_fp1').innerText = "Início Passante (Fp1)";
+            document.getElementById('label_fs2').innerText = "Início Rejeição 2 (Fs2)";
+            if (fp1 <= fs1 + gap) fp1 = fs1 + gap;
+            if (fp2 <= fp1 + gap) fp2 = fp1 + gap;
+            if (fs2 <= fp2 + gap) fs2 = Math.min(fp2 + gap, nyq - gap);
+            minTransitionHz = Math.min(fp1 - fs1, fs2 - fp2);
+            currentSpecEdgesHz = [fs1, fp1, fp2, fs2];
+        }
+
+        document.getElementById('fs1_num').value = fs1.toFixed(2); document.getElementById('fs1_slider').value = fs1;
+        document.getElementById('fp1_num').value = fp1.toFixed(2); document.getElementById('fp1_slider').value = fp1;
+        document.getElementById('fp2_num').value = fp2.toFixed(2); document.getElementById('fp2_slider').value = fp2;
+        document.getElementById('fs2_num').value = fs2.toFixed(2); document.getElementById('fs2_slider').value = fs2;
+
+        document.getElementById('rp_val').innerText = requestedRpDb.toFixed(2);
+        document.getElementById('as_val').innerText = requestedAsDb;
+
+        estimatedNumTaps = Math.ceil((-20 * Math.log10(Math.sqrt(deltaPass * deltaStop)) - 13) / (14.6 * (minTransitionHz / sampleRateHz)));
+        estimatedNumTaps = makeOddAtLeast(estimatedNumTaps, 5);
+
+        document.getElementById('res_n').innerText = estimatedNumTaps;
+        document.getElementById('label_status_n').innerText = "Estimativa Teórica (Kaiser)";
+
+        let cardN = document.getElementById('card_n');
+        cardN.classList.remove('bg-gradient-to-r', 'from-emerald-500', 'to-emerald-600', 'from-rose-500', 'to-rose-600', 'text-white');
+        cardN.classList.add('bg-slate-100');
+        document.getElementById('label_status_n').classList.remove('text-emerald-100', 'text-rose-100');
+        document.getElementById('label_status_n').classList.add('text-slate-500');
+        document.getElementById('text_n').classList.replace('text-white', 'text-slate-800');
+
+        document.getElementById('real_rp').innerText = '--';
+        document.getElementById('real_as').innerText = '--';
+
+        document.getElementById('btn_calc').classList.remove('bg-slate-300', 'text-slate-500');
+        document.getElementById('btn_calc').classList.add('bg-emerald-500', 'text-white', 'animate-pulse');
+
+        drawMasksOnly(nyq, deltaPass);
+    }
+
+    function drawMasksOnly(nyq, deltaPass) {
+        currentMaskShapes = [];
+        let maxPlotRange = -Math.max(requestedAsDb + 20, 80);
+        let upperDb = 20 * Math.log10(1 + deltaPass), lowerDb = 20 * Math.log10(1 - deltaPass);
+        const cR = '#ef4444', cG = '#10b981', opR = 0.12, opG = 0.12;
+
+        if (currentFilterType === 'lowpass') {
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: 0, x1: currentSpecEdgesHz[0], y0: lowerDb, y1: upperDb, fillcolor: cG, opacity: opG, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: 0, x1: currentSpecEdgesHz[0], y0: upperDb, y1: 50, fillcolor: cR, opacity: opR, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: 0, x1: currentSpecEdgesHz[0], y0: -200, y1: lowerDb, fillcolor: cR, opacity: opR, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[1], x1: nyq, y0: -200, y1: -requestedAsDb, fillcolor: cG, opacity: opG, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[1], x1: nyq, y0: -requestedAsDb, y1: 50, fillcolor: cR, opacity: opR, line: { width: 0 } });
+        } else if (currentFilterType === 'highpass') {
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: 0, x1: currentSpecEdgesHz[0], y0: -200, y1: -requestedAsDb, fillcolor: cG, opacity: opG, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: 0, x1: currentSpecEdgesHz[0], y0: -requestedAsDb, y1: 50, fillcolor: cR, opacity: opR, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[1], x1: nyq, y0: lowerDb, y1: upperDb, fillcolor: cG, opacity: opG, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[1], x1: nyq, y0: upperDb, y1: 50, fillcolor: cR, opacity: opR, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[1], x1: nyq, y0: -200, y1: lowerDb, fillcolor: cR, opacity: opR, line: { width: 0 } });
+        } else {
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: 0, x1: currentSpecEdgesHz[0], y0: -200, y1: -requestedAsDb, fillcolor: cG, opacity: opG, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: 0, x1: currentSpecEdgesHz[0], y0: -requestedAsDb, y1: 50, fillcolor: cR, opacity: opR, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[1], x1: currentSpecEdgesHz[2], y0: lowerDb, y1: upperDb, fillcolor: cG, opacity: opG, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[1], x1: currentSpecEdgesHz[2], y0: upperDb, y1: 50, fillcolor: cR, opacity: opR, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[1], x1: currentSpecEdgesHz[2], y0: -200, y1: lowerDb, fillcolor: cR, opacity: opR, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[3], x1: nyq, y0: -200, y1: -requestedAsDb, fillcolor: cG, opacity: opG, line: { width: 0 } });
+            currentMaskShapes.push({ type: 'rect', xref: 'x', yref: 'y', x0: currentSpecEdgesHz[3], x1: nyq, y0: -requestedAsDb, y1: 50, fillcolor: cR, opacity: opR, line: { width: 0 } });
+        }
+
+        Plotly.react('bodePlot', [], {
+            ...baseLayout,
+            shapes: currentMaskShapes,
+            xaxis: { title: 'Frequência (Hz)', range: [0, nyq] },
+            yaxis: { title: 'Magnitude (dB)', range: [maxPlotRange, 10] }
+        }, plotConfig);
+    }
+
+    function renderFinalResponse(coeffs, success) {
+        const freqs = new Float64Array(plotFFTSize / 2 + 1);
+        const magDb = new Float64Array(plotFFTSize / 2 + 1);
+        for (let k = 0; k <= plotFFTSize / 2; k++) {
+            const f = (k / plotFFTSize) * sampleRateHz;
+            freqs[k] = f;
+            const mag = Math.max(evaluateFIRMagnitudeAt(coeffs, f), 1e-12);
+            magDb[k] = 20 * Math.log10(mag);
+        }
+
+        const maxPlotRange = -Math.max(requestedAsDb + 20, 80);
+        const lineColor = success ? '#0ea5e9' : '#f43f5e';
+
+        Plotly.react('bodePlot', [{
+            x: Array.from(freqs),
+            y: Array.from(magDb),
+            name: 'Filtro Final',
+            mode: 'lines',
+            line: { color: lineColor, width: 2.5 }
+        }], {
+            ...baseLayout,
+            shapes: currentMaskShapes,
+            xaxis: { title: 'Frequência (Hz)', range: [0, sampleRateHz / 2] },
+            yaxis: { title: 'Magnitude (dB)', range: [maxPlotRange, 10] }
+        }, plotConfig);
+    }
+
+    async function buscarFiltro() {
+        const btn = document.getElementById('btn_calc');
+        btn.innerHTML = 'Buscando Ordem...';
+        btn.classList.remove('animate-pulse', 'bg-slate-300', 'text-slate-500');
+        btn.classList.add('bg-emerald-500', 'text-white');
+
+        await waitForBrowser();
+
+        const cardN = document.getElementById('card_n');
+        const state = { lastYield: performance.now() };
+        const searchStart = performance.now();
+        const cache = new Map();
+
+        let bestCandidate = null;
+        let bestFeasible = null;
+
+        const registerCandidate = (numTaps, candidate) => {
+            const success = candidate.perf.actualRp <= requestedRpDb && candidate.perf.actualAs >= requestedAsDb;
+            const score = performanceScore(candidate.perf) + (success ? numTaps * 1e-4 : numTaps * 1e-5);
+            const enriched = { ...candidate, numTaps, success, score };
+            cache.set(numTaps, enriched);
+
+            if (!bestCandidate || score < bestCandidate.score) bestCandidate = enriched;
+            if (success && (!bestFeasible || numTaps < bestFeasible.numTaps || (numTaps === bestFeasible.numTaps && score < bestFeasible.score))) {
+                bestFeasible = enriched;
+            }
+            document.getElementById('res_n').innerText = numTaps;
+            return enriched;
+        };
+
+        const evaluateOrder = async (numTaps) => {
+            if (cache.has(numTaps)) return cache.get(numTaps);
+            const candidate = await designCandidate(numTaps, state);
+            return registerCandidate(numTaps, candidate);
+        };
+
+        let lowFail = makeOddAtLeast(estimatedNumTaps - 6, 5);
+        let highOk = null;
+        let probe = lowFail;
+        let step = 2;
+
+        while (probe <= ROBUST_CONFIG.maxOrder && performance.now() - searchStart < ROBUST_CONFIG.timeBudgetMs) {
+            const result = await evaluateOrder(probe);
+            if (result.success) {
+                highOk = probe;
+                break;
+            }
+            lowFail = probe;
+            probe = makeOddAtLeast(probe + step, 5);
+            step = Math.min(step + 2, 18);
+            await cooperativeYield(state);
+        }
+
+        if (highOk !== null) {
+            while (highOk - lowFail > 2 && performance.now() - searchStart < ROBUST_CONFIG.timeBudgetMs) {
+                let mid = makeOddAtLeast(Math.floor((lowFail + highOk) / 2), lowFail + 2);
+                if (mid >= highOk) mid = highOk - 2;
+                mid = makeOddAtLeast(mid, 5);
+                if (mid <= lowFail || mid >= highOk) break;
+                const result = await evaluateOrder(mid);
+                if (result.success) highOk = mid;
+                else lowFail = mid;
+                await cooperativeYield(state);
+            }
+        }
+
+        const finalChoice = bestFeasible || bestCandidate || {
+            numTaps: estimatedNumTaps,
+            coeffs: designKaiserFallback(estimatedNumTaps, currentFilterType, currentSpecEdgesHz),
+            perf: evaluatePerformance(designKaiserFallback(estimatedNumTaps, currentFilterType, currentSpecEdgesHz), currentFilterType, currentSpecEdgesHz),
+            success: false,
+            method: 'Kaiser'
+        };
+
+        currentCoeffs = Array.from(finalChoice.coeffs);
+        const finalPerf = evaluatePerformance(finalChoice.coeffs, currentFilterType, currentSpecEdgesHz, ROBUST_CONFIG.densePerfPoints);
+
+        cardN.classList.remove('bg-slate-100', 'from-emerald-500', 'to-emerald-600', 'from-rose-500', 'to-rose-600');
+        cardN.classList.add('bg-gradient-to-r', 'text-white');
+        document.getElementById('text_n').classList.replace('text-slate-800', 'text-white');
+
+        if (bestFeasible) {
+            cardN.classList.add('from-emerald-500', 'to-emerald-600');
+            document.getElementById('label_status_n').innerText = 'Ordem Ótima Encontrada!';
+            document.getElementById('label_status_n').classList.replace('text-slate-500', 'text-emerald-100');
+        } else {
+            cardN.classList.add('from-rose-500', 'to-rose-600');
+            const hitTimeLimit = performance.now() - searchStart >= ROBUST_CONFIG.timeBudgetMs;
+            document.getElementById('label_status_n').innerText = hitTimeLimit ? 'Aviso: Melhor solução estável encontrada' : 'Aviso: Não convergiu perfeitamente';
+            document.getElementById('label_status_n').classList.replace('text-slate-500', 'text-rose-100');
+        }
+
+        document.getElementById('res_n').innerText = finalChoice.numTaps;
+        document.getElementById('real_rp').innerText = Number.isFinite(finalPerf.actualRp) ? finalPerf.actualRp.toFixed(3) : '--';
+        document.getElementById('real_as').innerText = Number.isFinite(finalPerf.actualAs) ? finalPerf.actualAs.toFixed(1) : '--';
+
+        renderFinalResponse(finalChoice.coeffs, !!bestFeasible);
+
+        btn.innerHTML = 'Filtro Projetado &#10003;';
+        btn.classList.add('bg-slate-300', 'text-slate-500');
+        btn.classList.remove('bg-emerald-500', 'text-white');
+    }
+
+    function downloadCSV() {
+        if (currentCoeffs.length === 0) return alert('Projete o filtro primeiro!');
+        let csv = "b[n]\n" + currentCoeffs.join("\n");
+        let blob = new Blob([csv], { type: 'text/csv' });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = `fir_irls_N${document.getElementById('res_n').innerText}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    window.onload = updateUI;
+</script>
+
+</body>
+</html>

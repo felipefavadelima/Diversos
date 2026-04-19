@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório de Fase Linear - Distorção de Sinais</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; color: #0f172a; }
+        .glass-panel { background: white; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        input[type=range] { accent-color: #8b5cf6; cursor: pointer; }
+        .segmented-control { display: flex; background: #f8fafc; padding: 4px; border-radius: 0.75rem; border: 1px solid #e2e8f0; }
+        .segmented-control label { flex: 1; text-align: center; padding: 8px 12px; font-size: 0.825rem; font-weight: 600; cursor: pointer; border-radius: 0.5rem; transition: all 0.2s ease; color: #64748b; }
+        .segmented-control input[type="radio"] { display: none; }
+        .segmented-control input[type="radio"]:checked + label { background: white; color: #8b5cf6; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .math-font { font-family: 'Fira Code', monospace; }
+        
+        /* Cores didáticas para as 3 frequências */
+        .f1-color { color: #3b82f6; } /* Azul */
+        .f2-color { color: #10b981; } /* Verde */
+        .f3-color { color: #ec4899; } /* Rosa */
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-purple-100">
+
+    <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between shrink-0 z-10">
+        <div>
+            <h1 class="text-xl font-bold text-slate-800 tracking-tight">Distorção de Fase e Magnitude</h1>
+            <p class="text-xs text-slate-500 font-medium mt-1">Entendendo o impacto da Fase Linear na preservação morfológica do sinal</p>
+        </div>
+        <button onclick="generateRandomSignal()" class="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition shadow-md flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            Gerar Novo Sinal (Aleatório)
+        </button>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden p-6 gap-6">
+        
+        <aside class="w-80 flex flex-col gap-5 overflow-y-auto shrink-0 pr-2">
+            
+            <div class="glass-panel p-5 space-y-4">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Comportamento da Magnitude</h3>
+                <div class="segmented-control">
+                    <input type="radio" name="mag_type" id="mag_ideal" value="ideal" checked onchange="updateSim()">
+                    <label for="mag_ideal">Ideal (0 dB)</label>
+                    <input type="radio" name="mag_type" id="mag_rand" value="random" onchange="updateSim()">
+                    <label for="mag_rand">Ganhos Aleatórios</label>
+                </div>
+                <p class="text-[10px] text-slate-400 leading-relaxed">
+                    Filtros ideais não atenuam a banda passante (0 dB). Ganhos desiguais causam distorção de amplitude.
+                </p>
+            </div>
+
+            <div class="glass-panel p-5 space-y-4">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Comportamento da Fase</h3>
+                <div class="flex flex-col gap-2">
+                    <div class="segmented-control flex-col !p-1 !gap-1">
+                        <div class="flex">
+                            <input type="radio" name="phase_type" id="ph_linear" value="linear" checked onchange="updateSim()">
+                            <label for="ph_linear">Fase Linear (Preserva Onda)</label>
+                        </div>
+                        <div class="flex">
+                            <input type="radio" name="phase_type" id="ph_const" value="constant" onchange="updateSim()">
+                            <label for="ph_const">Fase Constante (Distorce)</label>
+                        </div>
+                        <div class="flex">
+                            <input type="radio" name="phase_type" id="ph_rand" value="random" onchange="updateSim()">
+                            <label for="ph_rand">Fase Aleatória (Caos)</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="control_linear" class="pt-3">
+                    <label class="flex justify-between text-xs font-semibold mb-1 text-slate-700">
+                        <span>Atraso de Grupo (Delay)</span> <span class="text-violet-600 font-bold"><span id="delay_val">0.00</span> s</span>
+                    </label>
+                    <input type="range" id="delay_slider" min="-0.2" max="0.2" step="0.01" value="0" class="w-full" oninput="updateSim()">
+                </div>
+
+                <div id="control_const" class="pt-3 hidden">
+                    <label class="flex justify-between text-xs font-semibold mb-1 text-slate-700">
+                        <span>Defasagem Fixa</span> <span class="text-violet-600 font-bold"><span id="const_val">0</span>&deg;</span>
+                    </label>
+                    <input type="range" id="const_slider" min="-180" max="180" step="5" value="0" class="w-full" oninput="updateSim()">
+                </div>
+            </div>
+
+        </aside>
+
+        <main class="flex-1 flex flex-col gap-4 overflow-hidden">
+            
+            <div class="glass-panel shrink-0 p-4 bg-slate-800 text-slate-100 shadow-lg">
+                <div class="flex flex-col gap-3">
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Sinal de Entrada x(t)</span>
+                        <div class="math-font text-sm flex flex-wrap gap-x-2 bg-slate-900 p-2 rounded border border-slate-700">
+                            <span>x(t) = </span>
+                            <span class="f1-color font-semibold" id="eq_x1"></span> <span class="text-slate-500">+</span>
+                            <span class="f2-color font-semibold" id="eq_x2"></span> <span class="text-slate-500">+</span>
+                            <span class="f3-color font-semibold" id="eq_x3"></span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Sinal de Saída y(t) após o Filtro</span>
+                        <div class="math-font text-sm flex flex-wrap gap-x-2 bg-slate-900 p-2 rounded border border-slate-700">
+                            <span>y(t) = </span>
+                            <span class="f1-color font-semibold" id="eq_y1"></span> <span class="text-slate-500">+</span>
+                            <span class="f2-color font-semibold" id="eq_y2"></span> <span class="text-slate-500">+</span>
+                            <span class="f3-color font-semibold" id="eq_y3"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 flex gap-4 min-h-0">
+                <div class="glass-panel flex-1 flex flex-col p-2 overflow-hidden relative">
+                    <h2 class="absolute top-2 left-4 text-xs font-bold text-slate-500 uppercase tracking-tight z-10 bg-white/80 px-2 py-1 rounded">Domínio do Tempo</h2>
+                    <div id="timePlot" class="w-full h-full"></div>
+                </div>
+                
+                <div class="glass-panel flex-1 flex flex-col p-2 overflow-hidden relative">
+                    <h2 class="absolute top-2 left-4 text-xs font-bold text-slate-500 uppercase tracking-tight z-10 bg-white/80 px-2 py-1 rounded">Diagrama de Bode do Filtro</h2>
+                    <div id="bodePlot" class="w-full h-full"></div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+<script>
+    // Frequências fixas das 3 harmônicas (f1, f2, f3)
+    const freqs = [1, 3, 5]; 
+    
+    // Estado do Sinal de Entrada
+    let amps = [1, 1, 1];
+    let phases_in = [0, 0, 0]; // em graus
+    
+    // Estado Aleatório do Filtro (para quando o usuário seleciona 'Aleatório')
+    let rand_gains = [1, 1, 1];
+    let rand_phases = [0, 0, 0]; // em graus
+
+    // Config do Plotly
+    const plotConfig = { responsive: true, displayModeBar: false };
+    const baseLayout = {
+        font: { family: 'Inter, sans-serif' },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        margin: { t: 30, b: 40, l: 50, r: 20 },
+        showlegend: true,
+        legend: { orientation: "h", y: 1.05, x: 0.5, xanchor: 'center' }
+    };
+
+    // Gera números aleatórios para o sinal e para os modos aleatórios do filtro
+    function generateRandomSignal() {
+        for (let i = 0; i < 3; i++) {
+            amps[i] = (Math.random() * 1.5 + 0.5); // Amplitude entre 0.5 e 2.0
+            phases_in[i] = Math.floor(Math.random() * 360 - 180); // Fase de -180 a 180
+            
+            rand_gains[i] = (Math.random() * 1.2 + 0.2); // Ganho aleatório entre 0.2 e 1.4
+            rand_phases[i] = Math.floor(Math.random() * 360 - 180); // Fase aleatória do filtro
+        }
+        updateSim();
+    }
+
+    // Normaliza um ângulo para o intervalo [-180, 180] para exibição limpa na equação
+    function wrapAngle(deg) {
+        let wrapped = deg % 360;
+        if (wrapped > 180) wrapped -= 360;
+        if (wrapped < -180) wrapped += 360;
+        return wrapped;
+    }
+
+    function updateSim() {
+        // --- 1. LER ESTADO DA UI ---
+        const magType = document.querySelector('input[name="mag_type"]:checked').value;
+        const phaseType = document.querySelector('input[name="phase_type"]:checked').value;
+        
+        const delaySlider = parseFloat(document.getElementById('delay_slider').value);
+        const constSlider = parseFloat(document.getElementById('const_slider').value);
+
+        // Controla visibilidade dos sliders
+        document.getElementById('control_linear').classList.toggle('hidden', phaseType !== 'linear');
+        document.getElementById('control_const').classList.toggle('hidden', phaseType !== 'constant');
+        
+        document.getElementById('delay_val').innerText = delaySlider.toFixed(2);
+        document.getElementById('const_val').innerText = constSlider;
+
+        // --- 2. CÁLCULO DA RESPOSTA DO FILTRO NAS 3 FREQUÊNCIAS ---
+        let H_mag = [1, 1, 1];
+        let H_phase = [0, 0, 0]; // em graus
+
+        // Magnitude
+        if (magType === 'ideal') {
+            H_mag = [1, 1, 1];
+        } else {
+            H_mag = [...rand_gains];
+        }
+
+        // Fase
+        if (phaseType === 'linear') {
+            // Fase Linear: θ(f) = - 360 * f * atraso
+            for(let i=0; i<3; i++) H_phase[i] = -360 * freqs[i] * delaySlider;
+        } else if (phaseType === 'constant') {
+            // Fase Constante: θ(f) = C
+            for(let i=0; i<3; i++) H_phase[i] = constSlider;
+        } else {
+            // Fase Aleatória
+            H_phase = [...rand_phases];
+        }
+
+        // --- 3. ATUALIZAR EQUAÇÕES HTML ---
+        for (let i = 0; i < 3; i++) {
+            let f = freqs[i];
+            let a_in = amps[i].toFixed(2);
+            let p_in = phases_in[i];
+            let sign_p_in = p_in >= 0 ? '+' : '-';
+            
+            // Equação x(t)
+            document.getElementById(`eq_x${i+1}`).innerHTML = `${a_in}cos(2&pi;&middot;${f}t ${sign_p_in} ${Math.abs(p_in)}&deg;)`;
+            
+            // Equação y(t)
+            let a_out = (amps[i] * H_mag[i]).toFixed(2);
+            let p_out = wrapAngle(phases_in[i] + H_phase[i]);
+            let sign_p_out = p_out >= 0 ? '+' : '-';
+            document.getElementById(`eq_y${i+1}`).innerHTML = `${a_out}cos(2&pi;&middot;${f}t ${sign_p_out} ${Math.abs(Math.round(p_out))}&deg;)`;
+        }
+
+        // --- 4. GERAR SINAIS NO TEMPO ---
+        const Fs_sim = 500;
+        const duration = 2; // 2 segundos
+        const numSamples = Fs_sim * duration;
+        
+        let t = new Float64Array(numSamples);
+        let x = new Float64Array(numSamples);
+        let y = new Float64Array(numSamples);
+
+        for (let n = 0; n < numSamples; n++) {
+            let time = n / Fs_sim;
+            t[n] = time;
+            
+            let val_x = 0;
+            let val_y = 0;
+            
+            for (let i = 0; i < 3; i++) {
+                let w = 2 * Math.PI * freqs[i] * time;
+                let phi_rad = phases_in[i] * Math.PI / 180;
+                let theta_rad = H_phase[i] * Math.PI / 180;
+                
+                val_x += amps[i] * Math.cos(w + phi_rad);
+                val_y += amps[i] * H_mag[i] * Math.cos(w + phi_rad + theta_rad);
+            }
+            x[n] = val_x;
+            y[n] = val_y;
+        }
+
+        // Plot Tempo
+        Plotly.react('timePlot', [
+            { x: t, y: x, name: 'Entrada x(t)', mode: 'lines', line: { color: '#94a3b8', width: 2, dash: 'dot' } },
+            { x: t, y: y, name: 'Saída y(t)', mode: 'lines', line: { color: '#8b5cf6', width: 2.5 } }
+        ], {
+            ...baseLayout,
+            margin: { t: 40, b: 40, l: 40, r: 20 },
+            xaxis: { title: 'Tempo (s)', range: [0, 2] },
+            yaxis: { title: 'Amplitude', range: [-5, 5] }
+        }, plotConfig);
+
+
+        // --- 5. PLOT DO BODE DO FILTRO ---
+        // Para o Bode, criamos uma linha de 0 a 6 Hz para ilustrar o comportamento contínuo
+        let f_bode = [];
+        let mag_bode = [];
+        let phase_bode = [];
+        
+        for (let f = 0; f <= 6; f += 0.1) {
+            f_bode.push(f);
+            
+            if (magType === 'ideal') {
+                mag_bode.push(0); // 0 dB
+            } else {
+                // Se for aleatório, não faz sentido ligar uma linha contínua, deixamos como nulo
+                mag_bode.push(null); 
+            }
+
+            if (phaseType === 'linear') {
+                phase_bode.push(-360 * f * delaySlider);
+            } else if (phaseType === 'constant') {
+                phase_bode.push(constSlider);
+            } else {
+                phase_bode.push(null);
+            }
+        }
+
+        // Os pontos exatos (Makers) nas frequências 1, 3 e 5
+        let mag_db_points = H_mag.map(g => 20 * Math.log10(g));
+        
+        Plotly.react('bodePlot', [
+            // Linhas contínuas (Tendência do Filtro)
+            { x: f_bode, y: mag_bode, name: 'Mag', mode: 'lines', line: { color: '#0ea5e9', width: 2 }, yaxis: 'y1', showlegend: false },
+            { x: f_bode, y: phase_bode, name: 'Fase', mode: 'lines', line: { color: '#f59e0b', width: 2 }, yaxis: 'y2', showlegend: false },
+            
+            // Pontos exatos das componentes do sinal
+            { x: freqs, y: mag_db_points, name: 'Mag (dB)', mode: 'markers', marker: { color: '#0ea5e9', size: 10, symbol: 'diamond' }, yaxis: 'y1' },
+            { x: freqs, y: H_phase, name: 'Fase (°)', mode: 'markers', marker: { color: '#f59e0b', size: 10, symbol: 'circle' }, yaxis: 'y2' }
+        ], {
+            ...baseLayout,
+            margin: { t: 40, b: 40, l: 50, r: 50 },
+            xaxis: { title: 'Frequência (Hz)', range: [0, 6], tickvals: [1, 2, 3, 4, 5, 6] },
+            yaxis: { title: 'Mag (dB)', range: [-15, 5], domain: [0.55, 1] },
+            yaxis2: { title: 'Fase (°)', domain: [0, 0.45], range: [-400, 400] }
+        }, plotConfig);
+    }
+
+    // Inicializa
+    window.onload = () => {
+        generateRandomSignal();
+    };
+</script>
+</body>
+</html>

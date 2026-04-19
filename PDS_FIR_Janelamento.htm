@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projeto FIR por janelamento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+        .card { background-color: white; border: 1px solid #e2e8f0; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        input[type=range] { accent-color: #2563eb; cursor: pointer; }
+        .radio-group { display: flex; background: #f1f5f9; padding: 4px; border-radius: 0.5rem; }
+        .radio-group label { flex: 1; text-align: center; padding: 6px 12px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border-radius: 0.375rem; transition: all 0.2s; color: #64748b; }
+        .radio-group input[type="radio"] { display: none; }
+        .radio-group input[type="radio"]:checked + label { background: white; color: #2563eb; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 z-10">
+        <div>
+            <h1 class="text-xl font-bold text-slate-800 tracking-tight">Projeto FIR por janelamento</h1>
+            <p class="text-sm text-slate-500">Ferramenta de análise de Processamento Digital de Sinais (PDS)</p>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        
+        <aside class="w-80 flex flex-col gap-6 p-6 overflow-y-auto shrink-0 bg-white border-r border-slate-200">
+            
+            <div class="space-y-3">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Configuração de Amostragem</h3>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-slate-700">Fs (Hz)</label>
+                    <input type="number" id="fs_input" value="1000" min="100" max="100000" class="w-full bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500" onchange="updateSim()">
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Resposta do Filtro</h3>
+                <div class="radio-group" id="filterType">
+                    <input type="radio" name="ftype" id="lp" value="lowpass" checked onchange="updateSim()">
+                    <label for="lp">Passa-Baixa</label>
+                    <input type="radio" name="ftype" id="bp" value="bandpass" onchange="updateSim()">
+                    <label for="bp">Passa-Banda</label>
+                    <input type="radio" name="ftype" id="hp" value="highpass" onchange="updateSim()">
+                    <label for="hp">Passa-Alta</label>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Frequências de Corte</h3>
+                <div>
+                    <label class="flex justify-between text-sm font-medium mb-1 text-slate-700">
+                        <span>Frequência 1 (Fc1)</span> <span class="text-blue-600 font-bold"><span id="fc1_val">100</span> Hz</span>
+                    </label>
+                    <input type="range" id="fc1" min="1" max="499" value="100" class="w-full" oninput="updateSim()">
+                </div>
+                <div id="fc2_container" class="hidden pt-2">
+                    <label class="flex justify-between text-sm font-medium mb-1 text-slate-700">
+                        <span>Frequência 2 (Fc2)</span> <span class="text-blue-600 font-bold"><span id="fc2_val">300</span> Hz</span>
+                    </label>
+                    <input type="range" id="fc2" min="1" max="499" value="300" class="w-full" oninput="updateSim()">
+                </div>
+            </div>
+
+            <div class="space-y-4 border-t border-slate-100 pt-6">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Parâmetros de Projeto</h3>
+                <div>
+                    <label class="flex justify-between text-sm font-medium mb-1 text-slate-700">
+                        <span>Número de Taps (N)</span> <span class="text-blue-600 font-bold" id="taps_val">51</span>
+                    </label>
+                    <input type="range" id="taps" min="3" max="501" step="2" value="51" class="w-full" oninput="updateSim()">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2 text-slate-700">Função de Janela</label>
+                    <select id="windowType" class="w-full bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg p-2.5" onchange="updateSim()">
+                        <option value="rectangular">Retangular</option>
+                        <option value="hanning">Hanning</option>
+                        <option value="hamming">Hamming</option>
+                        <option value="blackman">Blackman</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="downloadCSV()" class="mt-4 w-full bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-xl text-sm font-bold transition shadow-sm flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Exportar CSV
+            </button>
+
+        </aside>
+
+        <main class="flex-1 p-6 flex flex-col gap-6 overflow-hidden bg-slate-50">
+            
+            <div class="card flex-1 flex flex-col p-4 overflow-hidden">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-tight mb-2">Domínio do Tempo: h[n] Janelado</h2>
+                <div id="timePlot" class="flex-1 w-full h-full"></div>
+            </div>
+
+            <div class="card flex-1 flex flex-col p-4 overflow-hidden">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-tight mb-2">Domínio da Frequência: Magnitude e Fase Linear</h2>
+                <div id="freqPlot" class="flex-1 w-full h-full"></div>
+            </div>
+
+        </main>
+    </div>
+
+<script>
+    let Fs = 1000;
+    const NFFT = 16384;
+    let currentCoeffs = [];
+
+    const plotConfig = { responsive: true, displayModeBar: false };
+    const baseLayout = {
+        font: { family: 'Inter, sans-serif' },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        margin: { t: 10, b: 40, l: 60, r: 20 },
+        legend: { orientation: "h", y: 1.1, x: 0.5, xanchor: 'center' }
+    };
+
+    function sinc(x) {
+        if (Math.abs(x) < 1e-10) return 1;
+        return Math.sin(Math.PI * x) / (Math.PI * x);
+    }
+
+    function unwrapPhase(phase) {
+        let unwrapped = new Float64Array(phase.length);
+        unwrapped[0] = phase[0];
+        for (let i = 1; i < phase.length; i++) {
+            let dp = phase[i] - phase[i-1];
+            while (dp > Math.PI) dp -= 2 * Math.PI;
+            while (dp < -Math.PI) dp += 2 * Math.PI;
+            unwrapped[i] = unwrapped[i-1] + dp;
+        }
+        return unwrapped;
+    }
+
+    function getIdealSinc(N_eval, delay, type, f1, f2) {
+        let h = new Float64Array(N_eval);
+        let fn1 = f1 / Fs, fn2 = f2 / Fs;
+        for (let i = 0; i < N_eval; i++) {
+            let n = i - delay;
+            if (type === 'lowpass') h[i] = 2 * fn1 * sinc(2 * fn1 * n);
+            else if (type === 'highpass') h[i] = (n === 0 ? 1 : 0) - 2 * fn1 * sinc(2 * fn1 * n);
+            else if (type === 'bandpass') h[i] = 2 * fn2 * sinc(2 * fn2 * n) - 2 * fn1 * sinc(2 * fn1 * n);
+        }
+        return h;
+    }
+
+    function getWindow(N, type) {
+        let w = new Float64Array(N);
+        for (let n = 0; n < N; n++) {
+            if (type === 'rectangular') {
+                w[n] = 1;
+            } else if (type === 'hanning') {
+                w[n] = 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (N - 1));
+            } else if (type === 'hamming') {
+                w[n] = 0.54 - 0.46 * Math.cos(2 * Math.PI * n / (N - 1));
+            } else if (type === 'blackman') {
+                w[n] = 0.42 - 0.5 * Math.cos(2 * Math.PI * n / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * n / (N - 1));
+            }
+        }
+        return w;
+    }
+
+    function calculateDTFT(h) {
+        let mag = new Float64Array(NFFT/2), phase = new Float64Array(NFFT/2), freqs = new Float64Array(NFFT/2);
+        for (let k = 0; k < NFFT/2; k++) {
+            let f = (k / NFFT) * Fs;
+            freqs[k] = f;
+            let w = 2 * Math.PI * f / Fs, re = 0, im = 0;
+            for (let n = 0; n < h.length; n++) {
+                re += h[n] * Math.cos(w * n);
+                im -= h[n] * Math.sin(w * n);
+            }
+            mag[k] = 20 * Math.log10(Math.sqrt(re * re + im * im) + 1e-12);
+            phase[k] = Math.atan2(im, re);
+        }
+        return { freqs, mag, phase: unwrapPhase(phase) };
+    }
+
+    function updateSim() {
+        Fs = parseFloat(document.getElementById('fs_input').value) || 1000;
+        const nyquist = Fs / 2;
+
+        const sliderFc1 = document.getElementById('fc1');
+        const sliderFc2 = document.getElementById('fc2');
+        sliderFc1.max = Math.floor(nyquist - 1);
+        sliderFc2.max = Math.floor(nyquist - 1);
+
+        const type = document.querySelector('input[name="ftype"]:checked').value;
+        const taps = parseInt(document.getElementById('taps').value);
+        const winType = document.getElementById('windowType').value;
+        const fc1 = parseFloat(sliderFc1.value);
+        let fc2 = parseFloat(sliderFc2.value);
+
+        document.getElementById('taps_val').innerText = taps;
+        document.getElementById('fc1_val').innerText = fc1;
+        document.getElementById('fc2_val').innerText = fc2;
+        
+        document.getElementById('fc2_container').classList.toggle('hidden', type !== 'bandpass');
+        if (type === 'bandpass' && fc2 <= fc1) { 
+            fc2 = Math.min(fc1 + 20, nyquist - 1);
+            sliderFc2.value = fc2;
+            document.getElementById('fc2_val').innerText = fc2;
+        }
+
+        const delay = (taps - 1) / 2;
+        const padding = Math.max(20, Math.floor(taps * 0.3)); 
+        const totalSamples = taps + 2 * padding;
+        const timeAxisLong = Array.from({length: totalSamples}, (_, i) => i - padding);
+        
+        const h_ideal_inf = getIdealSinc(totalSamples, delay + padding, type, fc1, fc2);
+        const w_math = getWindow(taps, winType);
+        const w_plot = new Float64Array(totalSamples).fill(0);
+        for(let i=0; i<taps; i++) w_plot[i + padding] = w_math[i];
+
+        const h_ideal_n = getIdealSinc(taps, delay, type, fc1, fc2);
+        let h_real = new Float64Array(taps);
+        for (let n = 0; n < taps; n++) h_real[n] = h_ideal_n[n] * w_math[n];
+
+        let gain = 0;
+        if(type === 'lowpass') gain = h_real.reduce((a,b)=>a+b,0);
+        else if(type === 'highpass') gain = Math.abs(h_real.reduce((a,v,i)=>a+v*Math.pow(-1,i), 0));
+        else {
+            let fmid = (fc1 + fc2) / 2;
+            let wmid = 2 * Math.PI * fmid / Fs;
+            let re = 0, im = 0;
+            for(let i=0; i<taps; i++) { re += h_real[i]*Math.cos(wmid*i); im -= h_real[i]*Math.sin(wmid*i); }
+            gain = Math.sqrt(re*re + im*im);
+        }
+        
+        for(let i=0; i<taps; i++) h_real[i] /= (gain || 1);
+        for(let i=0; i<totalSamples; i++) h_ideal_inf[i] /= (gain || 1);
+        currentCoeffs = Array.from(h_real);
+
+        let maxVal = Math.max(...h_ideal_inf);
+        for(let i=0; i<totalSamples; i++) w_plot[i] *= maxVal;
+
+        Plotly.react('timePlot', [
+            { x: timeAxisLong, y: w_plot, fill: 'tozeroy', type: 'scatter', mode: 'none', name: 'Janela', fillcolor: 'rgba(59, 130, 246, 0.1)' },
+            { x: timeAxisLong, y: h_ideal_inf, mode: 'lines', name: 'Sinc Ideal (Inf)', line: { color: '#94a3b8', width: 2, dash: 'dot' } },
+            { x: Array.from({length: taps}, (_,i)=>i), y: h_real, type: 'bar', name: 'FIR Real', marker: { color: '#2563eb' }, width: 0.5 }
+        ], { ...baseLayout, xaxis: { title: 'n', range: [-padding, taps + padding] } }, plotConfig);
+
+        const dtft = calculateDTFT(h_real);
+        let idealMag = dtft.freqs.map(f => {
+            if(type === 'lowpass') return f <= fc1 ? 0 : -100;
+            if(type === 'highpass') return f >= fc1 ? 0 : -100;
+            return (f >= fc1 && f <= fc2) ? 0 : -100;
+        });
+
+        Plotly.react('freqPlot', [
+            { x: dtft.freqs, y: idealMag, fill: 'tozeroy', type: 'scatter', mode: 'none', name: 'Ideal', fillcolor: 'rgba(34, 197, 94, 0.1)' },
+            { x: dtft.freqs, y: dtft.mag, mode: 'lines', name: 'Mag (dB)', line: { color: '#ef4444', width: 2 }, yaxis: 'y1' },
+            { x: dtft.freqs, y: Array.from(dtft.phase).map(p => p * 180 / Math.PI), mode: 'lines', name: 'Fase (°)', line: { color: '#f59e0b', width: 2 }, yaxis: 'y2' }
+        ], { 
+            ...baseLayout, 
+            xaxis: { title: 'Freq (Hz)', range: [0, nyquist] }, 
+            yaxis: { title: 'dB', range: [-100, 10], domain: [0.45, 1] }, 
+            yaxis2: { title: 'Fase', domain: [0, 0.35] } 
+        }, plotConfig);
+    }
+
+    function downloadCSV() {
+        let csvContent = "b\n";
+        currentCoeffs.forEach(val => csvContent += val + "\n");
+        let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        let url = URL.createObjectURL(blob);
+        let link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `fir_coeffs.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    window.onload = updateSim;
+</script>
+</body>
+</html>

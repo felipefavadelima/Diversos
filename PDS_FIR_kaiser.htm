@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projeto FIR: Método de Kaiser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; color: #0f172a; }
+        .glass-panel { background: white; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        input[type=range] { accent-color: #0ea5e9; cursor: pointer; }
+        
+        .segmented-control { display: flex; background: #f8fafc; padding: 4px; border-radius: 0.75rem; border: 1px solid #e2e8f0; }
+        .segmented-control label { flex: 1; text-align: center; padding: 8px 12px; font-size: 0.825rem; font-weight: 600; cursor: pointer; border-radius: 0.5rem; transition: all 0.2s ease; color: #64748b; }
+        .segmented-control input[type="radio"] { display: none; }
+        .segmented-control input[type="radio"]:checked + label { background: white; color: #0ea5e9; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-sky-100">
+
+    <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between shrink-0 z-10">
+        <div>
+            <h1 class="text-xl font-bold text-slate-800 tracking-tight">Projeto FIR <span class="text-sky-500">Kaiser</span></h1>
+            <p class="text-xs text-slate-500 font-medium">Especificação Técnica: f<sub>p</sub> e &Delta;f</p>
+        </div>
+        <button onclick="downloadCSV()" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition shadow-md flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Baixar Coeficientes
+        </button>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden p-6 gap-6">
+        
+        <aside class="w-80 flex flex-col gap-5 overflow-y-auto shrink-0 pr-2">
+            
+            <div class="glass-panel p-5 space-y-4">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tipo de Filtro</h3>
+                <div class="segmented-control">
+                    <input type="radio" name="ftype" id="lp" value="lowpass" checked onchange="updateSim()">
+                    <label for="lp">LP</label>
+                    <input type="radio" name="ftype" id="bp" value="bandpass" onchange="updateSim()">
+                    <label for="bp">BP</label>
+                    <input type="radio" name="ftype" id="hp" value="highpass" onchange="updateSim()">
+                    <label for="hp">HP</label>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Amostragem (Fs)</label>
+                    <input type="number" id="fs_input" value="1000" class="w-full bg-slate-50 border border-slate-200 text-sm font-mono rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-sky-500" onchange="updateSim()">
+                </div>
+            </div>
+
+            <div class="glass-panel p-5 space-y-6">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Critérios</h3>
+                
+                <div>
+                    <label class="flex justify-between text-sm font-semibold mb-1 text-slate-700">
+                        <span>Atenuação (A<sub>s</sub>)</span> <span class="text-rose-500 font-bold"><span id="att_val">60</span> dB</span>
+                    </label>
+                    <input type="range" id="attenuation" min="21" max="110" value="60" class="w-full" oninput="updateSim()">
+                </div>
+
+                <div>
+                    <label class="flex justify-between text-sm font-semibold mb-1 text-slate-700">
+                        <span>Transição (&Delta;f)</span> <span class="text-amber-500 font-bold"><span id="df_val">50</span> Hz</span>
+                    </label>
+                    <input type="range" id="delta_f" min="5" max="200" value="50" class="w-full" oninput="updateSim()">
+                </div>
+
+                <div class="border-t border-slate-100 pt-4">
+                    <label class="flex justify-between text-sm font-semibold mb-1 text-slate-700">
+                        <span id="label_fp1">Banda Passante (f<sub>p1</sub>)</span> <span class="text-sky-500 font-bold"><span id="fp1_val">150</span> Hz</span>
+                    </label>
+                    <input type="range" id="fp1" min="1" max="499" value="150" class="w-full" oninput="updateSim()">
+                </div>
+                
+                <div id="fp2_container" class="hidden">
+                    <label class="flex justify-between text-sm font-semibold mb-1 text-slate-700">
+                        <span>Banda Passante (f<sub>p2</sub>)</span> <span class="text-sky-500 font-bold"><span id="fp2_val">300</span> Hz</span>
+                    </label>
+                    <input type="range" id="fp2" min="1" max="499" value="300" class="w-full" oninput="updateSim()">
+                </div>
+            </div>
+
+        </aside>
+
+        <main class="flex-1 flex flex-col gap-6 overflow-hidden">
+            
+            <div class="flex gap-4 shrink-0">
+                <div class="glass-panel flex-1 p-3 bg-gradient-to-r from-sky-500 to-sky-600 border-none shadow-md">
+                    <p class="text-[9px] font-bold text-sky-100 uppercase tracking-widest">Ordem (M)</p>
+                    <p class="text-2xl font-black text-white" id="res_m">50</p>
+                    <p class="text-[9px] text-sky-100 font-medium opacity-80">L (Taps) = <span id="res_l">51</span></p>
+                </div>
+                <div class="glass-panel flex-1 p-3 bg-gradient-to-r from-slate-800 to-slate-900 border-none shadow-md">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Parâmetro Beta (&beta;)</p>
+                    <p class="text-2xl font-black text-white" id="res_beta">5.653</p>
+                </div>
+            </div>
+
+            <div class="glass-panel flex-1 p-2 overflow-hidden">
+                <div id="bodePlot" class="w-full h-full"></div>
+            </div>
+
+        </main>
+    </div>
+
+<script>
+    let Fs = 1000;
+    const NFFT = 16384;
+    let currentCoeffs = [];
+    let lastFp1 = 150;
+    let lastFp2 = 300;
+
+    const plotConfig = { responsive: true, displayModeBar: false };
+    const baseLayout = {
+        font: { family: 'Inter, sans-serif' },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        margin: { t: 40, b: 40, l: 60, r: 60 },
+        showlegend: false
+    };
+
+    function besselI0(x) {
+        let d = 0, ds = 1, s = 1;
+        do { d += 2; ds *= x * x / (d * d); s += ds; } while (ds > s * 1e-12);
+        return s;
+    }
+
+    function sinc(x) { return Math.abs(x) < 1e-10 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x); }
+
+    function unwrapPhase(phase) {
+        let unwrapped = new Float64Array(phase.length);
+        let offset = 0; unwrapped[0] = phase[0];
+        for (let i = 1; i < phase.length; i++) {
+            let dp = phase[i] - phase[i-1];
+            while (dp > Math.PI) dp -= 2 * Math.PI;
+            while (dp < -Math.PI) dp += 2 * Math.PI;
+            unwrapped[i] = unwrapped[i-1] + dp;
+        }
+        return unwrapped;
+    }
+
+    function updateSim() {
+        Fs = parseFloat(document.getElementById('fs_input').value) || 1000;
+        const nyquist = Fs / 2;
+        const type = document.querySelector('input[name="ftype"]:checked').value;
+        const A = parseFloat(document.getElementById('attenuation').value);
+        const df = parseFloat(document.getElementById('delta_f').value);
+        
+        const sliderFp1 = document.getElementById('fp1');
+        const sliderFp2 = document.getElementById('fp2');
+        
+        // Atualiza limites dos sliders com base no Fs
+        sliderFp1.max = Math.floor(nyquist - 5);
+        sliderFp2.max = Math.floor(nyquist - 5);
+        
+        let fp1 = parseFloat(sliderFp1.value);
+        let fp2 = parseFloat(sliderFp2.value);
+
+        // --- TRAVAS DE SEGURANÇA (CONSTRAINTS) PARA PASSA-BANDA ---
+        if (type === 'bandpass') {
+            const minGap = 5; // Gap mínimo em Hz entre as bandas
+            
+            // Detecta qual slider foi mexido verificando a mudança em relação ao estado anterior
+            if (fp1 !== lastFp1) { // User mexeu no fp1
+                if (fp1 >= fp2 - minGap) {
+                    fp2 = Math.min(fp1 + minGap, nyquist - 1);
+                    sliderFp2.value = fp2;
+                }
+            } else if (fp2 !== lastFp2) { // User mexeu no fp2
+                if (fp2 <= fp1 + minGap) {
+                    fp1 = Math.max(fp2 - minGap, 1);
+                    sliderFp1.value = fp1;
+                }
+            }
+        }
+        
+        // Salva estado para próxima comparação
+        lastFp1 = fp1;
+        lastFp2 = fp2;
+
+        // --- KAISER MATH ---
+        let beta = 0;
+        if (A > 50) beta = 0.1102 * (A - 8.7);
+        else if (A >= 21) beta = 0.5842 * Math.pow(A - 21, 0.4) + 0.07886 * (A - 21);
+        
+        let dw = 2 * Math.PI * df / Fs;
+        let M = Math.ceil((A - 8) / (2.285 * dw));
+        if (M % 2 !== 0) M++; 
+        let L = M + 1;
+
+        // --- AJUSTE DE FREQUÊNCIA DE CORTE IDEAL (CENTER OF TRANSITION) ---
+        let fc1_sinc = 0, fc2_sinc = 0;
+        if (type === 'lowpass') fc1_sinc = fp1 + (df / 2);
+        else if (type === 'highpass') fc1_sinc = fp1 - (df / 2);
+        else if (type === 'bandpass') {
+            fc1_sinc = fp1 - (df / 2);
+            fc2_sinc = fp2 + (df / 2);
+        }
+
+        // --- UI REFRESH ---
+        document.getElementById('res_m').innerText = M;
+        document.getElementById('res_l').innerText = L;
+        document.getElementById('res_beta').innerText = beta.toFixed(3);
+        document.getElementById('att_val').innerText = A;
+        document.getElementById('df_val').innerText = df;
+        document.getElementById('fp1_val').innerText = fp1;
+        document.getElementById('fp2_container').classList.toggle('hidden', type !== 'bandpass');
+        
+        if (type === 'bandpass') {
+            document.getElementById('label_fp1').innerText = 'Banda Passante (fp1)';
+            document.getElementById('fp2_val').innerText = fp2;
+        } else {
+            document.getElementById('label_fp1').innerText = 'Banda Passante (fp)';
+        }
+
+        // --- COEFFICIENTS ---
+        const delay = M / 2;
+        let h = new Float64Array(L);
+        let i0beta = besselI0(beta);
+        let fn1 = fc1_sinc / Fs;
+        let fn2 = fc2_sinc / Fs;
+
+        for (let i = 0; i < L; i++) {
+            let n = i - delay;
+            let val_sinc = 0;
+            if (type === 'lowpass') val_sinc = 2 * fn1 * sinc(2 * fn1 * n);
+            else if (type === 'highpass') val_sinc = (Math.abs(n) < 1e-10 ? 1 : 0) - 2 * fn1 * sinc(2 * fn1 * n);
+            else if (type === 'bandpass') val_sinc = 2 * fn2 * sinc(2 * fn2 * n) - 2 * fn1 * sinc(2 * fn1 * n);
+            
+            let term = Math.sqrt(Math.max(0, 1 - Math.pow(n / delay, 2)));
+            h[i] = val_sinc * (besselI0(beta * term) / i0beta);
+        }
+
+        // Normalização
+        let gain = 0;
+        if(type === 'lowpass') gain = h.reduce((a,b)=>a+b, 0); 
+        else if(type === 'highpass') gain = Math.abs(h.reduce((a,v,i)=>a+v*Math.pow(-1,i), 0)); 
+        else {
+            let wm = 2 * Math.PI * ((fp1 + fp2) / 2) / Fs;
+            let re = 0, im = 0;
+            for(let i=0; i<L; i++) { re += h[i]*Math.cos(wm*i); im -= h[i]*Math.sin(wm*i); }
+            gain = Math.sqrt(re*re + im*im);
+        }
+        for(let i=0; i<L; i++) h[i] /= (gain || 1);
+        currentCoeffs = Array.from(h);
+
+        // --- BODE ANALYSIS ---
+        let mag = new Float64Array(NFFT/2), phaseRad = new Float64Array(NFFT/2), freqs = new Float64Array(NFFT/2);
+        for (let k = 0; k < NFFT/2; k++) {
+            let f = (k / NFFT) * Fs; freqs[k] = f;
+            let w = 2 * Math.PI * f / Fs, re = 0, im = 0;
+            for (let n = 0; n < L; n++) { re += h[n] * Math.cos(w * n); im -= h[n] * Math.sin(w * n); }
+            mag[k] = 20 * Math.log10(Math.sqrt(re * re + im * im) + 1e-12);
+            phaseRad[k] = Math.atan2(im, re);
+        }
+        let phaseDeg = Array.from(unwrapPhase(phaseRad)).map(p => p * 180 / Math.PI);
+
+        Plotly.react('bodePlot', [
+            { x: freqs, y: mag, name: 'Mag', line: { color: '#0ea5e9', width: 2.5 } },
+            { x: freqs, y: phaseDeg, name: 'Fase', line: { color: '#f59e0b', width: 2, dash: 'dot' }, yaxis: 'y2' },
+            { x: [0, nyquist], y: [-A, -A], line: { color: '#f43f5e', dash: 'dash', width: 1.5 } }
+        ], {
+            ...baseLayout,
+            xaxis: { title: 'Frequência (Hz)', range: [0, nyquist] },
+            yaxis: { title: 'Magnitude (dB)', range: [-A - 30, 10], domain: [0.5, 1] },
+            yaxis2: { title: 'Fase (Graus)', domain: [0, 0.4] }
+        }, plotConfig);
+    }
+
+    function downloadCSV() {
+        let csv = "b[n]\n" + currentCoeffs.join("\n");
+        let blob = new Blob([csv], { type: 'text/csv' });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url; a.download = `fir_kaiser_M${document.getElementById('res_m').innerText}.csv`; a.click();
+    }
+
+    window.onload = updateSim;
+</script>
+</body>
+</html>

@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador FIR e IIR - Processamento de Sinais Biomédicos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .modal { transition: opacity 0.3s ease; }
+        .hidden { display: none !important; }
+        input[type=range] { accent-color: #3b82f6; }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm px-6 py-4 flex flex-col md:flex-row justify-between items-center z-10 gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">Projeto de Filtros FIR e IIR</h1>
+            <p class="text-sm font-medium text-blue-600 bg-blue-50 inline-block px-2 py-1 rounded mt-1">
+                Frequência de Amostragem (Fs) = 250 Hz
+            </p>
+        </div>
+        <div class="flex gap-2 flex-wrap justify-center">
+            <button onclick="openModal('ecgModal')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg font-medium transition shadow text-sm">Configurar ECG</button>
+            <button onclick="openModal('filterModal')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition shadow text-sm">Configurar Filtro</button>
+            <button onclick="openModal('analysisModal')" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg font-medium transition shadow text-sm">Análise do Filtro</button>
+            
+            <button onclick="openCycleModal()" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-lg font-medium transition shadow text-sm">Ver Ciclo Único</button>
+
+            <button onclick="downloadCSV()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-lg font-medium transition shadow text-sm flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Baixar Coeficientes
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow p-6 flex flex-col gap-4 overflow-hidden">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex-grow flex flex-col p-2 relative">
+            <h2 class="text-lg font-semibold text-slate-700 px-4 pt-2 shrink-0">Sinais no Tempo (10 Segundos)</h2>
+            <div class="flex-grow relative w-full mt-2">
+                <div id="mainPlot" class="absolute inset-0"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="ecgModal" class="modal hidden fixed inset-0 z-50 flex justify-center items-center p-4 pointer-events-none">
+        <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 max-h-full overflow-y-auto pointer-events-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Configurar Sinal ECG</h3>
+                <button onclick="closeModal('ecgModal')" class="text-slate-400 hover:text-slate-700 text-2xl">&times;</button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Frequência Cardíaca (BPM): <span id="hrVal">75</span></label>
+                    <input type="range" id="hrInput" min="40" max="180" value="75" class="w-full" oninput="updateState()">
+                </div>
+                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <input type="checkbox" id="noiseInput" checked class="w-5 h-5 text-blue-600" onchange="updateState()">
+                    <label for="noiseInput" class="font-medium">Ruído de Rede (60 Hz)</label>
+                </div>
+                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <input type="checkbox" id="motionInput" checked class="w-5 h-5 text-blue-600" onchange="updateState()">
+                    <label for="motionInput" class="font-medium">Artefato de Movimento</label>
+                </div>
+            </div>
+            <div class="mt-8 text-right">
+                <button onclick="closeModal('ecgModal')" class="bg-slate-900 text-white px-5 py-2 rounded-lg font-medium shadow-lg hover:bg-slate-800 transition">Aplicar e Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="filterModal" class="modal hidden fixed inset-0 z-50 flex justify-center items-center p-4 pointer-events-none">
+        <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden pointer-events-auto">
+            <div class="p-6 flex flex-col md:flex-row gap-6 h-full overflow-y-auto">
+                
+                <div class="flex-1 space-y-4 shrink-0">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-xl font-bold">Especificações do Filtro</h3>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1 text-blue-600">Arquitetura do Filtro</label>
+                        <select id="archType" class="w-full p-2 border border-blue-300 rounded-lg bg-blue-50 font-semibold text-blue-800" onchange="updateState()">
+                            <option value="fir">FIR (Resposta Finita / Fase Linear)</option>
+                            <option value="iir">IIR (Butterworth 4ª Ordem)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Banda de Passagem</label>
+                        <select id="filterType" class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50" onchange="updateState()">
+                            <option value="lowpass">Passa-baixa</option>
+                            <option value="highpass">Passa-alta</option>
+                            <option value="bandpass">Passa-banda</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Freq. de Corte 1 (Hz)</label>
+                            <input type="number" id="fc1Input" value="40" min="0.1" max="124" step="0.1" class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50" onchange="updateState()">
+                        </div>
+                        <div id="fc2Container" class="hidden">
+                            <label class="block text-sm font-medium mb-1">Freq. de Corte 2 (Hz)</label>
+                            <input type="number" id="fc2Input" value="60" min="0.2" max="124" step="0.1" class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50" onchange="updateState()">
+                        </div>
+                    </div>
+
+                    <div id="firControls" class="space-y-4 border-t border-slate-200 pt-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Número de Taps (N): <span id="tapsVal">51</span></label>
+                            <input type="range" id="tapsInput" min="3" max="1001" step="2" value="51" class="w-full" oninput="updateState()">
+                            <p class="text-xs text-slate-500 mt-1">Deve ser um número ímpar.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Janela</label>
+                            <select id="windowType" class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50" onchange="updateState()">
+                                <option value="rectangular">Retangular</option>
+                                <option value="hanning">Hanning</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-1 border-t md:border-t-0 md:border-l border-slate-200 pt-6 md:pt-0 md:pl-6 flex flex-col min-h-[300px] md:min-h-0">
+                    <div id="firPreviewPanel" class="flex flex-col h-full w-full">
+                        <div class="flex justify-between items-center mb-2 shrink-0">
+                            <h3 class="text-lg font-bold text-slate-700">Conceito: Ideal vs Janela</h3>
+                            <button onclick="closeModal('filterModal')" class="text-slate-400 hover:text-slate-700 text-2xl md:hidden">&times;</button>
+                        </div>
+                        <p class="text-sm text-slate-600 mb-2 shrink-0">A resposta real FIR é um truncamento da resposta ideal infinita, normalizada para ganho 0 dB.</p>
+                        <div class="flex-grow relative w-full bg-slate-50 rounded-lg border border-slate-200 min-h-[200px]">
+                            <div id="previewPlot" class="absolute inset-0"></div>
+                        </div>
+                    </div>
+
+                    <div id="iirInfoPanel" class="hidden h-full flex flex-col justify-center bg-slate-50 rounded-lg border border-slate-200 p-6 relative">
+                        <button onclick="closeModal('filterModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-2xl md:hidden">&times;</button>
+                        <h3 class="text-xl font-bold text-blue-700 mb-4 text-center">Características do IIR</h3>
+                        <p class="text-slate-700 mb-4 text-sm text-justify">Filtros IIR são projetados a partir de protótipos analógicos. Eles são eficientes, mas sacrificam a linearidade da fase.</p>
+                        <ul class="space-y-3 text-sm text-slate-600 bg-white p-4 rounded border border-slate-200 shadow-sm">
+                            <li><strong class="text-slate-800">Modelo:</strong> Butterworth (Máximamente Plano).</li>
+                            <li><strong class="text-slate-800">Ordem Real:</strong> Fixa em 4ª Ordem.<br> <span class="text-xs text-slate-500">(Passa-Banda = cascata de HP 2ª ord. e LP 2ª ord.)</span></li>
+                            <li><strong class="text-slate-800">Fase Não-Linear:</strong> As frequências sofrem atrasos diferentes. Verifique o gráfico de Fase e observe como isso pode distorcer a morfologia do complexo QRS.</li>
+                        </ul>
+                    </div>
+
+                    <div class="mt-4 text-right shrink-0">
+                        <button onclick="closeModal('filterModal')" class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium shadow-lg hover:bg-blue-700 transition">Concluir Configuração</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="analysisModal" class="modal hidden fixed inset-0 z-50 flex justify-center items-center p-4 pointer-events-none">
+        <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl h-[90vh] p-6 flex flex-col pointer-events-auto">
+            <div class="flex justify-between items-center mb-4 shrink-0">
+                <h3 class="text-xl font-bold">Análise do Filtro Digital</h3>
+                <button onclick="closeModal('analysisModal')" class="text-slate-400 hover:text-slate-700 text-2xl">&times;</button>
+            </div>
+            <div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
+                <div class="border border-slate-200 rounded-xl p-2 flex flex-col bg-white">
+                    <h4 class="text-center font-semibold text-slate-600 shrink-0 mb-2">Resposta Impulsiva h[n]</h4>
+                    <div class="flex-grow relative w-full">
+                        <div id="impulsePlot" class="absolute inset-0"></div>
+                    </div>
+                </div>
+                <div class="border border-slate-200 rounded-xl p-2 flex flex-col bg-white">
+                    <h4 class="text-center font-semibold text-slate-600 shrink-0 mb-2">Diagrama de Bode (Mag e Fase)</h4>
+                    <div class="flex-grow relative w-full">
+                        <div id="bodePlot" class="absolute inset-0"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 text-center shrink-0">
+                <button onclick="closeModal('analysisModal')" class="bg-slate-900 text-white px-8 py-2 rounded-lg font-medium shadow-lg hover:bg-slate-800 transition">Fechar Análise</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cycleModal" class="modal hidden fixed inset-0 z-50 flex justify-center items-center p-4 pointer-events-none">
+        <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[80vh] p-6 flex flex-col pointer-events-auto">
+            <div class="flex justify-between items-start mb-4 shrink-0">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800">Eficiência e Morfologia (1 Ciclo após estabilização)</h3>
+                    <p class="text-sm text-slate-600 mt-1">Compara o Gabarito (ECG Puro) com o resultado do filtro aplicado ao seu sinal configurado. O sinal filtrado foi artificialmente alinhado no tempo para revelar distorções morfológicas e resíduos de ruído.</p>
+                </div>
+                <button onclick="closeModal('cycleModal')" class="text-slate-400 hover:text-slate-700 text-2xl">&times;</button>
+            </div>
+            <div class="flex-grow relative w-full bg-white border border-slate-200 rounded-xl overflow-hidden p-2">
+                <div id="cyclePlot" class="absolute inset-0"></div>
+            </div>
+            <div class="mt-4 text-center shrink-0">
+                <button onclick="closeModal('cycleModal')" class="bg-slate-900 text-white px-8 py-2 rounded-lg font-medium shadow-lg hover:bg-slate-800 transition">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const Fs = 250;
+    const duration = 10;
+    const numSamples = Fs * duration;
+    
+    let state = {
+        arch: 'fir',
+        hr: 75, noise: true, motion: true,
+        type: 'lowpass', taps: 51, window: 'hanning',
+        fc1: 40, fc2: 60
+    };
+
+    let timeAxis = new Float64Array(numSamples);
+    let originalECG = new Float64Array(numSamples);
+    let cleanECG = new Float64Array(numSamples);
+    let filteredECG = new Float64Array(numSamples);
+    
+    let exportB = [];
+    let exportA = [];
+
+    const plotConfig = { responsive: true, displayModeBar: false };
+    const defaultLayout = { margin: { t: 10, b: 40, l: 50, r: 20 }, paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', font: { family: 'Inter, sans-serif' } };
+
+    /* === MATEMÁTICA E DSP === */
+    function unwrapPhase(p) {
+        let res = new Float64Array(p.length);
+        let offset = 0;
+        res[0] = p[0];
+        for(let i=1; i<p.length; i++) {
+            let delta = p[i] - p[i-1];
+            if(delta > Math.PI) offset -= 2*Math.PI;
+            else if(delta < -Math.PI) offset += 2*Math.PI;
+            res[i] = p[i] + offset;
+        }
+        return res;
+    }
+
+    function sinc(x) { return x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x); }
+
+    function polyMult(A, B) {
+        let result = new Float64Array(A.length + B.length - 1);
+        for(let i = 0; i < A.length; i++) {
+            for(let j = 0; j < B.length; j++) {
+                result[i+j] += A[i] * B[j];
+            }
+        }
+        return Array.from(result);
+    }
+
+    /* === FIR === */
+    function getIdealResponse(N, type, fc1, fc2) {
+        let h = new Float64Array(N);
+        let M = (N - 1) / 2;
+        let fn1 = fc1 / Fs;
+        let fn2 = fc2 / Fs;
+        for (let n = 0; n < N; n++) {
+            let n_M = n - M;
+            if (type === 'lowpass') h[n] = 2 * fn1 * sinc(2 * fn1 * n_M);
+            else if (type === 'highpass') h[n] = (n === M ? 1 : 0) - 2 * fn1 * sinc(2 * fn1 * n_M);
+            else if (type === 'bandpass') h[n] = 2 * fn2 * sinc(2 * fn2 * n_M) - 2 * fn1 * sinc(2 * fn1 * n_M);
+        }
+        return h;
+    }
+
+    function normalizeFIR(h, type, fc1, fc2) {
+        let gain = 0;
+        if (type === 'lowpass') {
+            gain = h.reduce((acc, val) => acc + val, 0);
+        } else if (type === 'highpass') {
+            gain = Math.abs(h.reduce((acc, val, i) => acc + val * Math.pow(-1, i), 0));
+        } else if (type === 'bandpass') {
+            let f0 = (fc1 + fc2) / 2;
+            let w0 = 2 * Math.PI * f0 / Fs;
+            let re = 0, im = 0;
+            for (let i = 0; i < h.length; i++) {
+                re += h[i] * Math.cos(w0 * i);
+                im -= h[i] * Math.sin(w0 * i);
+            }
+            gain = Math.sqrt(re*re + im*im);
+        }
+        return h.map(val => val / gain);
+    }
+
+    function designFIR() {
+        let h_ideal = getIdealResponse(state.taps, state.type, state.fc1, state.fc2);
+        let h = new Float64Array(state.taps);
+        for (let n = 0; n < state.taps; n++) {
+            let w = state.window === 'rectangular' ? 1 : 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (state.taps - 1));
+            h[n] = h_ideal[n] * w;
+        }
+        return normalizeFIR(Array.from(h), state.type, state.fc1, state.fc2);
+    }
+
+    function applyFIR(signal, h) {
+        let y = new Float64Array(signal.length);
+        let N = h.length;
+        for (let n = 0; n < signal.length; n++) {
+            let sum = 0;
+            for (let k = 0; k < N; k++) {
+                if (n - k >= 0) sum += signal[n - k] * h[k];
+            }
+            y[n] = sum;
+        }
+        return y;
+    }
+
+    /* === IIR === */
+    function getBiquadCoeffs(type, fc, Q) {
+        let w0 = 2 * Math.PI * fc / Fs;
+        let alpha = Math.sin(w0) / (2 * Q);
+        let cosw0 = Math.cos(w0);
+        let b0, b1, b2, a0, a1, a2;
+        if (type === 'lowpass') {
+            b0 = (1 - cosw0) / 2; b1 = 1 - cosw0; b2 = (1 - cosw0) / 2;
+            a0 = 1 + alpha; a1 = -2 * cosw0; a2 = 1 - alpha;
+        } else if (type === 'highpass') {
+            b0 = (1 + cosw0) / 2; b1 = -(1 + cosw0); b2 = (1 + cosw0) / 2;
+            a0 = 1 + alpha; a1 = -2 * cosw0; a2 = 1 - alpha;
+        }
+        return { b0: b0/a0, b1: b1/a0, b2: b2/a0, a1: a1/a0, a2: a2/a0 };
+    }
+
+    function getIIRStages() {
+        if (state.type === 'bandpass') {
+            return [getBiquadCoeffs('highpass', state.fc1, 0.707106), getBiquadCoeffs('lowpass', state.fc2, 0.707106)];
+        } else {
+            return [getBiquadCoeffs(state.type, state.fc1, 0.5411961), getBiquadCoeffs(state.type, state.fc1, 1.3065630)];
+        }
+    }
+
+    function applyBiquad(signal, coeffs) {
+        let y = new Float64Array(signal.length);
+        let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+        let {b0, b1, b2, a1, a2} = coeffs;
+        for (let i = 0; i < signal.length; i++) {
+            let x0 = signal[i];
+            y[i] = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            x2 = x1; x1 = x0; y2 = y1; y1 = y[i];
+        }
+        return y;
+    }
+
+    function applyIIR(signal, stages) {
+        let y = signal;
+        for (let stage of stages) y = applyBiquad(y, stage);
+        return y;
+    }
+
+    function getBiquadResponse(freqs, coeffs) {
+        let mag = new Float64Array(freqs.length), phase = new Float64Array(freqs.length);
+        let {b0, b1, b2, a1, a2} = coeffs;
+        for (let k = 0; k < freqs.length; k++) {
+            let w = 2 * Math.PI * freqs[k] / Fs;
+            let cosw = Math.cos(w), cos2w = Math.cos(2*w);
+            let sinw = Math.sin(w), sin2w = Math.sin(2*w);
+            let reNum = b0 + b1 * cosw + b2 * cos2w, imNum = -b1 * sinw - b2 * sin2w;
+            let reDen = 1 + a1 * cosw + a2 * cos2w, imDen = -a1 * sinw - a2 * sin2w;
+            
+            mag[k] = Math.sqrt((reNum*reNum + imNum*imNum) / (reDen*reDen + imDen*imDen));
+            let p = Math.atan2(imNum, reNum) - Math.atan2(imDen, reDen);
+            while (p > Math.PI) p -= 2 * Math.PI;
+            while (p < -Math.PI) p += 2 * Math.PI;
+            phase[k] = p;
+        }
+        return {mag, phase};
+    }
+
+    /* === SINAIS === */
+    function generateECG() {
+        let beatInterval = 60 / state.hr;
+        for (let i = 0; i < numSamples; i++) {
+            let t = i / Fs;
+            timeAxis[i] = t;
+            let phase = t % beatInterval;
+            
+            let p = 0.15 * Math.exp(-Math.pow((phase - 0.2) / 0.02, 2));
+            let q = -0.15 * Math.exp(-Math.pow((phase - 0.35) / 0.01, 2));
+            let r = 1.20 * Math.exp(-Math.pow((phase - 0.4) / 0.015, 2));
+            let s = -0.25 * Math.exp(-Math.pow((phase - 0.45) / 0.015, 2));
+            let t_wave = 0.3 * Math.exp(-Math.pow((phase - 0.65) / 0.04, 2));
+            
+            let pureSignal = p + q + r + s + t_wave;
+            cleanECG[i] = pureSignal; 
+            
+            let noisySignal = pureSignal;
+            if (state.noise) noisySignal += 0.2 * Math.sin(2 * Math.PI * 60 * t);
+            if (state.motion) noisySignal += 0.6 * Math.sin(2 * Math.PI * 0.4 * t) + 0.3 * Math.sin(2 * Math.PI * 0.1 * t);
+            originalECG[i] = noisySignal;
+        }
+    }
+
+    function renderMainPlots() {
+        let impulseData = [];
+        let bodeData = { freqs: [], mag: [], phase: [] };
+
+        if (state.arch === 'fir') {
+            exportB = designFIR();
+            exportA = [1];
+            filteredECG = applyFIR(originalECG, exportB);
+            
+            const numPoints = 512;
+            let freqs = new Float64Array(numPoints), mag = new Float64Array(numPoints), phaseRad = new Float64Array(numPoints);
+            for (let k = 0; k < numPoints; k++) {
+                let f = (k / numPoints) * (Fs / 2);
+                freqs[k] = f;
+                let w = 2 * Math.PI * f / Fs, re = 0, im = 0;
+                for (let n = 0; n < exportB.length; n++) {
+                    re += exportB[n] * Math.cos(w * n);
+                    im -= exportB[n] * Math.sin(w * n);
+                }
+                mag[k] = 20 * Math.log10(Math.sqrt(re * re + im * im) + 1e-12);
+                phaseRad[k] = Math.atan2(im, re);
+            }
+            bodeData = { freqs: Array.from(freqs), mag: Array.from(mag), phase: Array.from(unwrapPhase(phaseRad)).map(p => p * 180 / Math.PI) };
+            impulseData = exportB;
+
+            let largeN = Math.max(301, state.taps + 100);
+            let idealInf = normalizeFIR(Array.from(getIdealResponse(largeN, state.type, state.fc1, state.fc2)), state.type, state.fc1, state.fc2);
+            let idealAxis = Array.from({length: largeN}, (_, i) => i - (largeN-1)/2);
+            let realAxis = Array.from({length: state.taps}, (_, i) => i - (state.taps-1)/2);
+            Plotly.react('previewPlot', [
+                { x: idealAxis, y: idealInf, mode: 'lines', name: 'Sinc Ideal (Norm.)', line: {color: '#cbd5e1', dash: 'dot'} },
+                { x: realAxis, y: exportB, mode: 'lines+markers', name: 'FIR Real', marker: {size: 3}, line: {color: '#10b981'} }
+            ], { ...defaultLayout, margin: { t: 10, b: 30, l: 30, r: 10 }, xaxis: { title: 'Amostras' }, showlegend: true, legend: { orientation: 'h', y: 1.1 } }, plotConfig);
+
+        } else {
+            let stages = getIIRStages();
+            filteredECG = applyIIR(originalECG, stages);
+            
+            let B1 = [stages[0].b0, stages[0].b1, stages[0].b2];
+            let A1 = [1, stages[0].a1, stages[0].a2];
+            let B2 = [stages[1].b0, stages[1].b1, stages[1].b2];
+            let A2 = [1, stages[1].a1, stages[1].a2];
+            
+            exportB = polyMult(B1, B2);
+            exportA = polyMult(A1, A2);
+
+            const numPoints = 512;
+            let freqs = new Float64Array(numPoints), mag = new Float64Array(numPoints), phaseTotal = new Float64Array(numPoints);
+            for (let k = 0; k < numPoints; k++) freqs[k] = (k / numPoints) * (Fs / 2);
+            let resp1 = getBiquadResponse(freqs, stages[0]);
+            let resp2 = getBiquadResponse(freqs, stages[1]);
+            for (let k = 0; k < numPoints; k++) {
+                mag[k] = 20 * Math.log10((resp1.mag[k] * resp2.mag[k]) + 1e-12);
+                let p = resp1.phase[k] + resp2.phase[k];
+                while (p > Math.PI) p -= 2 * Math.PI;
+                while (p < -Math.PI) p += 2 * Math.PI;
+                phaseTotal[k] = p;
+            }
+            bodeData = { freqs: Array.from(freqs), mag: Array.from(mag), phase: Array.from(unwrapPhase(phaseTotal)).map(p => p * 180 / Math.PI) };
+            
+            let imp = new Float64Array(150); imp[0] = 1;
+            impulseData = Array.from(applyIIR(imp, stages));
+        }
+
+        Plotly.react('mainPlot', [
+            { x: timeAxis, y: cleanECG, mode: 'lines', name: 'ECG Puro', line: {color: '#cbd5e1', width: 2, dash: 'dot'} },
+            { x: timeAxis, y: originalECG, mode: 'lines', name: 'Sinal Entrada', line: {color: '#94a3b8', width: 1.5} },
+            { x: timeAxis, y: filteredECG, mode: 'lines', name: `Sinal Filtrado (${state.arch.toUpperCase()})`, line: {color: state.arch==='fir' ? '#2563eb' : '#d946ef', width: 1.5} }
+        ], { ...defaultLayout, xaxis: { title: 'Tempo (Segundos)' }, yaxis: { title: 'Amplitude (mV)' }, legend: { orientation: 'h', y: 1.1 } }, plotConfig);
+
+        Plotly.react('impulsePlot', [{ 
+            x: Array.from({length: impulseData.length}, (_, i) => i), y: impulseData, 
+            type: state.arch === 'fir' ? 'bar' : 'scatter', mode: 'lines+markers',
+            marker: { color: state.arch === 'fir' ? '#8b5cf6' : '#d946ef', size: 4 }, name: 'h[n]' 
+        }], { ...defaultLayout, margin: {t:20, b:40, l:40, r:10}, xaxis: {title: 'Amostra (n)'} }, plotConfig);
+
+        let shapes = [];
+        if(state.type === 'lowpass') shapes.push({ type: 'rect', xref: 'x', yref: 'paper', x0: 0, x1: state.fc1, y0: 0, y1: 1, fillcolor: '#22c55e', opacity: 0.1, line: {width: 0} });
+        else if (state.type === 'highpass') shapes.push({ type: 'rect', xref: 'x', yref: 'paper', x0: state.fc1, x1: Fs/2, y0: 0, y1: 1, fillcolor: '#22c55e', opacity: 0.1, line: {width: 0} });
+        else shapes.push({ type: 'rect', xref: 'x', yref: 'paper', x0: state.fc1, x1: state.fc2, y0: 0, y1: 1, fillcolor: '#22c55e', opacity: 0.1, line: {width: 0} });
+
+        Plotly.react('bodePlot', [
+            { x: bodeData.freqs, y: bodeData.mag, mode: 'lines', line: { color: '#ef4444', width: 2 }, name: 'Mag (dB)' },
+            { x: bodeData.freqs, y: bodeData.phase, mode: 'lines', line: { color: '#f59e0b', width: 2 }, name: 'Fase (°)', yaxis: 'y2' }
+        ], { 
+            ...defaultLayout, margin: {t:20, b:40, l:50, r:50}, 
+            xaxis: {title: 'Frequência (Hz)'}, 
+            yaxis: {title: 'Mag (dB)', range: [-100, 5], domain: [0.55, 1]},
+            yaxis2: {title: 'Fase (°)', domain: [0, 0.45]},
+            showlegend: false, shapes: shapes 
+        }, plotConfig);
+    }
+
+    /* === RENDERIZAÇÃO DO CICLO ÚNICO (ATUALIZADA) === */
+    function renderCyclePlot() {
+        // 1. Usa o ECG Limpo puramente como referência (Gabarito)
+        let pureSig = cleanECG;
+        // O sinal analisado será o sinal já filtrado da tela principal (que contém a entrada selecionada com/sem ruídos)
+        let filtSig = filteredECG;
+
+        // 2. Extrai o ciclo após o filtro ter estabilizado (meio do sinal de 10s = aos 5 segundos)
+        let mid = Math.floor(numSamples / 2);
+        let searchWin = Math.floor(Fs * (60 / state.hr)); // Janela de busca = 1 batimento inteiro
+        
+        // Localiza o Pico R no ECG Gabarito
+        let rPeakPure = mid;
+        let maxVal = -Infinity;
+        for(let i = mid - searchWin; i < mid + searchWin; i++) {
+            if(pureSig[i] > maxVal) { maxVal = pureSig[i]; rPeakPure = i; }
+        }
+
+        // 3. Determina o atraso do Filtro para fins de alinhamento visual
+        let delay = 0;
+        if (state.arch === 'fir') {
+            delay = Math.floor((state.taps - 1) / 2); // No FIR, o atraso de grupo é perfeitamente conhecido (matemático)
+        } else {
+            // No IIR, tentamos localizar o pico deslocado (já que a fase não é linear) num intervalo razoável à frente
+            let rPeakFilt = rPeakPure;
+            let maxFilt = -Infinity;
+            for(let i = rPeakPure; i < Math.min(numSamples, rPeakPure + Fs); i++) {
+                if(filtSig[i] > maxFilt) { maxFilt = filtSig[i]; rPeakFilt = i; }
+            }
+            delay = rPeakFilt - rPeakPure;
+        }
+
+        // 4. Constrói as matrizes de 1 Ciclo com a correção de offset temporal
+        let cycleSamples = Math.floor(Fs * (60 / state.hr));
+        let startIdx = rPeakPure - Math.floor(cycleSamples * 0.4); // Pega 40% antes do pico R e 60% depois
+        
+        let timeRel = new Float64Array(cycleSamples);
+        let pureCycle = new Float64Array(cycleSamples);
+        let filtCycle = new Float64Array(cycleSamples);
+
+        for(let i = 0; i < cycleSamples; i++) {
+            timeRel[i] = i / Fs;
+            pureCycle[i] = pureSig[startIdx + i];
+            
+            // Corrige visualmente o atraso puxando os dados do sinal filtrado 'para a frente' no tempo
+            let filtIdx = startIdx + i + delay;
+            filtCycle[i] = (filtIdx >= 0 && filtIdx < numSamples) ? filtSig[filtIdx] : 0;
+        }
+
+        // 5. Plota
+        let trace1 = { x: timeRel, y: pureCycle, mode: 'lines', name: 'ECG Gabarito (Limpo Ideal)', line: {color: '#94a3b8', width: 2, dash: 'dot'} };
+        let trace2 = { x: timeRel, y: filtCycle, mode: 'lines', name: `Sinal Real Filtrado (${state.arch.toUpperCase()})`, line: {color: state.arch==='fir' ? '#2563eb' : '#d946ef', width: 2} };
+
+        Plotly.react('cyclePlot', [trace1, trace2], {
+            ...defaultLayout,
+            margin: { t: 20, b: 40, l: 50, r: 20 },
+            xaxis: { title: 'Tempo Relativo (Segundos)' },
+            yaxis: { title: 'Amplitude (mV)' },
+            legend: { orientation: 'h', y: 1.1 }
+        }, plotConfig);
+    }
+
+    /* === INTERFACE === */
+    function downloadCSV() {
+        let csvContent = "a,b\n";
+        let maxLen = Math.max(exportA.length, exportB.length);
+        for (let i = 0; i < maxLen; i++) {
+            let a_val = exportA[i] !== undefined ? exportA[i] : 0;
+            let b_val = exportB[i] !== undefined ? exportB[i] : 0;
+            csvContent += `${a_val},${b_val}\n`;
+        }
+        
+        let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        let url = URL.createObjectURL(blob);
+        let link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `coeficientes_${state.arch}_${state.type}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function updateState() {
+        state.arch = document.getElementById('archType').value;
+        state.hr = parseInt(document.getElementById('hrInput').value);
+        state.noise = document.getElementById('noiseInput').checked;
+        state.motion = document.getElementById('motionInput').checked;
+        state.type = document.getElementById('filterType').value;
+        
+        state.taps = parseInt(document.getElementById('tapsInput').value);
+        if(state.taps % 2 === 0) state.taps += 1; 
+
+        state.window = document.getElementById('windowType').value;
+        state.fc1 = parseFloat(document.getElementById('fc1Input').value);
+        state.fc2 = parseFloat(document.getElementById('fc2Input').value);
+
+        document.getElementById('hrVal').innerText = state.hr;
+        document.getElementById('tapsVal').innerText = state.taps;
+        
+        document.getElementById('fc2Container').classList.toggle('hidden', state.type !== 'bandpass');
+        
+        if (state.arch === 'fir') {
+            document.getElementById('firControls').classList.remove('hidden');
+            document.getElementById('firPreviewPanel').classList.remove('hidden');
+            document.getElementById('iirInfoPanel').classList.add('hidden');
+        } else {
+            document.getElementById('firControls').classList.add('hidden');
+            document.getElementById('firPreviewPanel').classList.add('hidden');
+            document.getElementById('iirInfoPanel').classList.remove('hidden');
+        }
+
+        generateECG();
+        renderMainPlots();
+    }
+
+    function openModal(id) {
+        document.getElementById(id).classList.remove('hidden');
+        setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 20); 
+    }
+
+    function openCycleModal() {
+        renderCyclePlot();
+        openModal('cycleModal');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    window.onload = () => {
+        generateECG();
+        Plotly.newPlot('mainPlot', [], defaultLayout, plotConfig);
+        Plotly.newPlot('previewPlot', [], defaultLayout, plotConfig);
+        Plotly.newPlot('impulsePlot', [], defaultLayout, plotConfig);
+        Plotly.newPlot('bodePlot', [], defaultLayout, plotConfig);
+        Plotly.newPlot('cyclePlot', [], defaultLayout, plotConfig);
+        updateState();
+    };
+</script>
+
+</body>
+</html>
