@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório DSP Universal - Filtro FIR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@500&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #f8fafc; overflow-x: hidden; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.05); }
+        .mono { font-family: 'Fira Code', monospace; }
+        
+        canvas { width: 100%; height: 180px; border-radius: 12px; background: #020617; border: 1px solid #1e293b; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); }
+        
+        .btn-action { transition: all 0.2s ease; }
+        .btn-action:active { transform: scale(0.95); }
+        .recording-pulse { animation: pulseRed 1.5s infinite; background-color: #ef4444 !important; border-color: #f87171 !important; color: white !important;}
+        
+        @keyframes pulseRed { 
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 
+        }
+
+        .step-number { width: 28px; height: 28px; border-radius: 50%; background: #38bdf8; color: #0f172a; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 lg:p-8">
+
+    <div class="max-w-5xl w-full glass-panel p-8 rounded-3xl shadow-2xl">
+        
+        <header class="mb-8 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-700/50 pb-6">
+            <div>
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">FIR Filter Lab</h1>
+                <p class="text-slate-400 text-sm mt-1">Plataforma Universal de Processamento de Áudio</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center shadow-inner min-w-[250px]">
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Frequência do Sistema (Fs)</p>
+                <p id="fs-display" class="text-3xl font-bold text-sky-400 mono">Detectando...</p>
+                <p class="text-[10px] text-slate-500 mt-1">Projete seu filtro para esta frequência</p>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-slate-800/40 border border-slate-700 rounded-xl p-5 relative overflow-hidden group hover:border-sky-500/50 transition-colors">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="step-number">1</div>
+                    <h2 class="font-bold text-slate-200">Carregar Filtro</h2>
+                </div>
+                <label class="cursor-pointer block w-full text-center bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white text-xs font-bold py-3 px-4 rounded-lg transition-all">
+                    UPLOAD ARQUIVO .CSV
+                    <input type="file" id="csv-upload" accept=".csv" class="hidden">
+                </label>
+                <p id="filter-info" class="text-xs text-amber-400 mono mt-3 text-center">Modo Atual: Bypass (1 tap)</p>
+            </div>
+
+            <div class="bg-slate-800/40 border border-slate-700 rounded-xl p-5 relative group hover:border-sky-500/50 transition-colors">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="step-number">2</div>
+                    <h2 class="font-bold text-slate-200">Capturar Áudio</h2>
+                </div>
+                <div class="flex gap-3 justify-center">
+                    <button id="btn-mic" class="btn-action flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold py-3 px-2 rounded-lg border border-slate-500 flex flex-col items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                        Gravar Mic
+                    </button>
+                    <button id="btn-noise" class="btn-action flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold py-3 px-2 rounded-lg border border-slate-500 flex flex-col items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        Ruído Branco
+                    </button>
+                </div>
+                <p id="action-status" class="text-xs text-slate-400 text-center mt-3">Aguardando entrada...</p>
+            </div>
+
+            <div class="bg-slate-800/40 border border-slate-700 rounded-xl p-5 relative group hover:border-sky-500/50 transition-colors">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="step-number">3</div>
+                    <h2 class="font-bold text-slate-200">Análise e Playback</h2>
+                </div>
+                <div id="playback-group" class="flex flex-col gap-2 opacity-50 pointer-events-none transition-opacity">
+                    <button id="play-orig" class="btn-action w-full bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold py-2 rounded border border-slate-600">Ouvir Original</button>
+                    <button id="play-filt" class="btn-action w-full bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold py-2 rounded border border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.3)]">Ouvir Filtrado</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="relative">
+                <div class="absolute top-3 left-4 flex items-center gap-2">
+                    <span class="text-[10px] font-bold text-sky-400 uppercase tracking-widest bg-slate-900/80 px-2 py-1 rounded">Domínio do Tempo</span>
+                </div>
+                <canvas id="canvas-time"></canvas>
+            </div>
+            <div class="relative">
+                <div class="absolute top-3 left-4 flex items-center gap-2">
+                    <span class="text-[10px] font-bold text-fuchsia-400 uppercase tracking-widest bg-slate-900/80 px-2 py-1 rounded">Espectro (Linear)</span>
+                </div>
+                <canvas id="canvas-freq"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let audioCtx;
+        let analyser, animationId;
+        let firCoefficients = [1.0];
+        let originalBuffer = null;
+        let filteredBuffer = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let currentSourceNode = null;
+
+        const fsDisplay = document.getElementById('fs-display');
+        const filterInfo = document.getElementById('filter-info');
+        const actionStatus = document.getElementById('action-status');
+        const btnMic = document.getElementById('btn-mic');
+        const btnNoise = document.getElementById('btn-noise');
+        const playbackGroup = document.getElementById('playback-group');
+        const canvasT = document.getElementById('canvas-time');
+        const canvasF = document.getElementById('canvas-freq');
+        const ctxT = canvasT.getContext('2d');
+        const ctxF = canvasF.getContext('2d');
+
+        window.addEventListener('load', () => {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            fsDisplay.innerText = `${audioCtx.sampleRate} Hz`;
+            
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 2048; 
+            renderLoop();
+        });
+
+        function renderLoop() {
+            animationId = requestAnimationFrame(renderLoop);
+            const bufferLen = analyser.frequencyBinCount;
+            const dataTime = new Uint8Array(bufferLen);
+            const dataFreq = new Uint8Array(bufferLen);
+
+            // ====== OSCILOSCÓPIO (Tempo) ======
+            analyser.getByteTimeDomainData(dataTime);
+            ctxT.fillStyle = '#020617';
+            ctxT.fillRect(0, 0, canvasT.width, canvasT.height);
+            ctxT.lineWidth = 2; ctxT.strokeStyle = '#38bdf8'; ctxT.beginPath();
+            let sliceWidth = canvasT.width / bufferLen; let x = 0;
+            for(let i = 0; i < bufferLen; i++) {
+                let y = (dataTime[i] / 128.0) * canvasT.height / 2;
+                if(i === 0) ctxT.moveTo(x, y); else ctxT.lineTo(x, y);
+                x += sliceWidth;
+            }
+            ctxT.stroke();
+
+            // ====== ESPECTRO DE FREQUÊNCIA (Linear Exato) ======
+            analyser.getByteFrequencyData(dataFreq);
+            ctxF.fillStyle = '#020617';
+            ctxF.fillRect(0, 0, canvasF.width, canvasF.height);
+            
+            // Desenhar as grades de fundo (Guias)
+            ctxF.strokeStyle = '#1e293b';
+            ctxF.lineWidth = 1;
+            for(let i = 1; i < 4; i++) {
+                let xLine = (canvasF.width / 4) * i;
+                ctxF.beginPath();
+                ctxF.moveTo(xLine, 0);
+                ctxF.lineTo(xLine, canvasF.height);
+                ctxF.stroke();
+            }
+
+            // Desenhar as Barras Lineares
+            // A largura total do canvas representa de 0 a Nyquist (Fs/2)
+            let barWidth = canvasF.width / bufferLen; 
+            for(let i = 0; i < bufferLen; i++) {
+                // Previne que barras com 0 de largura não sejam renderizadas se o canvas for pequeno
+                let w = Math.max(1, barWidth); 
+                let h = (dataFreq[i] / 255) * canvasF.height;
+                let bx = (i / bufferLen) * canvasF.width;
+                
+                ctxF.fillStyle = `hsl(${280 - (i/bufferLen)*120}, 80%, 55%)`;
+                ctxF.fillRect(bx, canvasF.height - h, w, h);
+            }
+
+            // Escrever os Rótulos do Eixo X (Frequências)
+            ctxF.fillStyle = '#94a3b8';
+            ctxF.font = '10px Inter';
+            const nyquist = audioCtx.sampleRate / 2;
+            
+            // 0 Hz
+            ctxF.fillText('0', 5, canvasF.height - 5);
+            // Centro (Nyquist / 2)
+            const midFreq = (nyquist / 2 / 1000).toFixed(1) + 'k';
+            ctxF.fillText(midFreq, canvasF.width / 2 + 5, canvasF.height - 5);
+            // Fim (Nyquist)
+            const nyqFreq = (nyquist / 1000).toFixed(1) + 'kHz';
+            ctxF.fillText(nyqFreq, canvasF.width - 40, canvasF.height - 5);
+        }
+
+        async function resumeAudio() {
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+        }
+
+        document.getElementById('csv-upload').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const lines = ev.target.result.split(/\r?\n/);
+                const newTaps = [];
+                
+                lines.forEach(line => {
+                    const cols = line.trim().split(',');
+                    if (cols.length === 0 || cols[0] === '') return; 
+                    let val = (cols.length >= 2) ? parseFloat(cols[1]) : parseFloat(cols[0]);
+                    if (!isNaN(val)) newTaps.push(val);
+                });
+
+                if (newTaps.length > 0) {
+                    firCoefficients = newTaps;
+                    filterInfo.innerHTML = `Carregado: <span class="text-white">${file.name}</span><br>Taps (N) = ${newTaps.length}`;
+                    filterInfo.classList.replace('text-amber-400', 'text-sky-400');
+                    
+                    if (originalBuffer) {
+                        actionStatus.innerText = "Reaplicando novo filtro...";
+                        processDigitalFilter();
+                    }
+                } else {
+                    alert("Não foi possível identificar coeficientes numéricos no arquivo.");
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = ''; 
+        };
+
+        btnMic.onclick = async () => {
+            await resumeAudio();
+            stopPlayback();
+
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                btnMic.classList.remove('recording-pulse');
+                btnMic.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>Gravar Mic`;
+                actionStatus.innerText = "Processando Convolução FIR...";
+            } else {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        const ab = await new Blob(audioChunks).arrayBuffer();
+                        originalBuffer = await audioCtx.decodeAudioData(ab);
+                        stream.getTracks().forEach(t => t.stop());
+                        processDigitalFilter();
+                    };
+
+                    mediaRecorder.start();
+                    btnMic.classList.add('recording-pulse');
+                    btnMic.innerHTML = `Parar Gravação`;
+                    actionStatus.innerText = "Gravando... Fale no microfone.";
+                    disablePlayback();
+                } catch(e) {
+                    alert("Permissão de microfone negada ou não disponível.");
+                }
+            }
+        };
+
+        btnNoise.onclick = async () => {
+            await resumeAudio();
+            stopPlayback();
+            disablePlayback();
+            actionStatus.innerText = "Gerando Ruído Branco...";
+            
+            const sampleRate = audioCtx.sampleRate;
+            originalBuffer = audioCtx.createBuffer(1, sampleRate * 2.0, sampleRate);
+            const data = originalBuffer.getChannelData(0);
+            for (let i = 0; i < data.length; i++) {
+                data[i] = (Math.random() * 2) - 1;
+            }
+
+            setTimeout(processDigitalFilter, 50);
+        };
+
+        function processDigitalFilter() {
+            setTimeout(() => { 
+                const input = originalBuffer.getChannelData(0);
+                const N_samples = input.length;
+                const output = new Float32Array(N_samples);
+                const b = firCoefficients;
+                const M_taps = b.length;
+
+                for (let n = 0; n < N_samples; n++) {
+                    let acc = 0;
+                    for (let k = 0; k < M_taps; k++) {
+                        if (n - k >= 0) acc += b[k] * input[n - k];
+                    }
+                    output[n] = acc;
+                }
+
+                let maxIn = 0, maxOut = 0;
+                for(let i=0; i<N_samples; i++) if(Math.abs(input[i]) > maxIn) maxIn = Math.abs(input[i]);
+                for(let i=0; i<N_samples; i++) if(Math.abs(output[i]) > maxOut) maxOut = Math.abs(output[i]);
+                
+                if (maxOut > 0 && maxIn > 0) {
+                    const gain = Math.min(maxIn / maxOut, 20.0); 
+                    for(let i=0; i<N_samples; i++) output[i] *= gain;
+                }
+
+                filteredBuffer = audioCtx.createBuffer(1, N_samples, audioCtx.sampleRate);
+                filteredBuffer.copyToChannel(output, 0);
+
+                actionStatus.innerText = "Pronto! Selecione o áudio para ouvir.";
+                enablePlayback();
+            }, 10);
+        }
+
+        function stopPlayback() {
+            if (currentSourceNode) {
+                try { currentSourceNode.stop(); } catch(e) {}
+                currentSourceNode.disconnect();
+                currentSourceNode = null;
+            }
+        }
+
+        function playAudio(buffer) {
+            if (!buffer) return;
+            resumeAudio();
+            stopPlayback();
+            
+            currentSourceNode = audioCtx.createBufferSource();
+            currentSourceNode.buffer = buffer;
+            currentSourceNode.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            currentSourceNode.start();
+        }
+
+        document.getElementById('play-orig').onclick = () => playAudio(originalBuffer);
+        document.getElementById('play-filt').onclick = () => playAudio(filteredBuffer);
+
+        function enablePlayback() {
+            playbackGroup.style.opacity = "1";
+            playbackGroup.style.pointerEvents = "all";
+        }
+        
+        function disablePlayback() {
+            playbackGroup.style.opacity = "0.5";
+            playbackGroup.style.pointerEvents = "none";
+        }
+
+        window.onresize = () => {
+            canvasT.width = canvasT.clientWidth;
+            canvasF.width = canvasF.clientWidth;
+        };
+        window.dispatchEvent(new Event('resize'));
+    </script>
+</body>
+</html>

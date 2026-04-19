@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIR Expert Designer v4.1 - Coeficientes Finais</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #05070a; color: #e2e8f0; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .card { background: #0f121a; border: 1px solid #1e2533; border-radius: 12px; padding: 1.25rem; }
+        .canvas-container { position: relative; background: #020408; border: 2px solid #2d3748; border-radius: 8px; cursor: crosshair; touch-action: none; }
+        canvas { display: block; width: 100%; height: 380px; }
+        .label-tech { font-size: 0.7rem; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+        select, input { background: #1a1f2e; border: 1px solid #2d3748; color: white; padding: 0.4rem; border-radius: 6px; font-size: 0.85rem; width: 100%; }
+        .btn-preset { background: #1a1f2e; border: 1px solid #2d3748; font-size: 0.75rem; font-weight: 700; padding: 0.6rem; border-radius: 6px; transition: all 0.2s; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+        .btn-preset:hover { background: #10b98122; border-color: #10b981; }
+        #modalOverlay { background: rgba(0,0,0,0.9); backdrop-filter: blur(8px); display: none; position: fixed; inset: 0; z-index: 100; align-items: center; justify-content: center; }
+        .modal-card { background: #0f121a; border: 1px solid #10b98155; width: 100%; max-width: 450px; border-radius: 16px; padding: 2rem; box-shadow: 0 0 40px rgba(0,0,0,0.7); }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <div id="modalOverlay">
+        <div class="modal-card">
+            <h2 id="modalTitle" class="text-xl font-black mb-1 text-white uppercase tracking-tight">Filtro</h2>
+            <p class="text-[10px] text-green-400 font-bold uppercase mb-6 tracking-widest">Especificações Técnicas</p>
+            <div id="modalInputs" class="space-y-4"></div>
+            <div class="flex gap-3 mt-8">
+                <button onclick="closeModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-lg font-bold text-xs">CANCELAR</button>
+                <button onclick="applyModalSpec()" class="flex-1 bg-green-600 hover:bg-green-500 py-2 rounded-lg font-bold text-white text-xs">GERAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 border-b border-slate-800 pb-4">
+            <div>
+                <h1 class="text-2xl font-black text-white tracking-tighter italic uppercase">FIR <span class="text-green-500">Expert Studio</span></h1>
+                <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Amostragem em Frequência | Download de Coeficientes b_s</p>
+            </div>
+            <button id="downloadBtn" class="bg-green-600 hover:bg-green-500 text-white font-black py-2 px-6 rounded-lg text-xs transition-all shadow-lg shadow-green-900/20">BAIXAR COEFICIENTES (CSV)</button>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <aside class="lg:col-span-3 space-y-4">
+                <div class="card">
+                    <h2 class="label-tech mb-3 text-green-500">Presets</h2>
+                    <div class="flex flex-col gap-2">
+                        <button onclick="openModal('lp')" class="btn-preset">Passa-Baixas <span>LPF</span></button>
+                        <button onclick="openModal('hp')" class="btn-preset">Passa-Altas <span>HPF</span></button>
+                        <button onclick="openModal('bp')" class="btn-preset">Passa-Banda <span>BPF</span></button>
+                        <button onclick="openModal('br')" class="btn-preset">Rejeita-Faixa <span>BSF</span></button>
+                        <button onclick="applyFlatAction()" class="btn-preset">Flat (0 dB) <span>—</span></button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 class="label-tech mb-3 text-slate-400">Sistema</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="label-tech block mb-1">Taps (N)</label>
+                            <select id="nPoints">
+                                <option value="16">16</option>
+                                <option value="32">32</option>
+                                <option value="64" selected>64</option>
+                                <option value="128">128</option>
+                                <option value="256">256</option>
+                                <option value="512">512</option>
+                                <option value="1024">1024</option>
+                                <option value="2048">2048</option>
+                                <option value="4096">4096</option>
+                            </select>
+                        </div>
+                        <div><label class="label-tech block mb-1">Fs (Hz)</label><input type="number" id="fs" value="1000"></div>
+                        <div>
+                            <label class="label-tech block mb-1">Janela de Saída</label>
+                            <select id="windowType">
+                                <option value="rectangular">Retangular</option>
+                                <option value="hanning">Hanning</option>
+                                <option value="hamming" selected>Hamming</option>
+                                <option value="blackman">Blackman</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="lg:col-span-9 space-y-6">
+                <div class="card">
+                    <div class="flex justify-between mb-2">
+                        <span class="label-tech text-green-500">Editor de Magnitude |H(f)|</span>
+                        <div class="flex gap-4 text-[9px] font-bold uppercase tracking-widest">
+                            <span id="activeDesignIndicator" class="text-indigo-400">LPF 50Hz</span>
+                            <span class="text-green-500">> 0dB</span>
+                            <span class="text-red-500">< 0dB</span>
+                        </div>
+                    </div>
+                    <div class="canvas-container"><canvas id="editorCanvas"></canvas></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div id="bodePlot" class="card h-[320px]"></div>
+                    <div id="phasePlot" class="card h-[320px]"></div>
+                </div>
+
+                <div id="timePlot" class="card h-[350px]"></div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('editorCanvas');
+        const ctx = canvas.getContext('2d');
+        const modal = document.getElementById('modalOverlay');
+        let N = 64; let Fs = 1000; let dbValues = []; let drawing = false;
+        let currentModalType = '';
+        let finalCoefs = []; // Armazena h_windowed para o download
+
+        let appState = {
+            lastAppliedType: 'lp',
+            history: {
+                lp: { fc: 50, gp: 0, gs: -40, tr: 10 },
+                hp: { fc: 350, gp: 0, gs: -40, tr: 50 },
+                bp: { fc1: 150, fc2: 350, gp: 0, gs: -40, tr: 50 },
+                br: { fc1: 150, fc2: 350, gp: 0, gs: -40, tr: 50 },
+                flat: { gp: 0 }
+            }
+        };
+
+        const DB_MAX = 20, DB_MIN = -40, DB_SPAN = 60;
+        const PAD_X = 50, PAD_B = 40;
+
+        function saveState() { localStorage.setItem('fir_master_v4_1', JSON.stringify(appState)); }
+        function loadState() {
+            const s = localStorage.getItem('fir_master_v4_1');
+            if (s) appState = JSON.parse(s);
+        }
+
+        function initSystem() {
+            loadState();
+            N = parseInt(document.getElementById('nPoints').value);
+            Fs = parseFloat(document.getElementById('fs').value);
+            recalculateMask();
+            resizeCanvas();
+            updateSystem();
+        }
+
+        function recalculateMask() {
+            N = parseInt(document.getElementById('nPoints').value);
+            Fs = parseFloat(document.getElementById('fs').value) || 1000;
+            dbValues = new Array(Math.floor(N / 2) + 1).fill(-40);
+            const freqStep = (Fs / 2) / (dbValues.length - 1);
+            const type = appState.lastAppliedType;
+            const h = appState.history[type];
+
+            if (type === 'flat') {
+                dbValues.fill(h.gp);
+            } else if (type === 'lp') {
+                dbValues = dbValues.map((_, i) => {
+                    const f = i * freqStep;
+                    if (f <= h.fc - h.tr/2) return h.gp;
+                    if (f >= h.fc + h.tr/2) return h.gs;
+                    return h.gp - (h.gp - h.gs) * ((f - (h.fc - h.tr/2)) / h.tr);
+                });
+            } else if (type === 'hp') {
+                dbValues = dbValues.map((_, i) => {
+                    const f = i * freqStep;
+                    if (f <= h.fc - h.tr/2) return h.gs;
+                    if (f >= h.fc + h.tr/2) return h.gp;
+                    return h.gs + (h.gp - h.gs) * ((f - (h.fc - h.tr/2)) / h.tr);
+                });
+            } else {
+                const isBR = type === 'br';
+                const gp = isBR ? h.gs : h.gp; const gs = isBR ? h.gp : h.gs;
+                dbValues = dbValues.map((_, i) => {
+                    const f = i * freqStep;
+                    if (f < h.fc1 - h.tr/2) return isBR ? h.gp : h.gs;
+                    if (f < h.fc1 + h.tr/2) return gs + (gp - gs) * ((f - (h.fc1 - h.tr/2)) / h.tr);
+                    if (f < h.fc2 - h.tr/2) return isBR ? h.gs : h.gp;
+                    if (f < h.fc2 + h.tr/2) return gp - (gp - gs) * ((f - (h.fc2 - h.tr/2)) / h.tr);
+                    return isBR ? h.gp : h.gs;
+                });
+            }
+            document.getElementById('activeDesignIndicator').innerText = `DESIGN: ${type.toUpperCase()}`;
+        }
+
+        function openModal(type) {
+            currentModalType = type;
+            const h = appState.history[type];
+            const container = document.getElementById('modalInputs');
+            document.getElementById('modalTitle').innerText = `CONFIGURAR ${type.toUpperCase()}`;
+            const common = `<div class="grid grid-cols-2 gap-4"><div><label class="label-tech">Ganho Passagem (dB)</label><input type="number" id="specGP" value="${h.gp}"></div><div><label class="label-tech">Ganho Rejeição (dB)</label><input type="number" id="specGS" value="${h.gs}"></div></div><div><label class="label-tech">Largura Transição (Hz)</label><input type="number" id="specTR" value="${h.tr}"></div>`;
+            if(type === 'lp' || type === 'hp') {
+                container.innerHTML = `<div><label class="label-tech">Freq. Corte (Hz)</label><input type="number" id="specFC" value="${h.fc}"></div>` + common;
+            } else {
+                container.innerHTML = `<div class="grid grid-cols-2 gap-4"><div><label class="label-tech">Freq. F1 (Hz)</label><input type="number" id="specFC1" value="${h.fc1}"></div><div><label class="label-tech">Freq. F2 (Hz)</label><input type="number" id="specFC2" value="${h.fc2}"></div></div>` + common;
+            }
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() { modal.style.display = 'none'; }
+
+        function applyModalSpec() {
+            const type = currentModalType;
+            if(type === 'lp' || type === 'hp') {
+                appState.history[type] = { fc: parseFloat(document.getElementById('specFC').value), gp: parseFloat(document.getElementById('specGP').value), gs: parseFloat(document.getElementById('specGS').value), tr: parseFloat(document.getElementById('specTR').value) };
+            } else {
+                appState.history[type] = { fc1: parseFloat(document.getElementById('specFC1').value), fc2: parseFloat(document.getElementById('specFC2').value), gp: parseFloat(document.getElementById('specGP').value), gs: parseFloat(document.getElementById('specGS').value), tr: parseFloat(document.getElementById('specTR').value) };
+            }
+            appState.lastAppliedType = type;
+            saveState(); recalculateMask(); closeModal(); drawEditor(); updateSystem();
+        }
+
+        function applyFlatAction() { appState.lastAppliedType = 'flat'; saveState(); recalculateMask(); drawEditor(); updateSystem(); }
+
+        function resizeCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = 380; drawEditor(); }
+        function drawEditor() {
+            const wEff = canvas.width - PAD_X; const hEff = canvas.height - PAD_B;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '9px Inter';
+            [20, 10, 0, -10, -20, -30, -40].forEach(db => {
+                const y = hEff - ((db - DB_MIN) / DB_SPAN) * hEff;
+                ctx.strokeStyle = db === 0 ? '#fff' : '#1e293b';
+                ctx.beginPath(); ctx.moveTo(PAD_X, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+                ctx.fillStyle = '#64748b'; ctx.textAlign = 'right'; ctx.fillText(db + 'dB', PAD_X - 10, y + 3);
+            });
+            const barW = wEff / dbValues.length; const fStep = (Fs / 2) / (dbValues.length - 1);
+            dbValues.forEach((db, i) => {
+                const x = PAD_X + (i * barW); const h = ((db - DB_MIN) / DB_SPAN) * hEff;
+                ctx.fillStyle = db > 0 ? 'rgba(34, 197, 94, 0.4)' : (db < 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.2)');
+                ctx.fillRect(x, hEff - h, barW, h);
+                ctx.strokeStyle = db > 0 ? '#22c55e' : (db < 0 ? '#ef4444' : '#fff');
+                ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, hEff - h); ctx.lineTo(x + barW, hEff - h); ctx.stroke();
+                if (i % Math.floor(dbValues.length / 8) === 0 || i === dbValues.length - 1) {
+                    ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center'; ctx.fillText((i * fStep).toFixed(0) + 'Hz', x + barW / 2, hEff + 20);
+                }
+            });
+        }
+
+        function handleInput(e) {
+            if (!drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left - PAD_X;
+            const mouseY = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            const hEff = canvas.height - PAD_B; const barW = (canvas.width - PAD_X) / dbValues.length;
+            const idx = Math.floor(mouseX / barW);
+            if (idx >= 0 && idx < dbValues.length) {
+                dbValues[idx] = Math.max(DB_MIN, Math.min(DB_MAX, (1 - (mouseY / hEff)) * DB_SPAN + DB_MIN));
+                appState.lastAppliedType = 'custom';
+                document.getElementById('activeDesignIndicator').innerText = "CUSTOMIZADO";
+                drawEditor(); updateSystem();
+            }
+        }
+
+        function unwrap(phases) {
+            let out = [phases[0]]; let offset = 0;
+            for (let i = 1; i < phases.length; i++) {
+                let diff = phases[i] - phases[i - 1];
+                if (diff > 180) offset -= 360; else if (diff < -180) offset += 360;
+                out.push(phases[i] + offset);
+            } return out;
+        }
+
+        function updateSystem() {
+            const currentN = parseInt(document.getElementById('nPoints').value);
+            const currentFs = parseFloat(document.getElementById('fs').value);
+            if(currentN !== N || currentFs !== Fs) { recalculateMask(); drawEditor(); }
+            
+            const win = document.getElementById('windowType').value;
+            const delay = (N - 1) / 2;
+            const magsLin = dbValues.map(db => Math.pow(10, db / 20));
+            const h = new Array(N).fill(0);
+            const half = Math.floor(N / 2);
+            for (let n = 0; n <= half; n++) {
+                let sum = magsLin[0];
+                for (let k = 1; k <= half; k++) {
+                    const weight = (N % 2 === 0 && k === half) ? 1 : 2;
+                    sum += weight * (magsLin[k] || 0) * Math.cos((2 * Math.PI / N) * k * (n - delay));
+                }
+                h[n] = sum / N; h[N - 1 - n] = h[n];
+            }
+            finalCoefs = h.map((v, n) => {
+                const arg = (2 * Math.PI * n) / (N - 1);
+                let w = 1;
+                if (win === 'hanning') w = 0.5 - 0.5 * Math.cos(arg);
+                else if (win === 'hamming') w = 0.54 - 0.46 * Math.cos(arg);
+                else if (win === 'blackman') w = 0.42 - 0.5 * Math.cos(arg) + 0.08 * Math.cos(2 * arg);
+                return v * w;
+            });
+
+            const lo = { paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { color: '#64748b', size: 10 }, margin: { t: 40, b: 40, l: 50, r: 20 }, xaxis: { gridcolor: '#1e2533' }, yaxis: { gridcolor: '#1e2533' } };
+            let bF = [], bM = [], bP = []; const pts = 512;
+            for (let i = 0; i <= pts; i++) {
+                let fN = (i / pts) * 0.5; let re = 0, im = 0;
+                for (let n = 0; n < N; n++) {
+                    let ang = -2 * Math.PI * fN * n;
+                    re += finalCoefs[n] * Math.cos(ang); im += finalCoefs[n] * Math.sin(ang);
+                }
+                bF.push(fN * Fs); bM.push(20 * Math.log10(Math.max(Math.sqrt(re * re + im * im), 1e-10))); bP.push(Math.atan2(im, re) * (180 / Math.PI));
+            }
+            Plotly.react('bodePlot', [{ x: bF, y: bM, fill: 'tozeroy', fillcolor: 'rgba(34, 197, 94, 0.05)', line: { color: '#22c55e' } }], { ...lo, title: 'MAGNITUDE REAL (dB)', yaxis: { range: [-60, 25] } }, { displayModeBar: false });
+            Plotly.react('phasePlot', [{ x: bF, y: unwrap(bP), line: { color: '#fbbf24', width: 2 } }], { ...lo, title: 'FASE UNWRAPPED (GRAUS)' }, { displayModeBar: false });
+            Plotly.react('timePlot', [{ x: finalCoefs.map((_, i) => i), y: finalCoefs, type: 'scattergl', mode: N > 256 ? 'lines' : 'markers+lines', marker: { color: '#818cf8', size: 4 }, line: { color: '#6366f1', width: 1 } }], { ...lo, title: 'RESPOSTA AO IMPULSO (b_s)', xaxis: { range: [0, N - 1] } }, { displayModeBar: false });
+        }
+
+        document.getElementById('downloadBtn').onclick = () => {
+            // EXPORTAÇÃO REVISADA: APENAS COEFICIENTES FINAIS b_s
+            let csv = "n,coeficiente_bs\n";
+            finalCoefs.forEach((v, i) => {
+                csv += `${i},${v.toExponential(15)}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = `fir_bs_N${N}_Fs${Fs}.csv`; a.click();
+        };
+
+        canvas.onmousedown = () => drawing = true; window.onmouseup = () => drawing = false;
+        canvas.onmousemove = handleInput; window.onresize = resizeCanvas;
+        document.querySelectorAll('select, input').forEach(el => el.oninput = updateSystem);
+        initSystem();
+    </script>
+</body>
+</html>
