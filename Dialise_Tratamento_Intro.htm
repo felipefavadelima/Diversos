@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Avançado: Tratamento de Água - Engenharia Biomédica</title>
+    <style>
+        :root {
+            --bg-color: #0f172a; 
+            --panel-bg: #1e293b;
+            --primary: #38bdf8;
+            --secondary: #818cf8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --text-main: #f8fafc;
+            --text-light: #94a3b8;
+            --pipe-empty: #334155;
+            --pipe-water: #0284c7;
+        }
+
+        body {
+            font-family: 'Consolas', 'Courier New', monospace; 
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header { text-align: center; margin-bottom: 20px; width: 100%; max-width: 1300px; }
+        
+        h1 { color: var(--primary); font-size: 2rem; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; }
+        
+        p.instrucao {
+            font-size: 1rem; color: var(--text-main); background: var(--panel-bg);
+            padding: 15px; border-left: 5px solid var(--secondary);
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            line-height: 1.5;
+        }
+
+        #sistema-container {
+            display: flex; align-items: flex-start; justify-content: flex-start;
+            background: var(--panel-bg); width: 100%; max-width: 1350px;
+            padding: 40px 20px; border-radius: 8px; border: 1px solid #475569;
+            overflow-x: auto; min-height: 280px; position: relative;
+        }
+
+        .sistema-wrapper { display: flex; }
+
+        .slot-wrapper { display: flex; flex-direction: column; align-items: center; width: 160px; position: relative; }
+
+        .slot-header {
+            font-size: 0.8rem; font-weight: bold; text-align: center; margin-bottom: 10px;
+            color: var(--primary); height: 40px; display: flex; align-items: flex-end; justify-content: center;
+        }
+
+        .drop-slot {
+            width: 130px; height: 150px; background: #0f172a; border: 2px dashed #475569;
+            border-radius: 8px; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; font-size: 0.75rem; color: var(--warning); text-align: center;
+            padding: 10px; box-sizing: border-box; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .drop-slot span.param { display: block; font-weight: bold; margin-top: 5px; color: var(--text-main); }
+        .drop-slot.hovered { background: rgba(56, 189, 248, 0.15); border-color: var(--primary); transform: scale(1.05); }
+
+        .termo-clicavel {
+            border-bottom: 1px dotted var(--primary);
+            color: var(--primary);
+            cursor: help;
+            transition: all 0.2s;
+            display: inline-block;
+            padding-bottom: 1px;
+            font-weight: bold;
+        }
+        .termo-clicavel:hover { background: rgba(56, 189, 248, 0.2); border-bottom: 1px solid var(--primary); border-radius: 2px;}
+
+        /* --- MOTOR DE PARTÍCULAS E FLUIDOS --- */
+        .pipe-wrapper {
+            width: 50px; height: 20px; margin-top: 105px; position: relative; overflow: hidden;
+            background: var(--pipe-empty); border-top: 2px solid #475569; border-bottom: 2px solid #475569;
+            transition: all 0.5s ease;
+        }
+
+        .pipe-wrapper.active { 
+            background: linear-gradient(90deg, #0f172a, #0284c7, #38bdf8, #0284c7, #0f172a);
+            background-size: 200% 100%;
+            animation: flowWater 1.5s linear infinite;
+            border-color: #0284c7;
+            box-shadow: inset 0 0 8px rgba(56, 189, 248, 0.3);
+        }
+
+        .pipe-wrapper.alert { 
+            background: linear-gradient(90deg, #450a0a, #991b1b, #ef4444, #991b1b, #450a0a);
+            background-size: 200% 100%;
+            animation: flowWater 0.8s linear infinite;
+            border-color: #ef4444;
+        }
+
+        @keyframes flowWater {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+
+        .particula {
+            position: absolute; width: 6px; height: 6px; border-radius: 50%;
+            opacity: 0; left: -10px; pointer-events: none;
+            will-change: transform, opacity, left, top;
+            transform: translateZ(0);
+            backface-visibility: hidden;
+        }
+
+        .p-barro { background-color: #d97706; box-shadow: 0 0 5px #d97706; }
+        .p-calcio { background-color: #cbd5e1; box-shadow: 0 0 5px #cbd5e1; }
+        .p-cloro { background-color: #22c55e; box-shadow: 0 0 5px #22c55e; }
+        .p-sais { background-color: #a855f7; box-shadow: 0 0 5px #a855f7; }
+        .p-bact { background-color: #ef4444; box-shadow: 0 0 5px #ef4444; }
+        .p-agua { background-color: #38bdf8; box-shadow: 0 0 5px #38bdf8; }
+
+        @keyframes fluir { 
+            0% { left: -10px; opacity: 0; transform: translateY(0px) scale(0.8); } 
+            20% { opacity: 1; transform: translateY(-2px) scale(1); } 
+            50% { transform: translateY(2px) scale(1.1); }
+            80% { opacity: 1; transform: translateY(-1px) scale(1); } 
+            100% { left: 60px; opacity: 0; transform: translateY(0px) scale(0.8); } 
+        }
+
+        #toolbox {
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;
+            margin-top: 30px; padding: 30px; background: var(--panel-bg);
+            border-radius: 8px; border: 1px solid #475569; width: 100%; max-width: 1350px;
+        }
+
+        .componente {
+            width: 130px; height: 150px; background: #1e293b; border: 2px solid var(--secondary);
+            border-radius: 8px; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; cursor: grab; user-select: none;
+            transition: transform 0.2s, box-shadow 0.2s; padding: 10px; box-sizing: border-box;
+            position: relative; color: white;
+        }
+
+        .componente:active { cursor: grabbing; }
+        .componente:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(129, 140, 248, 0.4); }
+        
+        .componente.placed { 
+            border-color: var(--success); cursor: default; background: #064e3b; 
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+            animation: dropPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes dropPop {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .icon { font-size: 2.5rem; margin-bottom: 5px; pointer-events: none; }
+        .nome { font-size: 0.8rem; font-weight: bold; text-align: center; line-height: 1.2; font-family: 'Segoe UI', sans-serif; pointer-events: none; margin-bottom: 5px;}
+        .tag { font-size: 0.65rem; color: #fff; background: var(--secondary); padding: 3px 6px; border-radius: 4px; pointer-events: none;}
+
+        .modo-diagnostico .componente.placed { cursor: pointer; border: 2px solid var(--warning); background: #451a03; animation: pulse-border 2s infinite; }
+        .modo-diagnostico .componente.placed:hover { transform: scale(1.05); }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+
+        #painel-diagnostico {
+            display: none; width: 100%; max-width: 1350px; background: #450a0a;
+            border-left: 5px solid var(--danger); padding: 20px; margin-top: 20px;
+            border-radius: 8px; box-sizing: border-box; font-family: 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        #painel-diagnostico h2 { margin-top: 0; color: #fca5a5; display: flex; align-items: center; gap: 10px;}
+        #texto-cenario { font-size: 1.1rem; }
+
+        .overlay-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.85); z-index: 1000; justify-content: center; align-items: center;
+        }
+
+        .modal-content {
+            background: var(--panel-bg); padding: 30px; border-radius: 8px; width: 90%;
+            max-width: 750px; max-height: 90vh; overflow-y: auto; color: var(--text-main);
+            border: 1px solid var(--primary); font-family: 'Segoe UI', sans-serif;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.2);
+            animation: modalSlide 0.3s ease-out;
+        }
+
+        @keyframes modalSlide { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        #dicionario-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); z-index: 1500; justify-content: center; align-items: center;
+            backdrop-filter: blur(3px);
+        }
+
+        .dicionario-content {
+            background: #0f172a; padding: 30px; border-radius: 8px; width: 90%;
+            max-width: 600px; color: #e2e8f0; font-family: 'Segoe UI', sans-serif;
+            border-left: 5px solid var(--secondary); box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            animation: modalSlide 0.2s ease-out;
+            max-height: 85vh; overflow-y: auto;
+        }
+
+        .dicionario-content h3 { color: var(--secondary); margin-top: 0; border-bottom: 1px dashed #334155; padding-bottom: 10px; font-size: 1.4rem;}
+        .dicionario-content p { font-size: 1.05rem; line-height: 1.7; text-align: justify; margin-bottom: 15px; }
+
+        .modal-content h2 { color: var(--primary); margin-top: 0; border-bottom: 1px solid #475569; padding-bottom: 10px; font-size: 1.6rem;}
+        .modal-content p { line-height: 1.7; font-size: 1.05rem; }
+        
+        .box-porque { background: #0f172a; border-left: 4px solid var(--secondary); padding: 20px; margin: 15px 0; border-radius: 4px;}
+        .box-porque p { margin: 0 0 10px 0; }
+        .box-porque p:last-child { margin-bottom: 0; }
+
+        .btn-acao {
+            background: var(--primary); color: #000; border: none; padding: 12px 24px;
+            font-size: 1.05rem; border-radius: 4px; cursor: pointer;
+            font-weight: bold; transition: background 0.2s, transform 0.1s; font-family: 'Consolas', monospace;
+        }
+        .btn-acao:hover { background: #0284c7; color: white; transform: translateY(-2px);}
+        .btn-acao:active { transform: translateY(0); }
+        
+        .btn-dicionario { background: var(--secondary); margin-top: 20px; float: right; }
+        .btn-dicionario:hover { background: #6366f1; color: white;}
+
+        #modal-btns-container { display: flex; justify-content: flex-end; gap: 15px; margin-top: 25px; border-top: 1px solid #334155; padding-top: 20px;}
+
+        /* --- ESTILOS DA ANIMAÇÃO INTERNA --- */
+        #anim-canvas { 
+            width: 100%; height: 350px; background: #020617; position: relative; 
+            overflow: hidden; border: 2px solid var(--primary); border-radius: 8px; margin-top: 15px; 
+        }
+        .camada { position: absolute; width: 100%; box-sizing: border-box; }
+        .camada-areia-1 { top: 30%; height: 30%; background: rgba(120, 53, 15, 0.6); border-top: 2px dashed #78350f; }
+        .camada-areia-2 { top: 60%; height: 40%; background: rgba(69, 26, 3, 0.8); border-top: 2px dashed #451a03; }
+        .resina-cat { position: absolute; width: 18px; height: 18px; background: #ca8a04; border-radius: 50%; box-shadow: inset -3px -3px 6px rgba(0,0,0,0.4); animation: resinaPulse 2.8s ease-in-out infinite; }
+        .carvao-poro { position: absolute; width: 50px; height: 50px; background: #1e293b; border-radius: 12px; border: 2px solid #0f172a; animation: poroPulse 3.6s ease-in-out infinite; }
+        .membrana-ro { position: absolute; left: 50%; top: 0; width: 6px; height: 100%; background: repeating-linear-gradient(0deg, #38bdf8, #38bdf8 15px, transparent 15px, transparent 25px); box-shadow: 0 0 15px #38bdf8; animation: membranaPulse 2.2s ease-in-out infinite; }
+        .luz-uv { position: absolute; left: 0; width: 50%; height: 100%; background: linear-gradient(90deg, rgba(168, 85, 247, 0.1), rgba(168, 85, 247, 0.4)); box-shadow: inset -15px 0 30px rgba(168, 85, 247, 0.6); animation: uvPulse 1.8s ease-in-out infinite; }
+        .filtro-abs { position: absolute; left: 80%; width: 8px; height: 100%; background: #94a3b8; border-left: 2px dashed #fff; animation: filtroPulse 2.4s ease-in-out infinite; }
+        .cartucho-pleat { position: absolute; left: 45%; width: 30px; height: 100%; background: repeating-linear-gradient(45deg, #cbd5e1, #cbd5e1 15px, #94a3b8 15px, #94a3b8 30px); border-radius: 4px; background-size: 120% 120%; animation: cartuchoSweep 2.6s linear infinite; }
+
+        @keyframes resinaPulse {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.08); filter: brightness(1.15); }
+        }
+
+        @keyframes poroPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(56, 189, 248, 0); }
+            50% { transform: scale(1.04); box-shadow: 0 0 14px rgba(56, 189, 248, 0.12); }
+        }
+
+        @keyframes membranaPulse {
+            0%, 100% { opacity: 0.8; box-shadow: 0 0 10px #38bdf8; }
+            50% { opacity: 1; box-shadow: 0 0 22px #38bdf8; }
+        }
+
+        @keyframes uvPulse {
+            0%, 100% { opacity: 0.72; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes filtroPulse {
+            0%, 100% { box-shadow: 0 0 0 rgba(255,255,255,0); }
+            50% { box-shadow: 0 0 12px rgba(255,255,255,0.35); }
+        }
+
+        @keyframes cartuchoSweep {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 72px; }
+        }
+        
+        .legenda-anim { position: absolute; font-family: 'Segoe UI', sans-serif; font-size: 0.8rem; font-weight: bold; background: rgba(0,0,0,0.7); padding: 4px 8px; border-radius: 4px; color: white; z-index: 5;}
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="titulo-principal">Projeto de Tratamento - <span class="termo-clicavel" data-termo="rdc11">RDC 11</span></h1>
+        <p class="instrucao" id="instrucao-principal">
+            <strong>DESAFIO DE PROJETO:</strong> Analise as exigências operacionais e físico-químicas em cada estágio e posicione o equipamento adequado para a retenção ou conversão dos contaminantes. O escoamento no conduto inferior apresentará um gradiente visual indicando a evolução do grau de pureza decorrente da implementação das barreiras tecnológicas.<br>
+            <span style="color: var(--secondary); font-size: 0.95rem;">💡 <strong>Consulta Técnica:</strong> O jargão sublinhado (<span class="termo-clicavel" data-termo="termo_exemplo">como este</span>) remete ao glossário de engenharia clínica. Clique para obter a definição técnica detalhada.</span>
+        </p>
+    </header>
+
+    <div id="sistema-container">
+        <div class="sistema-wrapper">
+            <div class="slot-wrapper">
+                <div class="slot-header">Alimentação</div>
+                <div class="componente placed" draggable="false" style="border-color: #475569; background: #0f172a;">
+                    <div class="icon">🏢</div><div class="nome">Rede Pública</div><div class="tag">Água Bruta (Afluente)</div>
+                </div>
+            </div>
+            <div class="pipe-wrapper active" id="pipe-0"></div>
+
+            <div class="slot-wrapper">
+                <div class="slot-header">Estágio 1</div>
+                <div class="drop-slot" data-step="areia">
+                    Parâmetro:<span class="param"><span class="termo-clicavel" data-termo="turbidez">Turbidez</span> > 5 <span class="termo-clicavel" data-termo="ntu">NTU</span></span>
+                    <span class="param"><span class="termo-clicavel" data-termo="particulado">Mat. Particulado</span> > 20µm</span>
+                </div>
+            </div>
+            <div class="pipe-wrapper" id="pipe-1"></div>
+
+            <div class="slot-wrapper">
+                <div class="slot-header">Estágio 2</div>
+                <div class="drop-slot" data-step="abrandador">
+                    Parâmetro:<span class="param"><span class="termo-clicavel" data-termo="dureza">[Ca²⁺] e [Mg²⁺]</span></span>
+                    <span class="param">Risco de <span class="termo-clicavel" data-termo="fouling">Fouling Inorgânico</span></span>
+                </div>
+            </div>
+            <div class="pipe-wrapper" id="pipe-2"></div>
+
+            <div class="slot-wrapper">
+                <div class="slot-header">Estágio 3</div>
+                <div class="drop-slot" data-step="carvao">
+                    Parâmetro:<span class="param"><span class="termo-clicavel" data-termo="cloro">Cloro Total</span> > 0.1 ppm</span>
+                    <span class="param">Risco de <span class="termo-clicavel" data-termo="hemolise">Hemólise</span></span>
+                </div>
+            </div>
+            <div class="pipe-wrapper" id="pipe-3"></div>
+
+            <div class="slot-wrapper">
+                <div class="slot-header">Estágio 4</div>
+                <div class="drop-slot" data-step="microfiltro">
+                    Parâmetro:<span class="param">Integridade da <span class="termo-clicavel" data-termo="bomba">Bomba AP</span></span>
+                    <span class="param"><span class="termo-clicavel" data-termo="finos">Finos de Carvão</span></span>
+                </div>
+            </div>
+            <div class="pipe-wrapper" id="pipe-4"></div>
+
+            <div class="slot-wrapper">
+                <div class="slot-header">Estágio 5</div>
+                <div class="drop-slot" data-step="osmose">
+                    Parâmetro:<span class="param">Sais Dissolvidos</span>
+                    <span class="param"><span class="termo-clicavel" data-termo="osmose_rev">Rejeição Iônica</span></span>
+                </div>
+            </div>
+            <div class="pipe-wrapper" id="pipe-5"></div>
+
+            <div class="slot-wrapper">
+                <div class="slot-header">Estágio 6</div>
+                <div class="drop-slot" data-step="loop">
+                    Parâmetro:<span class="param">Controle <span class="termo-clicavel" data-termo="pirogenico">Pirogênico</span></span>
+                    <span class="param">< 0.25 <span class="termo-clicavel" data-termo="eu_lal">EU/ml (LAL)</span></span>
+                </div>
+            </div>
+            <div class="pipe-wrapper" id="pipe-6"></div>
+
+            <div class="slot-wrapper">
+                <div class="slot-header">Consumo</div>
+                <div class="componente placed" draggable="false" style="border-color: #475569; background: #0f172a;">
+                    <div class="icon">🏥</div><div class="nome">Anel de Diálise</div><div class="tag">Água Tratada (Permeado)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="painel-diagnostico">
+        <h2>⚠️ ALARME <span class="termo-clicavel" data-termo="scada">SCADA</span> ATIVO <span style="font-size: 1rem; margin-left: auto;">Ocorrência <span id="contador-cenario">1</span>/4</span></h2>
+        <p id="texto-cenario">Texto do cenário aparecerá aqui.</p>
+        <p style="color: var(--warning); font-family: monospace; border-top: 1px dashed #ef4444; padding-top: 10px; margin-top: 15px;">AÇÃO REQUERIDA: Analise os parâmetros indicados pela instrumentação. Em seguida, interaja com o Diagrama de Processo e Instrumentação (P&ID) acima, selecionando o equipamento correspondente à causa raiz da falha relatada.</p>
+    </div>
+
+    <div id="toolbox">
+        <div class="componente" draggable="true" id="osmose">
+            <div class="icon">🔬</div><div class="nome">Osmose Reversa</div><div class="tag">Membrana Semipermeável</div>
+        </div>
+        <div class="componente" draggable="true" id="microfiltro">
+            <div class="icon">🧻</div><div class="nome">Filtro Cartucho 5µm</div><div class="tag">Retenção Mecânica</div>
+        </div>
+        <div class="componente" draggable="true" id="areia">
+            <div class="icon">⏳</div><div class="nome">Filtro Multimídia</div><div class="tag">Leito Misto (Zeólita)</div>
+        </div>
+        <div class="componente" draggable="true" id="loop">
+            <div class="icon">⚡</div><div class="nome">Módulo UV + Filtro Absoluto</div><div class="tag">254 nm + 0.22µm</div>
+        </div>
+        <div class="componente" draggable="true" id="carvao">
+            <div class="icon">⬛</div><div class="nome">Carvão Ativado</div><div class="tag">Adsorção Físico-Química</div>
+        </div>
+        <div class="componente" draggable="true" id="abrandador">
+            <div class="icon">⚗️</div><div class="nome">Abrandador</div><div class="tag">Troca Iônica (Resina)</div>
+        </div>
+    </div>
+
+    <div id="info-modal" class="overlay-modal">
+        <div class="modal-content">
+            <h2 id="modal-title">Título</h2>
+            <div id="modal-text">Texto explicativo.</div>
+            <div id="modal-btns-container">
+                </div>
+        </div>
+    </div>
+
+    <div id="anim-modal" class="overlay-modal" style="z-index: 1200;">
+        <div class="modal-content" style="max-width: 800px;">
+            <h2 id="anim-title" style="color: var(--warning);">Análise Cinética e Hidráulica</h2>
+            <p style="margin-bottom: 0; color: var(--text-light); font-size: 0.95rem;">Observe a representação esquemática da interação físico-química neste estágio de filtração.</p>
+            <div id="anim-canvas">
+                </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                <button class="btn-acao" onclick="fecharAnimacao()">Encerrar Visualização</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dicionario-modal">
+        <div class="dicionario-content">
+            <h3 id="dicionario-title">Termo</h3>
+            <div id="dicionario-text">Explicação avançada aqui...</div>
+            <button class="btn-acao btn-dicionario" onclick="fecharDicionario()">Compreendido</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DICIONÁRIO DE ENGENHARIA CLÍNICA (REVISÃO TÉCNICA VERBOSA) ---
+        const dicionarioTermos = {
+            termo_exemplo: { title: "Glossário de Engenharia Clínica", text: "<p>Este glossário fornece definições técnicas, operacionais e normativas baseadas na literatura de Engenharia Hospitalar, fundamentais para a compreensão dos fenômenos físico-químicos e mecânicos simulados neste ambiente.</p>" },
+            rdc11: { title: "Resolução RDC 11/2014 (Anvisa)", text: "<p>Diretriz regulatória que estabelece os Requisitos de Boas Práticas de Funcionamento para os Serviços de Diálise. Determina limites máximos permissíveis estritos para contaminantes químicos (como alumínio, cloro, cloramina e fluoreto) e microbiológicos (bactérias heterotróficas e endotoxinas) na água tratada, visando mitigar reações adversas durante a circulação extracorpórea.</p>" },
+            scada: { title: "Sistema SCADA (Supervisory Control and Data Acquisition)", text: "<p>Arquitetura de sistema de controle industrial que utiliza computadores, comunicação de dados em rede e interfaces homem-máquina (IHM). Na planta de tratamento de água, o SCADA interage com Controladores Lógicos Programáveis (CLPs) para monitorar variáveis críticas contínuas — como pressão diferencial, condutividade e vazão — permitindo o controle automatizado de válvulas, bombas e o registro de histórico de alarmes.</p>" },
+            dpd: { title: "Ensaio Colorimétrico DPD", text: "<p>Análise química baseada no uso do reagente N,N-Dietil-p-Fenilenodiamina. Em soluções aquosas, o DPD sofre oxidação na presença de halogênios, como o cloro livre ou compostos de cloramina, produzindo um composto de coloração magenta (absorbância na faixa de 510-550 nm). A intensidade colorimétrica é diretamente proporcional à concentração oxidante na amostra.</p>" },
+            ebct: { title: "Tempo de Contato de Leito Vazio (EBCT)", text: "<p>Métrica de projeto hidráulico (<em>Empty Bed Contact Time</em>) que define o tempo de residência de um fluido através do volume geométrico de um leito filtrante (desconsiderando a porosidade do material). Para o carvão ativado, um EBCT adequado (frequentemente superior a 5 minutos) é o parâmetro cinético primário para garantir o tempo de difusão e reação catalítica completa na quebra das ligações das cloraminas.</p>" },
+            rca: { title: "Análise de Causa Raiz (RCA)", text: "<p>Metodologia sistêmica aplicada na Engenharia da Confiabilidade e Manutenção (<em>Root Cause Analysis</em>) para identificar a falha originária primária em uma cadeia de eventos adversos. Em sistemas hospitalares críticos, a RCA foca na correção da variável estrutural ou procedimental defectiva, ao invés da mitigação apenas do sintoma secundário evidenciado.</p>" },
+            pressostato: { title: "Pressostato (Chave de Pressão)", text: "<p>Instrumento de instrumentação eletromecânica projetado para acionar ou interromper um circuito elétrico de comando em função de um <em>setpoint</em> de pressão pré-ajustado no fluido. Nos sistemas de bombeamento, o pressostato de baixa pressão atua como um intertravamento de segurança, interrompendo a alimentação do contator do motor para prevenir condições de cavitação ou operação a seco, as quais danificariam os selos mecânicos.</p>" },
+            condutivimetro: { title: "Condutivímetro In-Line", text: "<p>Instrumento analítico em linha dotado de células de medição compostas por eletrodos que avaliam a condutância elétrica da solução. Dado que a água ultrapura exibe alta resistividade, a condutividade (medida tipicamente em µS/cm) atua como um indicador quantitativo indireto, porém altamente correlacionado, da concentração de Sólidos Totalmente Dissolvidos (TDS) não retidos pelas membranas de osmose.</p>" },
+            tmp: { title: "Pressão Transmembrana (TMP)", text: "<p>Representa o gradiente de pressão resultante diferencial aplicado ao longo do módulo de filtração. Matematicamente, a TMP é o diferencial de pressão hidráulica média menos a diferença de pressão osmótica natural entre o lado da alimentação (concentrado) e o lado do permeado. A elevação ou queda acentuada da TMP é o indicativo primário de colmatação, incrustação ou ruptura física das fibras poliméricas da membrana.</p>" },
+            permeado: { title: "Fluxo de Permeado", text: "<p>Corrente fluídica resultante dos processos de separação por membranas que atravessou fisicamente a barreira semipermeável. No contexto de osmose reversa, esta fração constitui o solvente purificado, exibindo concentrações iônicas e microbiológicas tipicamente inferiores a 1-5% dos valores encontrados na corrente de alimentação original.</p>" },
+            rejeito: { title: "Corrente de Rejeito (Concentrado)", text: "<p>Fração de fluxo que escoa tangencialmente sobre a superfície ativa da membrana e não a atravessa. Esta corrente arrasta continuamente os solutos rejeitados, precipitações e partículas sólidas rumo ao descarte. O balanço correto de fluxo transversal na via de rejeito é imprescindível para varrer a camada de polarização de concentração na interface da membrana.</p>" },
+            colmatacao: { title: "Colmatação (Fouling Particulado)", text: "<p>Obstrução progressiva da porosidade de um meio filtrante ou membrana devido ao acúmulo físico de sólidos suspensos, material coloidal, precipitados de compostos de ferro ou crescimento microbiano (biofilme). O fenômeno resulta no aumento da resistência hidráulica, evidenciado pela elevação da perda de carga (Diferencial de Pressão - ∆P) ao longo do elemento.</p>" },
+            turbidez: { title: "Turbidez", text: "<p>Métrica de qualidade da água baseada na interferência óptica (espalhamento e absorção de feixes de luz) provocada por materiais particulados em suspensão fina, argila, compostos orgânicos coloidais e plâncton. Uma elevação da turbidez afeta negativamente a eficiência do processo de desinfecção subsequente e induz a colmatação prematura de sistemas de filtração de precisão.</p>" },
+            ntu: { title: "NTU (Nephelometric Turbidity Unit)", text: "<p>Unidade nefelométrica empregada para quantificar a turbidez de uma amostra com base no espalhamento da luz incidente por partículas suspensas. Em sistemas de tratamento, valores crescentes de NTU refletem aumento de sólidos dispersos e indicam maior exigência sobre os estágios de filtração de profundidade.</p>" },
+            particulado: { title: "Material Particulado", text: "<p>Conjunto de sólidos suspensos ou sedimentáveis presentes na água, como areia fina, argila, ferrugem, matéria orgânica agregada e outros detritos. Em engenharia de tratamento, sua granulometria orienta a seleção do meio filtrante e da barreira mecânica mais adequada para retenção.</p>" },
+            dureza: { title: "Dureza da Água", text: "<p>Propriedade físico-química da água determinada fundamentalmente pela concentração de cátions metálicos bivalentes, notavelmente Cálcio (Ca²⁺) e Magnésio (Mg²⁺). Águas com elevado teor de dureza exibem uma propensão termodinâmica substancial para a precipitação de sais insolúveis (como o carbonato de cálcio) quando submetidas a gradientes de concentração ou temperatura.</p>" },
+            fouling: { title: "Fouling Inorgânico (Incrustação/Scaling)", text: "<p>Fenômeno de cristalização e deposição irreversível de sais pouco solúveis sobre a camada ativa (Skin Layer) das membranas de osmose reversa. Ocorre primariamente quando a concentração de cátions bivalentes no lado do concentrado excede o produto de solubilidade (Ksp) do composto sob as condições locais de pressão transversal, limitando severamente a permeabilidade da membrana.</p>" },
+            cloro: { title: "Agentes Oxidantes (Cloro/Cloramina)", text: "<p>Espécies químicas fortemente oxidantes (Ácido Hipocloroso e Cloraminas associadas) adicionadas ao abastecimento público para garantia microbiológica. Tais compostos possuem elevada reatividade frente à matriz de poliamida das membranas de osmose reversa, catalisando a clivagem das ligações amídicas (depolimerização), o que degrada permanentemente a taxa de rejeição salina do elemento.</p>" },
+            hemolise: { title: "Hemólise Induzida por Cloramina", text: "<p>Ruptura da estrutura da membrana plasmática eritrocitária. As cloraminas, sendo compostos lipofílicos e de baixo peso molecular, atravessam não apenas a osmose reversa, mas o próprio capilar do dialisador, penetrando na corrente sanguínea do paciente. No compartimento intra-vascular, inibem as vias enzimáticas antioxidantes (via do hexano monofosfato), oxidando a hemoglobina a metemoglobina, culminando com a lise celular maciça.</p>" },
+            bomba: { title: "Bomba Centrífuga de Alta Pressão", text: "<p>Equipamento turbomáquina rotativo, rotineiramente do tipo multiestágio de fluxo radial ou misto. É projetada para fornecer a energia mecânica (carga manométrica) ao fluido, necessária para superar a soma das perdas de carga de todo o sistema e da pressão osmótica efetiva, viabilizando o transporte de massa do solvente através do polímero da membrana.</p>" },
+            finos: { title: "Particulado Fino de Carvão (Fines)", text: "<p>Micropartículas de carbono geradas continuamente pelo atrito mecânico (fricção) entre os grânulos no interior do leito de carvão ativado devido às forças de arrasto durante a fluidização e escoamento da água. Estes fragmentos suspensos requerem interceptação física downstream, pois atuam como agentes fortemente abrasivos para componentes de tolerância estreita, como gaxetas mecânicas e rotores.</p>" },
+            osmose_rev: { title: "Separação por Osmose Reversa (RO)", text: "<p>Processo termodinâmico de separação conduzido pela inversão do gradiente osmótico natural. Baseia-se no escoamento de um solvente através de uma membrana semipermeável densa a partir de uma solução de alta concentração de solutos para uma de baixa concentração, exigindo aplicação de uma pressão hidrostática (TMP) que exceda o diferencial de pressão osmótica do sistema.</p>" },
+            pirogenico: { title: "Reação Pirogênica (Endotoxemia)", text: "<p>Resposta imunológica e inflamatória sistêmica aguda desencadeada pela exposição do compartimento sanguíneo do paciente a pirógenos exógenos — predominantemente os Lipopolissacarídeos (LPS), que são componentes termoestáveis derivados da membrana externa de bactérias Gram-negativas que podem proliferar nos biofilmes da tubulação hospitalar.</p>" },
+            eu_lal: { title: "EU/mL (LAL)", text: "<p>Indicador utilizado para quantificar endotoxinas bacterianas em água tratada, expresso em Unidades de Endotoxina por mililitro. O ensaio LAL (<em>Limulus Amebocyte Lysate</em>) detecta lipopolissacarídeos de bactérias Gram-negativas e é central no controle de risco pirogênico em sistemas de água para diálise.</p>" },
+            salmoura: { title: "Solução Regenerante (Salmoura)", text: "<p>Solução aquosa supersaturada de cloreto de sódio (NaCl). O processo de abrandamento utiliza a lei da ação das massas: embora as resinas catiônicas apresentem maior seletividade termodinâmica por íons Ca²⁺ e Mg²⁺ do que pelo Na⁺, a injeção periódica desta solução expõe o leito saturado a uma concentração local de Na⁺ extremamente elevada, forçando cineticamente a eluição reversa dos cátions bivalentes para o esgoto e restaurando a capacidade de troca da resina.</p>" }
+        };
+
+        // --- LISTENER DO DICIONÁRIO ---
+        document.body.addEventListener('click', (e) => {
+            const termoClicado = e.target.closest('.termo-clicavel');
+            if (termoClicado) {
+                e.preventDefault(); 
+                const chave = termoClicado.getAttribute('data-termo');
+                const info = dicionarioTermos[chave];
+                if (info) {
+                    document.getElementById('dicionario-title').innerText = info.title;
+                    document.getElementById('dicionario-text').innerHTML = info.text;
+                    document.getElementById('dicionario-modal').style.display = 'flex';
+                }
+            }
+        });
+
+        function fecharDicionario() { document.getElementById('dicionario-modal').style.display = 'none'; }
+
+        // --- DADOS TÉCNICOS (Fase 1) - REVISÃO TÉCNICA VERBOSA ---
+        const dadosTecnicos = {
+            areia: { 
+                title: "Filtro Multimídia de Leito Estratificado", 
+                texto: `<div class="box-porque">
+                            <p><strong>🛠️ Fundamentação Hidráulica:</strong> Este estágio operacional emprega a filtração de profundidade utilizando um vaso de pressão preenchido com um leito estratificado que exibe diferentes perfis de granulometria e densidade aparente (frequentemente utilizando antracito, sílica, zeólita natural e cascalho de suporte). O fluxo descendente otimiza a intercepção estérica e o contato entre o material particulado e os grãos filtrantes.</p>
+                            <p><strong>💡 Objetivo Estratégico:</strong> O propósito primário desta unidade é promover o abatimento da carga de sólidos totais em suspensão (TSS) e a consequente redução acentuada da turbidez da água bruta afluente. A interceptação de partículas maiores que 20 micrômetros protege os estágios críticos subsequentes — especificamente o material microporoso da resina e do carvão ativado — mitigando riscos de perda de carga hidráulica severa e prolongando a integridade e os ciclos de operação dos componentes.</p>
+                        </div>` 
+            },
+            abrandador: { 
+                title: "Abrandador por Troca Catiônica", 
+                texto: `<div class="box-porque">
+                            <p><strong>🛠️ Fundamentação Química:</strong> O abrandamento opera fundamentado na cinética de troca iônica reversível. O reator é composto por leitos poliméricos de resina fortemente ácida cujos sítios ativos encontram-se estabilizados com íons monovalentes de Sódio (Na⁺). Devido às forças eletrostáticas de atração, os íons bivalentes (Cálcio e Magnésio) presentes na solução exibem afinidade termodinâmica superior pela resina. Ao percolar o leito, estes cátions deslocam o Na⁺, fixando-se estavelmente à matriz da resina.</p>
+                            <p><strong>💡 Objetivo Estratégico:</strong> Este mecanismo neutraliza ativamente o grau de "dureza" da água, um fator inibitório crítico no tratamento por pressão. O sódio liberado como subproduto reacional caracteriza-se por sua altíssima solubilidade em água. Sem a remoção eficiente destes cátions formadores de sais de baixa solubilidade, a polarização por concentração na interface da membrana de osmose reversa conduziria invariavelmente à precipitação de carbonatos inorgânicos. Este evento de incrustação mecânica (Scaling ou <span class="termo-clicavel" data-termo="fouling">Fouling</span> Inorgânico) oblitera o fluxo de permeado e promove a falência estrutural irreversível da membrana.</p>
+                        </div>` 
+            },
+            carvao: { 
+                title: "Coluna de Carvão Ativado Granulado", 
+                texto: `<div class="box-porque">
+                            <p><strong>🛠️ Fundamentação Físico-Química:</strong> O elemento filtrante de Carvão Ativado Granulado (GAC) sustenta dupla atribuição técnica no sistema. Primeiramente, propicia a remoção de solutos orgânicos e trihalometanos mediante adsorção física, impulsionada pelas interações intermoleculares de van der Waals sobre sua extensiva área de superfície microscópica. Em segunda via, e crucialmente para sistemas biomédicos, o GAC atua como leito reacional, catalisando a redução química acelerada do cloro e a decloração por clivagem molecular das cloraminas, transformando compostos altamente reativos em íons cloreto (Cl⁻) solúveis e inativos.</p>
+                            <p><strong>💡 Objetivo Estratégico:</strong> Esta retenção reacional é um critério mandatório e de caráter <em>fail-safe</em>. O escape residual destes halogênios oxidantes produz um ataque químico severo sobre a camada polimérica (Skin Layer) das membranas osmóticas, causando a ruptura de poliamidas. Adicionalmente, caso estes agentes oxidativos ultrapassem o circuito de tratamento da clínica, penetrarão a via extracorpórea do paciente submetido a diálise, ocasionando lise aguda nas membranas de eritrócitos, culminando no choque circulatório e na patologia de <span class="termo-clicavel" data-termo="hemolise">Hemólise</span> generalizada.</p>
+                        </div>` 
+            },
+            microfiltro: { 
+                title: "Estágio de Microfiltração Absoluta (Cartucho)", 
+                texto: `<div class="box-porque">
+                            <p><strong>🛠️ Fundamentação Mecânica:</strong> Imediatamente a jusante dos vasos de pré-tratamento e a montante do grupo motobomba de pressurização, posiciona-se uma bateria de filtros do tipo cartucho polimérico termossoldado de malha plissada, operando com grau de retenção nominal ou absoluto de 5 micrômetros.</p>
+                            <p><strong>💡 Objetivo Estratégico:</strong> Este filtro de segurança tem a função primária de interceptar os particulados microabrasivos gerados por processos de atrito no estágio antecedente — especificamente os <span class="termo-clicavel" data-termo="finos">Finos de Carvão</span> —, além de aglomerados de resina cativa ou sedimentos minerais residuais. A supressão total desses contaminantes abrasivos do fluxo hidráulico é essencial para assegurar a integridade dimensional das volutas, mancais, selos mecânicos e contatores da <span class="termo-clicavel" data-termo="bomba">Bomba de Alta Pressão (AP)</span>, prevenindo desgaste excessivo, ruídos por fricção e a falha catastrófica da estação de pressurização.</p>
+                        </div>` 
+            },
+            osmose: { 
+                title: "Unidade de Osmose Reversa (RO)", 
+                texto: `<div class="box-porque">
+                            <p><strong>🛠️ Fundamentação Físico-Química:</strong> Configura o cerne da purificação do sistema. A operação ocorre sob princípios de termodinâmica de separação e fluxo cruzado (<em>Cross-flow</em>). A motobomba AP aplica uma pressão estática (Pressão Transmembrana - TMP) significativamente superior ao potencial osmótico natural gerado pelos solutos no fluido. Esta energia impulsiona unicamente as moléculas do solvente (H₂O) através dos densos retículos poliméricos estruturais do elemento de membrana de <em>Thin Film Composite</em> (TFC), vencendo a resistência de difusão de solutos maiores.</p>
+                            <p><strong>💡 Objetivo Estratégico:</strong> O processo promove uma taxa de rejeição iônica e de espécies moleculares acima de 98-99%. Trata-se da barreira absoluta contra íons de metais tóxicos (Alumínio, Chumbo), sais dissolvidos, moléculas orgânicas de alto peso, além de apresentar retenção teórica integral de coliformes, vírus e lipopolissacarídeos bacterianos. O fluxo que permeia tal estrutura consolida-se como o <span class="termo-clicavel" data-termo="permeado">Permeado</span> de elevado nível de pureza requerido pelas especificações da RDC 11.</p>
+                        </div>` 
+            },
+            loop: { 
+                title: "Subsistema Loop: Esterilizador UV e Filtro Absoluto", 
+                texto: `<div class="box-porque">
+                            <p><strong>🛠️ Fundamentação Física:</strong> Integrado ao circuito fechado (Anel de Distribuição) que transporta o permeado aos gabinetes de diálise, a etapa incorpora um esterilizador fotoquímico que irradia fotões no comprimento de onda germicida primário (banda UV-C, pico em 254 nm). Esta radiação é absorvida seletivamente pelas bases nitrogenadas de moléculas de ácidos nucleicos em microrganismos (vírus, bactérias heterotróficas). O fenômeno físico induz danos estruturais por dimerização de timina no DNA/RNA celular, bloqueando de modo irreversível a transcrição e replicação celular biológica.</p>
+                            <p><strong>💡 Objetivo Estratégico:</strong> Embora a radiação esterilize o fluxo, os resquícios estruturais microscópicos dos patógenos (endotoxinas) permanecem suspensos no solvente purificado. Para solucionar esse resíduo adverso, é mandatória a acoplagem de filtros de classificação Absoluta, detentores de porosidade controlada a 0.22 micrômetros, posicionados em configuração ponto-de-uso. Estes interceptam estaticamente a carga residual de membrana externa lítica bacteriana, cumprindo de forma categórica as imposições do ensaio LAL para evitar as drásticas respostas inflamatórias na circulação do paciente, conhecidas como choques <span class="termo-clicavel" data-termo="pirogenico">Pirogênicos</span>.</p>
+                        </div>` 
+            }
+        };
+
+        // --- DADOS DIAGNÓSTICO (Fase 2) - LAUDOS DE CAUSA RAIZ PROFISSIONAIS ---
+        const cenariosDiagnostico = [
+            { alvo: 'carvao', texto: `LEITURA SCADA [08:14]: Amostra laboratorial confirmada via espectrofotometria (<span class="termo-clicavel" data-termo="dpd">Método DPD</span>) acusando elevação substancial de [Cloro Livre e Total] em concentrações de 0.9 ppm, aferido à jusante do sistema de pré-tratamento. Risco crítico e iminente de oxidação nas membranas poliméricas e subsequente ocorrência de <span class="termo-clicavel" data-termo="hemolise">Hemólise</span> nas sessões clínicas vigentes.`, explicacao: `<p><strong>🛠️ Laudo de Análise de Causa Raiz (<span class="termo-clicavel" data-termo="rca">RCA</span>) Confirmado. Falha catalogada no Leito de Carvão Ativado.</strong></p><p>A reação colorimétrica do reagente DPD evidenciou diretamente a violação dos limites de compostos halogenados no efluente primário. O módulo de Carvão Ativado constitui o elemento dedicado do P&ID para mediar a catálise de redução molecular destes agentes de controle biológico. A falha pressupõe o exaurimento agudo da capacidade absortiva e catalítica do material granular devido à contaminação orgânica massiva (saturação dos sítios ativos). Alternativamente, o regime hidráulico do sistema possivelmente superou as vazões de projeto, transpondo o fluido num curto intervalo que impediu o respeito à cinética mínima obrigatória do <em>Tempo de Contato de Leito Vazio (<span class="termo-clicavel" data-termo="ebct">EBCT</span>)</em> para ocorrer a clivagem do cloro. Procedimento corretivo exigido: Suspensão operacional para retrolavagem de emergência ou substituição integral da mídia de carvão reativo.</p>` },
+            { alvo: 'microfiltro', texto: `LEITURA SCADA [11:32]: Registro de Interlock de Segurança Ativado. Desligamento compulsório da motobomba de pressurização efetuado pelo atuador do <span class="termo-clicavel" data-termo="pressostato">pressostato</span> de linha de sucção. Telemetria pontua elevação extrema na perda de carga e no gradiente de pressão diferencial (∆P) posicionado a montante do arranjo motriz.`, explicacao: `<p><strong>🛠️ Laudo de Análise de Causa Raiz (<span class="termo-clicavel" data-termo="rca">RCA</span>) Confirmado. Oclusão severa identificada no Elemento Microfiltro de Cartucho.</strong></p><p>O sistema de proteção baseado em transdutor de pressão determinou a parada imediata dos rotores ao constatar ausência de fluxo inercial (risco de cavitação na bomba). A pressão diferencial abrupta e isolada nesta etapa corrobora com um evento de rápida <span class="termo-clicavel" data-termo="colmatacao">colmatação</span> geométrica do elemento filtrante plissado de 5µm. A saturação decorre da intercepção exaustiva do particulado abrasivo classificado como <span class="termo-clicavel" data-termo="finos">Finos de Carvão</span>, derivados por arraste de atrito mecânico excessivo originário do leito recém-acionado de carvão adjacente. Procedimento corretivo exigido: Alívio de pressão na carcaça e substituição mecânica emergencial dos cartuchos colmatados.</p>` },
+            { alvo: 'abrandador', texto: `LEITURA SCADA [14:05]: Ensaios de titulação na linha de alimentação constataram Dureza Total elevada alimentando a bomba de alta pressão e as membranas osmóticas. Investigação operacional relata que o tanque da solução regenerante (<span class="termo-clicavel" data-termo="salmoura">salmoura</span>) manteve-se exaurido ao longo do último período de 48 horas devido a deficiências nas rotinas de suprimento logístico do almoxarifado no reabastecimento de Cloreto de Sódio.`, explicacao: `<p><strong>🛠️ Laudo de Análise de Causa Raiz (<span class="termo-clicavel" data-termo="rca">RCA</span>) Confirmado. Comprometimento Funcional do Abrandador por Ausência de Dinâmica Regenerativa.</strong></p><p>O princípio da troca catiônica está condicionado não unicamente à estrutura do polímero, mas fundamentalmente à existência da fase de regeneração do leito pela lei de ação das massas. Com a supressão crônica do aporte salino de reposição (<span class="termo-clicavel" data-termo="salmoura">salmoura supersaturada</span>), as esferas de resina perderam a capacidade de eluir periodicamente o precipitado catiônico para o efluente. Consequentemente, o leito manteve-se integralmente colapsado por saturação de Íons de Cálcio e Magnésio. A continuidade desse perfil iônico a montante da osmose induzirá forçosamente a calcificação acelerada da malha semipermeável. Procedimento corretivo exigido: Normalização imediata do tanque de NaCl, forçando repetidos ciclos hidromecânicos e químicos de retro-regeneração no CLP de controle.</p>` },
+            { alvo: 'osmose', texto: `LEITURA SCADA [18:45]: Alarme crítico de falência da qualidade do Permeado. O transdutor de medição contínua (o <span class="termo-clicavel" data-termo="condutivimetro">Condutivímetro in-line</span>) documenta picos que transgridem agressivamente os limites especificados da RDC 11. Simultaneamente, a telemetria do sistema hidráulico loga o colapso do gradiente de <span class="termo-clicavel" data-termo="tmp">Pressão Transmembrana (TMP)</span> emparelhada com o fechamento total da linha de escoamento tangencial da correnta de <span class="termo-clicavel" data-termo="rejeito">rejeito</span>.`, explicacao: `<p><strong>🛠️ Laudo de Análise de Causa Raiz (<span class="termo-clicavel" data-termo="rca">RCA</span>) Confirmado. Ruptura Estrutural Catastrófica do Filme Polimérico no Sistema de Osmose Reversa.</strong></p><p>A correlação direta entre o colapso da pressão operacional contrapressora (queda na TMP) e a escalada simultânea na condutividade elétrica do fluido de permeado fornece evidência cabal de que as camadas compostas de poliamida sofreram macro-rupturas estruturais (possivelmente aceleradas por tensões diferenciais não controladas ou oxidação química latente severa). Sem a resistência microscópica integral do poro semipermeável, um escoamento turbulento prioritário se consolidou nos pontos cisalhados. A corrente que deveria originar o concentrado desviou-se maciçamente, anulando a vazão no dreno de descarte de <span class="termo-clicavel" data-termo="rejeito">rejeito</span>, transferindo para o circuito da clínica uma matriz rica de sais minerais incompatível biologicamente. Procedimento corretivo exigido: Parada total compulsória, interrupção imediata de todo e qualquer acesso dialítico dos leitos e substituição técnica profunda do rol de membranas TFC no interior dos vasos de pressão.</p>` }
+        ];
+
+        // --- SISTEMA CONTÍNUO DE PARTÍCULAS EM CASCATA ---
+        const todosContaminantes = ['barro', 'calcio', 'cloro', 'sais', 'bact'];
+        
+        const mapaFiltros = {
+            'areia': 'barro',
+            'abrandador': 'calcio',
+            'carvao': 'cloro',
+            'osmose': 'sais',
+            'loop': 'bact'
+        };
+
+        function gerarParticulas(pipeId, contaminantes) {
+            const pipe = document.getElementById(pipeId);
+            if (!pipe || !pipe.classList.contains('active') || contaminantes.length === 0) return;
+            
+            contaminantes.forEach(tipo => {
+                if (Math.random() > 0.5) {
+                    const p = document.createElement('div');
+                    p.className = `particula p-${tipo}`;
+                    p.style.top = `${Math.floor(Math.random() * 10) + 4}px`;
+                    
+                    const duracao = (Math.random() * 0.4 + 1.2).toFixed(2);
+                    p.style.animation = `fluir ${duracao}s ease-in-out forwards`;
+                    
+                    pipe.appendChild(p);
+                    
+                    setTimeout(() => { if (pipe.contains(p)) pipe.removeChild(p); }, duracao * 1000);
+                }
+            });
+        }
+
+        function fluxoContinuo() {
+            if(modoDiagnosticoAtivo) return; 
+
+            let contaminantesAtuais = [...todosContaminantes];
+            gerarParticulas('pipe-0', contaminantesAtuais);
+
+            const slots = document.querySelectorAll('.drop-slot');
+            slots.forEach((slot, index) => {
+                const componente = slot.querySelector('.componente');
+                if (componente) {
+                    const id = componente.id;
+                    const remove = mapaFiltros[id];
+                    if (remove) contaminantesAtuais = contaminantesAtuais.filter(c => c !== remove);
+                }
+                const pipeId = 'pipe-' + (index + 1);
+                gerarParticulas(pipeId, contaminantesAtuais);
+            });
+        }
+
+        const intervaloFluxoPrincipal = setInterval(fluxoContinuo, 240);
+
+        // --- SISTEMA DE DRAG & DROP E FASES ---
+        let acertos = 0;
+        let modoDiagnosticoAtivo = false;
+        let cenarioAtual = 0;
+
+        const componentes = document.querySelectorAll('.componente[draggable="true"]');
+        const dropSlots = document.querySelectorAll('.drop-slot');
+
+        componentes.forEach(comp => {
+            comp.addEventListener('dragstart', (e) => {
+                if (modoDiagnosticoAtivo) return e.preventDefault();
+                e.dataTransfer.setData('text/plain', comp.id);
+                setTimeout(() => comp.style.opacity = '0.5', 0);
+            });
+            comp.addEventListener('dragend', () => comp.style.opacity = '1');
+        });
+
+        dropSlots.forEach((slot, index) => {
+            slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('hovered'); });
+            slot.addEventListener('dragleave', () => slot.classList.remove('hovered'));
+            slot.addEventListener('drop', (e) => {
+                e.preventDefault();
+                slot.classList.remove('hovered');
+                
+                const dragId = e.dataTransfer.getData('text/plain');
+                const slotId = slot.getAttribute('data-step');
+
+                if (dragId === slotId) {
+                    const elementoArrastado = document.getElementById(dragId);
+                    
+                    slot.innerHTML = '';
+                    slot.appendChild(elementoArrastado);
+                    slot.style.border = 'none';
+                    slot.style.background = 'transparent';
+                    slot.style.padding = '0';
+                    
+                    elementoArrastado.setAttribute('draggable', 'false');
+                    elementoArrastado.classList.add('placed');
+                    
+                    const nextPipeId = 'pipe-' + (index + 1);
+                    const nextPipe = document.getElementById(nextPipeId);
+                    if (nextPipe) nextPipe.classList.add('active');
+
+                    // Criar botão extra de animação
+                    let btnAnimacao = `<button class="btn-acao" onclick="abrirAnimacao('${dragId}', '${dadosTecnicos[dragId].title}')" style="background: var(--warning); color: #000; display: flex; align-items: center; gap: 5px;"><span>🔍</span> Análise da Dinâmica Interna de Retenção</button>`;
+
+                    mostrarModal(dadosTecnicos[dragId].title, dadosTecnicos[dragId].texto, "Avançar para o Próximo Estágio", fecharModal, btnAnimacao);
+
+                    acertos++;
+                    if(acertos === 6) iniciarFase2();
+                } else {
+                    animarErro(slot);
+                }
+            });
+        });
+
+        function animarErro(elemento) {
+            elemento.style.borderColor = "var(--danger)";
+            elemento.style.transform = 'translateX(-5px)';
+            setTimeout(() => elemento.style.transform = 'translateX(5px)', 50);
+            setTimeout(() => elemento.style.transform = 'translateX(-5px)', 100);
+            setTimeout(() => {
+                elemento.style.transform = 'translateX(0)';
+                if(!modoDiagnosticoAtivo) elemento.style.borderColor = "#475569";
+            }, 150);
+        }
+
+        document.getElementById('sistema-container').addEventListener('click', (e) => {
+            if (e.target.closest('.termo-clicavel')) return; 
+            if (!modoDiagnosticoAtivo) return;
+            const clicado = e.target.closest('.componente.placed');
+            if (clicado && clicado.id && clicado.draggable === false) avaliarDiagnostico(clicado);
+        });
+
+        function iniciarFase2() {
+            setTimeout(() => {
+                mostrarModal(
+                    "Sintonia e Comissionamento Finalizados ✅", 
+                    `<p>A integridade do Diagrama de Tubulações e Instrumentação (P&ID) foi assegurada. O sistema de tratamento encontra-se com as barreiras estruturais plenamente homologadas nos seus regimes corretos de pressões diferenciais de serviço, convertendo a água afluente de baixa qualidade nas especificações críticas necessárias.</p>
+                     <p>A partir deste instante, o simulador assume o ciclo operacional avançado de longo prazo. Ações de desgaste mecânico, depleção química e variáveis de stress térmico introduzirão patologias nos sistemas e processos instalados.</p>
+                     <p>Como responsável pela divisão de <strong>Engenharia Clínica</strong>, interprete os parâmetros de falha apontados na IHM e utilize os fundamentos de causa raiz (<span class="termo-clicavel" data-termo="rca">RCA</span>) para clicar e selecionar no P&ID o equipamento de base do problema relatado.</p>`,
+                    "Efetuar Handover e Iniciar Turno Operacional",
+                    prepararLayoutDiagnostico
+                );
+            }, 800);
+        }
+
+        function prepararLayoutDiagnostico() {
+            fecharModal();
+            modoDiagnosticoAtivo = true;
+            document.getElementById('toolbox').style.display = 'none';
+            document.getElementById('titulo-principal').innerText = "Análise de Falhas (Troubleshooting)";
+            document.getElementById('titulo-principal').style.color = "var(--danger)";
+            document.getElementById('instrucao-principal').style.display = 'none';
+            document.getElementById('sistema-container').classList.add('modo-diagnostico');
+            document.getElementById('painel-diagnostico').style.display = 'block';
+            carregarCenario();
+        }
+
+        function carregarCenario() {
+            if (cenarioAtual >= cenariosDiagnostico.length) {
+                mostrarModal("🏆 Avaliação Técnica Concluída", "<p>O processo de Troubleshooting evidenciou elevada e sólida competência técnica nas tomadas de decisão sob protocolos rigorosos de engenharia clínica. O domínio assertivo na interpretação da dinâmica do P&ID reitera a aptidão mandatória em gerir a manutenção em sistemas críticos do ambiente hospitalar.</p>", "Reiniciar a Simulação de Tratamento", () => location.reload());
+                return;
+            }
+            const cenario = cenariosDiagnostico[cenarioAtual];
+            document.getElementById('contador-cenario').innerText = (cenarioAtual + 1);
+            document.getElementById('texto-cenario').innerHTML = cenario.texto;
+            document.querySelectorAll('.pipe-wrapper.active').forEach(pipe => pipe.classList.add('alert'));
+        }
+
+        function avaliarDiagnostico(elementoClicado) {
+            const cenario = cenariosDiagnostico[cenarioAtual];
+            if (elementoClicado.id === cenario.alvo) {
+                mostrarModal("Diagnóstico Positivo de Causa Raiz Consolidado ✅", cenario.explicacao, "Reestabelecer o Processo e Prosseguir para a Nova Ocorrência", () => {
+                    fecharModal();
+                    cenarioAtual++;
+                    carregarCenario();
+                });
+            } else {
+                animarErro(elementoClicado);
+                document.getElementById('texto-cenario').innerHTML = `<span style="color:#fca5a5; font-weight:bold; background: #7f1d1d; padding: 2px 5px; border-radius: 3px;">ERRO PARAMÉTRICO DE DIAGNÓSTICO: Você isolou equivocadamente um componente que não detém atribuição química, física ou mecânica pertinente à sintomatologia documentada na instrumentação. Reveja atentamente os dados do laudo abaixo.</span><br><br>${cenario.texto}`;
+            }
+        }
+
+        // --- SISTEMA DE MODAL ATUALIZADO ---
+        let acaoModalAtual = null;
+
+        function mostrarModal(titulo, htmlTexto, textoBotao = "OK", acaoBotao = fecharModal, botoesExtrasHTML = "") {
+            document.getElementById('modal-title').innerText = titulo;
+            document.getElementById('modal-text').innerHTML = htmlTexto;
+            
+            const containerBtns = document.getElementById('modal-btns-container');
+            containerBtns.innerHTML = botoesExtrasHTML; // Injeta botões extras (como o de animação)
+            
+            const btn = document.createElement('button');
+            btn.className = 'btn-acao';
+            btn.innerText = textoBotao;
+            if(acaoBotao) {
+                btn.onclick = acaoBotao;
+            } else {
+                btn.onclick = fecharModal;
+            }
+            containerBtns.appendChild(btn);
+
+            document.getElementById('info-modal').style.display = 'flex';
+        }
+
+        function fecharModal() { document.getElementById('info-modal').style.display = 'none'; }
+
+        document.getElementById('info-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'info-modal') fecharModal();
+        });
+
+        document.getElementById('anim-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'anim-modal') fecharAnimacao();
+        });
+
+        document.getElementById('dicionario-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'dicionario-modal') fecharDicionario();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            fecharModal();
+            fecharAnimacao();
+            fecharDicionario();
+        });
+
+        // =====================================================================
+        // --- MOTOR DE ANIMAÇÃO INTERNA ---
+        // =====================================================================
+        let intervaloAnimacao = null;
+
+        function abrirAnimacao(tipo, nome) {
+            clearInterval(intervaloAnimacao);
+            document.getElementById('anim-title').innerText = `Análise Cinética e Hidráulica: ${nome}`;
+            const canvas = document.getElementById('anim-canvas');
+            canvas.innerHTML = ''; // Limpa canvas
+            document.getElementById('anim-modal').style.display = 'flex';
+
+            // 1. Desenha o Cenário de Fundo específico
+            if(tipo === 'areia') {
+                canvas.innerHTML += `<div class="camada camada-areia-1"></div><div class="camada camada-areia-2"></div>`;
+                canvas.innerHTML += `<div class="legenda-anim" style="top:5px; left:5px;">Afluente (Elevada Carga de TSS e Turbidez)</div>`;
+            } else if(tipo === 'abrandador') {
+                for(let i=0; i<45; i++) {
+                   canvas.innerHTML += `<div class="resina-cat" style="top: ${30 + Math.random()*50}%; left: ${10 + Math.random()*80}%;"></div>`;
+                }
+                canvas.innerHTML += `<div class="legenda-anim" style="top:5px; left:5px;">Malha Polimérica de Resina Catiônica Fartamente Saturada com Na⁺</div>`;
+            } else if(tipo === 'carvao') {
+                for(let i=0; i<35; i++) {
+                   canvas.innerHTML += `<div class="carvao-poro" style="top: ${Math.random()*85}%; left: ${10 + Math.random()*70}%;"></div>`;
+                }
+                canvas.innerHTML += `<div class="legenda-anim" style="bottom:5px; right:5px;">Sítios Adsortivos de Extensa Área de Superfície Específica</div>`;
+            } else if (tipo === 'microfiltro') {
+                 canvas.innerHTML += `<div class="cartucho-pleat"></div>`;
+                 canvas.innerHTML += `<div class="legenda-anim" style="top:5px; left:50%; transform:translateX(-50%);">Malha Filtrante Plissada Termossoldada (5µm Absoluto)</div>`;
+            } else if (tipo === 'osmose') {
+                 canvas.innerHTML += `<div class="membrana-ro"></div>
+                                      <div class="legenda-anim" style="bottom:10px; left:40%;">REJEITO (Concentração Excessiva de Solutos Indesejados) ⬇</div>
+                                      <div class="legenda-anim" style="top:10px; right:10px; background:var(--success);">PERMEADO (H₂O Purificada sob Elevada TMP) ➡</div>`;
+            } else if (tipo === 'loop') {
+                 canvas.innerHTML += `<div class="luz-uv"></div><div class="filtro-abs"></div>
+                                      <div class="legenda-anim" style="top:5px; left:5px; background:purple;">Área de Exposição aos Fotões UV-C (Clivagem Genética)</div>
+                                      <div class="legenda-anim" style="top:5px; right:5px;">Barreira de Retenção Absoluta (Filtragem Endotoxinas Líticas)</div>`;
+            }
+
+            // 2. Inicia o gerador de partículas interno
+            processarAnimacao(tipo, canvas);
+            intervaloAnimacao = setInterval(() => processarAnimacao(tipo, canvas), 120);
+        }
+
+        function fecharAnimacao() {
+            clearInterval(intervaloAnimacao);
+            const canvas = document.getElementById('anim-canvas');
+            canvas.innerHTML = '';
+            document.getElementById('anim-modal').style.display = 'none';
+        }
+
+        function processarAnimacao(tipo, canvas) {
+            const w = canvas.clientWidth;
+            const h = canvas.clientHeight;
+
+            const criarP = (classe) => {
+                if (canvas.querySelectorAll('.particula').length > 110) return null;
+                const p = document.createElement('div');
+                p.className = `particula ${classe}`;
+                p.style.position = 'absolute';
+                p.style.opacity = '1';
+                p.style.zIndex = '10';
+                p.style.width = '8px'; // um pouco maior para ver melhor
+                p.style.height = '8px';
+                canvas.appendChild(p);
+                return p;
+            };
+
+            const removerP = (p, time = 3000) => setTimeout(() => { if(canvas.contains(p)) canvas.removeChild(p) }, time);
+
+            if (tipo === 'areia') {
+                // Barro presa na areia (Profundidade)
+                if(Math.random() > 0.4) {
+                    const p = criarP('p-barro');
+                    if (!p) return;
+                    p.style.left = `${Math.random() * w}px`;
+                    p.style.top = `-15px`;
+                    p.style.transition = 'top 1.5s ease-out';
+                    setTimeout(() => p.style.top = `${h * 0.3 + Math.random() * (h * 0.6)}px`, 50); // Para nas camadas de rocha
+                    removerP(p, 4000);
+                }
+                // Água limpa passa direto
+                if(Math.random() > 0.3) {
+                    const p = criarP('p-agua');
+                    if (!p) return;
+                    p.style.left = `${Math.random() * w}px`;
+                    p.style.top = `-15px`;
+                    p.style.transition = 'top 2.5s linear';
+                    setTimeout(() => p.style.top = `${h + 20}px`, 50);
+                    removerP(p, 2500);
+                }
+            }
+            else if (tipo === 'abrandador') {
+                // Cálcio entra, bate na resina e ocorre a TROCA QUÍMICA pelo Sódio
+                if(Math.random() > 0.4) {
+                    const p = criarP('p-calcio'); // Cálcio (Cinza)
+                    if (!p) return;
+                    p.style.left = `${Math.random() * w}px`;
+                    p.style.top = `-15px`;
+                    p.style.transition = 'top 1s ease-in';
+                    const hitY = h * 0.3 + Math.random() * (h * 0.4);
+                    
+                    setTimeout(() => p.style.top = `${hitY}px`, 50); // Bate e gruda na resina
+
+                    setTimeout(() => {
+                        p.className = 'particula p-sais'; // Troca Iônica Instantânea
+                        p.style.transition = 'top 1.5s ease-in';
+                        p.style.top = `${h + 20}px`; // Desce fluido e sem causar incrustação
+                    }, 1050);
+
+                    removerP(p, 3000);
+                }
+                // Água limpa continua fluxo normal
+                if(Math.random() > 0.5) {
+                    const p = criarP('p-agua');
+                    if (!p) return;
+                    p.style.left = `${Math.random() * w}px`;
+                    p.style.top = `-15px`;
+                    p.style.transition = 'top 2s linear';
+                    setTimeout(() => p.style.top = `${h + 20}px`, 50);
+                    removerP(p, 2000);
+                }
+            }
+            else if (tipo === 'carvao') {
+                 // Cloro entra e é Adsorvido pela estrutura de carvão
+                 if(Math.random() > 0.3) {
+                    const p = criarP('p-cloro'); // Verde Tóxico
+                    if (!p) return;
+                    p.style.top = `${Math.random() * h}px`;
+                    p.style.left = `-15px`;
+                    p.style.transition = 'left 1s linear, opacity 0.5s ease';
+                    
+                    setTimeout(() => {
+                        p.style.left = `${w * 0.2 + Math.random() * (w * 0.6)}px`; // Entra no bloco poroso de carvão
+                    }, 50);
+                    
+                    setTimeout(() => { p.style.opacity = '0'; }, 800); // Adsorção Física (Desaparece dentro dos poros)
+                    removerP(p, 1500);
+                 }
+                 // Água limpa
+                 if(Math.random() > 0.5) {
+                    const p = criarP('p-agua');
+                    if (!p) return;
+                    p.style.top = `${Math.random() * h}px`;
+                    p.style.left = `-15px`;
+                    p.style.transition = 'left 2s linear';
+                    setTimeout(() => p.style.left = `${w + 20}px`, 50);
+                    removerP(p, 2000);
+                 }
+            }
+            else if (tipo === 'microfiltro') {
+                // Partículas finas e abrasivas do carvão anterior
+                if(Math.random() > 0.4) {
+                    const p = criarP('p-barro'); 
+                    if (!p) return;
+                    p.style.background = '#475569'; // Cor de carvão fino arrastado
+                    p.style.boxShadow = 'none';
+                    p.style.top = `${Math.random() * h}px`;
+                    p.style.left = `-15px`;
+                    p.style.transition = 'left 1s ease-out';
+                    setTimeout(() => p.style.left = `${w * 0.43}px`, 50); // Bate na barreira plissada firmemente
+                    removerP(p, 4000);
+                }
+                // Água
+                if(Math.random() > 0.5) {
+                    const p = criarP('p-agua');
+                    if (!p) return;
+                    p.style.top = `${Math.random() * h}px`;
+                    p.style.left = `-15px`;
+                    p.style.transition = 'left 2s linear';
+                    setTimeout(() => p.style.left = `${w + 20}px`, 50);
+                    removerP(p, 2000);
+                }
+            }
+            else if (tipo === 'osmose') {
+                 // Multidão de Sais pesados e toxinas batem e rolam pro Efluente/Rejeito
+                 if(Math.random() > 0.4) {
+                    const p = criarP('p-sais');
+                    if (!p) return;
+                    p.style.top = `${Math.random() * h}px`;
+                    p.style.left = `-15px`;
+                    p.style.transition = 'left 1s linear';
+                    setTimeout(() => p.style.left = `${w * 0.48}px`, 50); // Bate na parede da Membrana de RO
+                    
+                    setTimeout(() => {
+                        p.style.transition = 'top 1s ease-in';
+                        p.style.top = `${h + 20}px`; // Escorrega para baixo direto pro ralo de Rejeito
+                    }, 1050);
+                    removerP(p, 2500);
+                 }
+                 // Apenas moléculas de tamanho exato de H2O atravessam os micro-poros
+                 if(Math.random() > 0.4) {
+                    const p = criarP('p-agua');
+                    if (!p) return;
+                    p.style.top = `${Math.random() * h}px`;
+                    p.style.left = `-15px`;
+                    p.style.transition = 'left 2.5s linear';
+                    setTimeout(() => p.style.left = `${w + 20}px`, 50); // Atravessa lindamente o permeado
+                    removerP(p, 2500);
+                 }
+            }
+            else if (tipo === 'loop') {
+                // Microrganismos expostos ao UV sofrem inativação
+                if(Math.random() > 0.2) {
+                    const p = criarP('p-bact'); // Vermelho
+                    if (!p) return;
+                    p.style.top = `${Math.random() * h}px`;
+                    p.style.left = `-15px`;
+                    p.style.transition = 'left 1.5s linear, background 0.3s';
+                    setTimeout(() => p.style.left = `${w * 0.78}px`, 50); // Nada através do tubo, atravessando a luz
+                    
+                    // Sofre radiação UV (destruição do DNA) e é inativado biológicamente (Cinza)
+                    setTimeout(() => {
+                        p.style.background = '#475569';
+                        p.style.boxShadow = '0 0 5px #475569';
+                    }, 600); 
+
+                    // O fragmento celular bate e fica retido no filtro absoluto 
+                    removerP(p, 3000);
+                }
+                // Água fluindo esterilizada
+                if(Math.random() > 0.5) {
+                    const p = criarP('p-agua');
+                    if (!p) return;
+                    p.style.top = `${Math.random() * h}px`;
+                    p.style.left = `-15px`;
+                    p.style.transition = 'left 2s linear';
+                    setTimeout(() => p.style.left = `${w + 20}px`, 50);
+                    removerP(p, 2000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

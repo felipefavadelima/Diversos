@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sandbox Hemodiálise: Continuidade & Junções Mágicas</title>
+<style>
+  :root {
+    --bg: #1a1a24; --panel: #252530; --border: #3b3b4d; --text: #f8f8f2;
+    --fresh: #00d4ff; --spent: #ffaa00; --open: #00ff88; --closed: #ff2a5f;
+    --pipe-bg: rgba(255, 255, 255, 0.08);
+  }
+  * { box-sizing: border-box; user-select: none; }
+  body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+  
+  .sidebar { width: 320px; background: var(--panel); border-right: 2px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 5px 0 20px rgba(0,0,0,0.5); }
+  .sidebar-right { border-right: none; border-left: 2px solid var(--border); box-shadow: -5px 0 20px rgba(0,0,0,0.5); width: 280px; }
+  
+  .canvas-container { flex: 1; position: relative; overflow: hidden; background-color: #1e1e28; background-image: radial-gradient(circle, #4a4a60 1.5px, transparent 1.5px); background-size: 20px 20px; cursor: crosshair; }
+  .canvas-container.panning { cursor: grabbing; }
+  #workspace { position: absolute; top: 0; left: 0; width: 0; height: 0; transform-origin: 0 0; }
+  
+  .header { padding: 18px; background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); font-weight: 800; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+  
+  .palette { padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .drag-item { background: rgba(255,255,255,0.03); border: 1px solid var(--border); padding: 12px; border-radius: 8px; cursor: grab; display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; transition: 0.2s; }
+  .drag-item:hover { background: rgba(255,255,255,0.08); transform: translateX(5px); border-color: var(--fresh); }
+  .icon { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; color: #000; }
+  
+  .node { position: absolute; background: #252530; border: 2px solid var(--border); border-radius: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.6); font-size: 13px; font-weight: bold; text-align: center; cursor: move; color: #fff; transition: border-color 0.2s; width: 120px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center; }
+  .node .inner-content { pointer-events: none; display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 100%; }
+  
+  .node.valve { border-color: var(--closed); cursor: pointer; }
+  .node.valve.is-open { border-color: var(--open); box-shadow: 0 0 15px rgba(0, 255, 136, 0.2); }
+  
+  /* Junção Mágica Invisível (Só a bolinha) */
+  .node.joint { min-width: 14px; width: 14px; height: 14px; border-radius: 50%; background: #4a4a60; border: 2px solid #fff; box-shadow: 0 0 10px #fff; padding: 0; transform: translate(3px, 3px); }
+  .node.joint .inner-content { display: none; }
+  .node.joint .port { width: 14px; height: 14px; opacity: 0; }
+  
+  .node.chamber { width: 240px; height: 120px; flex-direction: column; }
+  .node.chamber .inner-content { flex-direction: column; padding: 12px; }
+  .chamber-visual { display: flex; width: 100%; height: 50px; border-radius: 8px; border: 2px solid #555566; margin-top: 8px; position: relative; background: #111; overflow: hidden; box-shadow: inset 0 0 15px rgba(0,0,0,0.9); }
+  
+  .vol-l, .vol-r { position: absolute; height: 100%; transition: width 0.1s linear, background-color 0.3s; }
+  .vol-l { left: 0; } .vol-r { right: 0; }
+  .fill-fresh { background: linear-gradient(90deg, #0077ff, var(--fresh)); }
+  .fill-spent { background: linear-gradient(90deg, #cc5500, var(--spent)); }
+  .fill-none { background: #111; }
+  .membrana { position: absolute; top: 0; bottom: 0; width: 6px; background: #fff; transform: translateX(-50%); z-index: 2; box-shadow: 0 0 10px rgba(255,255,255,0.5);}
+  
+  .port { position: absolute; width: 16px; height: 16px; background: #252530; border: 3px solid #6c6c86; border-radius: 50%; cursor: crosshair; z-index: 20; transform: translate(-50%, -50%); transition: 0.1s; }
+  .port:hover { transform: translate(-50%, -50%) scale(1.6); background: #fff; border-color: #fff !important; box-shadow: 0 0 10px #fff; }
+  .port.IN { left: 0; top: 50%; } .port.OUT { left: 100%; top: 50%; }
+  .port.P1, .port.P2, .port.P3, .port.P4 { left: 50%; top: 50%; }
+  .port.L { left: 0; top: 50%; } .port.R { left: 100%; top: 50%; }
+  
+  .port-fill-fresh { border-color: var(--fresh) !important; }
+  .port-fill-spent { border-color: var(--spent) !important; }
+
+  #svg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; overflow: visible; }
+  
+  .pipe-hitbox { fill: none; stroke: transparent; stroke-width: 24; stroke-linecap: round; stroke-linejoin: round; pointer-events: stroke; cursor: pointer; }
+  .pipe-hitbox:hover + .pipe-bg { stroke: rgba(255, 255, 255, 0.4); filter: drop-shadow(0 0 5px #fff); }
+  
+  .pipe-bg { fill: none; stroke: var(--pipe-bg); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; transition: stroke 0.2s, filter 0.2s; }
+  .pipe-bg.press-fresh { stroke: rgba(0, 212, 255, 0.45); filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.5)); }
+  .pipe-bg.press-spent { stroke: rgba(255, 170, 0, 0.45); filter: drop-shadow(0 0 4px rgba(255, 170, 0, 0.5)); }
+  
+  .pipe-flow { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; opacity: 0; transition: opacity 0.1s; }
+  .fluid-fresh { stroke: #ffffff; filter: drop-shadow(0 0 8px var(--fresh)); }
+  .fluid-spent { stroke: #ffffff; filter: drop-shadow(0 0 8px var(--spent)); }
+  
+  .flow-fwd { stroke-dasharray: 6 16; animation: dashFwd 0.4s linear infinite; opacity: 1; }
+  .flow-bwd { stroke-dasharray: 6 16; animation: dashBwd 0.4s linear infinite; opacity: 1; }
+  
+  @keyframes dashFwd { to { stroke-dashoffset: -22px; } }
+  @keyframes dashBwd { to { stroke-dashoffset: 22px; } }
+
+  .phase-btn-group { display: flex; padding: 20px 20px 10px; gap: 10px; border-bottom: 1px solid var(--border); flex-direction: column; }
+  .phase-row { display: flex; gap: 10px; }
+  .phase-btn { flex: 1; padding: 10px; border: none; background: rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer; font-weight: 800; color: #888; transition: 0.2s; border: 1px solid transparent; }
+  .phase-btn.active { background: rgba(0, 212, 255, 0.15); border-color: var(--fresh); color: var(--fresh); box-shadow: 0 0 10px rgba(0, 212, 255, 0.3); }
+  
+  .action-btn { background: #3b3b4d; color: #fff; border: 1px solid #555566; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.2s; }
+  .action-btn:hover { background: #4a4a60; border-color: #888899; }
+  .invert-btn { background: rgba(255, 170, 0, 0.15); border: 1px solid var(--spent); color: var(--spent); padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+  
+  .dropzone { min-height: 80px; background: rgba(0,0,0,0.2); border: 2px dashed #4a4a60; border-radius: 8px; margin: 10px 20px; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+  .dz-title { font-size: 11px; font-weight: 800; color: #6c6c86; padding: 0 20px; margin-top: 15px; text-transform: uppercase; }
+  .v-pill { background: #3b3b4d; border: 1px solid #555566; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; cursor: grab; color: #fff; }
+  
+  .instrucoes { background: rgba(0, 212, 255, 0.05); border-left: 4px solid var(--fresh); padding: 16px; margin: 20px; font-size: 13px; line-height: 1.6; color: #ccc; border-radius: 0 8px 8px 0; }
+  .instrucoes b { color: var(--fresh); }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="header">
+    Componentes
+    <div style="display:flex; gap:6px;">
+      <button class="action-btn" onclick="saveCircuit()">💾</button>
+      <button class="action-btn" onclick="document.getElementById('file-load').click()">📂</button>
+      <input type="file" id="file-load" style="display:none" accept=".json" onchange="loadCircuit(event)">
+    </div>
+  </div>
+  <div class="palette">
+    <div class="drag-item" draggable="true" data-type="source"><div class="icon" style="background:var(--fresh)">IN</div> Fonte (Azul)</div>
+    <div class="drag-item" draggable="true" data-type="drain"><div class="icon" style="background:#555; color:#fff;">OUT</div> Dreno</div>
+    <div class="drag-item" draggable="true" data-type="pump"><div class="icon" style="background:#cc00ff; color:#fff;">B</div> Bomba</div>
+    <div class="drag-item" draggable="true" data-type="valve"><div class="icon" style="background:var(--closed); color:#fff">V</div> Válvula</div>
+    <div class="drag-item" draggable="true" data-type="dialyzer"><div class="icon" style="background:var(--spent); color:#000">DZ</div> Dialisador</div>
+  </div>
+  
+  <div class="instrucoes">
+    <b>Continuidade Restrita:</b> O fluxo animado e a troca de volume só acontecem se o caminho inteiro estiver aberto e houver para onde o líquido ir.<br><br>
+    <b>Junções Automáticas:</b><br>
+    - Clique em um cano existente para puxar uma ramificação.<br>
+    - Arraste um cano e solte sobre outro para uní-los.<br>
+    - Apague uma via e a junção some sozinha!
+  </div>
+</div>
+
+<div class="canvas-container" id="canvas-container">
+  <div id="workspace">
+    <svg id="svg-layer"></svg>
+  </div>
+</div>
+
+<div class="sidebar sidebar-right">
+  <div class="header" style="justify-content: center;">Controle de Fases</div>
+  <div class="phase-btn-group">
+    <div class="phase-row">
+      <button id="btn-p1" class="phase-btn active">Fase 1</button>
+      <button id="btn-p2" class="phase-btn">Fase 2</button>
+    </div>
+    <button class="invert-btn" onclick="invertChambers()">🔄 Inverter Câmaras</button>
+  </div>
+  
+  <div class="dz-title">Válvulas Fase 1</div>
+  <div class="dropzone" id="dz-1"></div>
+  
+  <div class="dz-title">Válvulas Fase 2</div>
+  <div class="dropzone" id="dz-2"></div>
+  
+  <div class="dz-title">Modo Manual / Soltas</div>
+  <div class="dropzone" id="dz-0"></div>
+</div>
+
+<script>
+let nodes = {}; let links = {}; let activePhase = 1; let vCount = 1;
+let pressurePipes = {}; let flowPipes = {};     
+const GRID = 20; const snap = (v) => Math.round(v / GRID) * GRID;
+
+let scale = 1, panX = 0, panY = 0;
+let isPanning = false, startPanX = 0, startPanY = 0;
+let draggingNode = null;
+
+const container = document.getElementById('canvas-container');
+const workspace = document.getElementById('workspace');
+const svg = document.getElementById('svg-layer');
+
+function updateWorkspace() {
+  workspace.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  container.style.backgroundPosition = `${panX}px ${panY}px`;
+  container.style.backgroundSize = `${GRID * scale}px ${GRID * scale}px`;
+}
+
+container.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  let newScale = Math.min(Math.max(0.3, scale - e.deltaY * 0.001), 2.5);
+  const mx = e.clientX - container.getBoundingClientRect().left;
+  const my = e.clientY - container.getBoundingClientRect().top;
+  panX = mx - (mx - panX) * (newScale / scale); panY = my - (my - panY) * (newScale / scale);
+  scale = newScale; updateWorkspace(); drawPipes(); 
+});
+
+container.addEventListener('mousedown', (e) => {
+  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    e.preventDefault(); isPanning = true; container.classList.add('panning');
+    startPanX = e.clientX - panX; startPanY = e.clientY - panY;
+  }
+  
+  // INICIAR AUTO-JUNÇÃO NO CLIQUE DO CANO
+  if (e.button === 0 && !e.altKey && !isWiring && e.target.classList.contains('pipe-hitbox')) {
+    let linkId = e.target.id.replace('hit_', '');
+    let wp = getWorkspacePos(e.clientX, e.clientY);
+    let jId = splitPipeAt(linkId, wp.x, wp.y);
+    ignoreNextMouseup = true;
+    startWire(e, jId, getFreePort(jId));
+    return;
+  }
+
+  if (e.button === 0 && !e.altKey && isWiring && !e.target.classList.contains('port') && !e.target.classList.contains('pipe-hitbox')) {
+    let wp = getWorkspacePos(e.clientX, e.clientY);
+    let snapped = { x: snap(wp.x), y: snap(wp.y) };
+    let last = wirePoints[wirePoints.length - 1];
+    if (Math.abs(snapped.x - last.x) > Math.abs(snapped.y - last.y)) snapped.y = last.y; else snapped.x = last.x;
+    wirePoints.push(snapped);
+  }
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (isPanning) { panX = e.clientX - startPanX; panY = e.clientY - startPanY; updateWorkspace(); return; }
+  let wp = getWorkspacePos(e.clientX, e.clientY);
+
+  if (draggingNode) {
+    draggingNode.x = snap(wp.x - draggingNode.dragOffsetX); draggingNode.y = snap(wp.y - draggingNode.dragOffsetY);
+    draggingNode.el.style.left = `${draggingNode.x}px`; draggingNode.el.style.top = `${draggingNode.y}px`;
+    drawPipes();
+  }
+  
+  if (isWiring) {
+    let snapped = { x: snap(wp.x), y: snap(wp.y) };
+    let last = wirePoints[wirePoints.length - 1];
+    if (Math.abs(snapped.x - last.x) > Math.abs(snapped.y - last.y)) snapped.y = last.y; else snapped.x = last.x;
+    let d = `M ${wirePoints[0].x} ${wirePoints[0].y}`;
+    for(let i=1; i<wirePoints.length; i++) d += ` L ${wirePoints[i].x} ${wirePoints[i].y}`;
+    d += ` L ${snapped.x} ${snapped.y}`;
+    document.getElementById('ghost-wire').setAttribute('d', d);
+  }
+});
+
+window.addEventListener('mouseup', (e) => {
+  isPanning = false; container.classList.remove('panning'); draggingNode = null;
+  
+  // FINALIZAR AUTO-JUNÇÃO SOLTANDO NO CANO
+  if (isWiring && e.target.classList.contains('pipe-hitbox')) {
+    let linkId = e.target.id.replace('hit_', '');
+    let wp = getWorkspacePos(e.clientX, e.clientY);
+    let jId = splitPipeAt(linkId, wp.x, wp.y);
+    
+    let snapped = { x: snap(wp.x), y: snap(wp.y) };
+    let last = wirePoints[wirePoints.length - 1];
+    if (Math.abs(snapped.x - last.x) > Math.abs(snapped.y - last.y)) snapped.y = last.y; else snapped.x = last.x;
+    wirePoints.push(snapped);
+    
+    createLinkBetween(wiringStart.n, wiringStart.p, jId, getFreePort(jId), [...wirePoints]);
+    cancelWiring();
+  }
+});
+
+window.addEventListener('contextmenu', e => { if (isWiring) { e.preventDefault(); cancelWiring(); } });
+
+function getWorkspacePos(clientX, clientY) { const rect = container.getBoundingClientRect(); return { x: (clientX - rect.left - panX) / scale, y: (clientY - rect.top - panY) / scale }; }
+function getPortWorkspacePos(n, p) {
+  let el = document.querySelector(`.port[data-n="${n}"][data-p="${p}"]`); if (!el) return {x:0, y:0};
+  let wRect = workspace.getBoundingClientRect(), pRect = el.getBoundingClientRect();
+  return { x: snap((pRect.left - wRect.left + pRect.width/2) / scale), y: snap((pRect.top - wRect.top + pRect.height/2) / scale) };
+}
+function getOrthogonalPath(x1, y1, x2, y2) {
+  x1 = snap(x1); y1 = snap(y1); x2 = snap(x2); y2 = snap(y2);
+  if (Math.abs(y1 - y2) < 5) return `M ${x1} ${y1} L ${x2} ${y2}`; if (Math.abs(x1 - x2) < 5) return `M ${x1} ${y1} L ${x2} ${y2}`;
+  let midX = snap(x1 + (x2 - x1) / 2); return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+}
+
+function getFreePort(jId) {
+  let j = nodes[jId]; if(!j) return 'P1';
+  let used = getConnections(jId).map(c => c.pLocal);
+  return j.ports.find(p => !used.includes(p)) || j.ports[0] || 'P1';
+}
+
+function cleanPointList(points) {
+  let out = [];
+  (points || []).forEach(p => {
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+    let q = {x: snap(p.x), y: snap(p.y)};
+    let last = out[out.length - 1];
+    if (!last || last.x !== q.x || last.y !== q.y) out.push(q);
+  });
+  return out;
+}
+
+function closestPointOnSegment(px, py, ax, ay, bx, by) {
+  let dx = bx - ax, dy = by - ay;
+  let len2 = dx*dx + dy*dy;
+  if (len2 === 0) return {x: ax, y: ay, d2: (px-ax)**2 + (py-ay)**2, t: 0};
+  let t = ((px-ax)*dx + (py-ay)*dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  let x = ax + t*dx, y = ay + t*dy;
+  return {x, y, d2: (px-x)**2 + (py-y)**2, t};
+}
+
+function splitPolyline(points, x, y) {
+  let pts = cleanPointList(points);
+  if (pts.length < 2) return null;
+  let best = null;
+  for (let i = 0; i < pts.length - 1; i++) {
+    let a = pts[i], b = pts[i+1];
+    let c = closestPointOnSegment(x, y, a.x, a.y, b.x, b.y);
+    if (!best || c.d2 < best.d2) best = {...c, i};
+  }
+  let a = pts[best.i], b = pts[best.i + 1];
+  let p = {x: snap(best.x), y: snap(best.y)};
+  // Se o trecho era horizontal ou vertical, mantém a junção exatamente sobre a reta existente.
+  if (Math.abs(a.x - b.x) < 1) p.x = a.x;
+  if (Math.abs(a.y - b.y) < 1) p.y = a.y;
+  p.x = Math.max(Math.min(p.x, Math.max(a.x, b.x)), Math.min(a.x, b.x));
+  p.y = Math.max(Math.min(p.y, Math.max(a.y, b.y)), Math.min(a.y, b.y));
+  return {
+    p,
+    p1: cleanPointList([...pts.slice(0, best.i + 1), p]),
+    p2: cleanPointList([p, ...pts.slice(best.i + 1)])
+  };
+}
+
+function placeJointAt(jId, p) {
+  // A classe .joint tem 14 px e transform translate(3px,3px).
+  // left = p.x - 10 coloca a porta central visualmente sobre p.x.
+  let j = nodes[jId];
+  if (!j) return;
+  j.x = p.x - 10;
+  j.y = p.y - 10;
+  j.el.style.left = `${j.x}px`;
+  j.el.style.top = `${j.y}px`;
+}
+
+function splitPipeAt(linkId, x, y) {
+  let old = links[linkId];
+  if (!old) return null;
+  let pts = cleanPointList(old.points);
+  let split = splitPolyline(pts, x, y);
+  if (!split) return null;
+
+  let jId = `J_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+  new Node(jId, 'joint', split.p.x, split.p.y);
+  placeJointAt(jId, split.p);
+
+  deleteLinkElement(linkId);
+  delete links[linkId];
+
+  createLinkBetween(old.n1, old.p1, jId, 'P1', split.p1);
+  createLinkBetween(jId, 'P2', old.n2, old.p2, split.p2);
+  return jId;
+}
+
+class Node {
+  constructor(id, type, x, y, rot = 0) {
+    this.id = id; this.type = type; this.x = snap(x); this.y = snap(y); this.rot = 0; 
+    this.ports = []; this.isOpen = false; this.vol = 50; this.fluidL = 'none'; this.fluidR = 'none';
+    this.el = document.createElement('div'); this.buildDOM(); workspace.appendChild(this.el); nodes[id] = this;
+    while(this.rot !== rot) this.rotate();
+  }
+
+  buildDOM() {
+    this.el.className = `node ${this.type}`; this.el.id = this.id;
+    this.el.style.left = `${this.x}px`; this.el.style.top = `${this.y}px`;
+    let html = '', innerText = '';
+    
+    if (this.type === 'chamber') {
+      html = `<div class="inner-content">
+                <div>${this.id === 'chamA' ? 'Câmara A' : 'Câmara B'}</div>
+                <div class="chamber-visual">
+                  <div class="vol-l fill-${this.fluidL}" id="l-${this.id}" style="width:${this.vol}%"></div>
+                  <div class="vol-r fill-${this.fluidR}" id="r-${this.id}" style="width:${100-this.vol}%"></div>
+                  <div class="membrana" id="m-${this.id}" style="left:${this.vol}%"></div>
+                </div>
+              </div>`;
+      this.ports = ['L', 'R']; 
+    } else {
+      if (this.type === 'valve') { innerText = `🔴 ${this.id}`; this.ports = ['IN', 'OUT']; this.el.onclick = (e) => { if(!e.target.classList.contains('port') && !isWiring){ this.isOpen = !this.isOpen; updateAllVisuals(); }}; createPill(this.id); } 
+      else if (this.type === 'pump') { innerText = `⚙️ Bomba`; this.ports = ['IN', 'OUT']; } 
+      else if (this.type === 'dialyzer') { innerText = `🩸 Dialisador`; this.ports = ['IN', 'OUT']; } 
+      else if (this.type === 'source') { innerText = `💧 Fonte`; this.ports = ['OUT']; } 
+      else if (this.type === 'drain') { innerText = `🗑️ Dreno`; this.ports = ['IN']; } 
+      else if (this.type === 'joint') { innerText = ``; this.ports = ['P1', 'P2', 'P3', 'P4']; }
+      html = `<div class="inner-content" id="inner-${this.id}">${innerText}</div>`;
+    }
+
+    this.el.innerHTML = html;
+    this.ports.forEach(p => {
+      let pEl = document.createElement('div'); pEl.className = `port ${p}`; pEl.dataset.n = this.id; pEl.dataset.p = p;
+      pEl.onmousedown = (e) => startWire(e, this.id, p);
+      pEl.onmouseup = (e) => { if(isWiring) { e.stopPropagation(); startWire(e, this.id, p); } };
+      this.el.appendChild(pEl);
+    });
+
+    if (this.type !== 'joint') {
+      this.el.onmousedown = (e) => { 
+        if(!e.target.classList.contains('port') && e.button === 0 && !e.altKey && !isWiring) {
+          draggingNode = this; let wp = getWorkspacePos(e.clientX, e.clientY);
+          this.dragOffsetX = wp.x - this.x; this.dragOffsetY = wp.y - this.y;
+        }
+      };
+      this.el.ondblclick = () => { if(!isWiring) deleteNode(this.id); };
+      this.el.oncontextmenu = (e) => { if(!isWiring && this.type !== 'chamber') { e.preventDefault(); this.rotate(); }};
+    } else if (this.type === 'joint') {
+      // Joint invisivel, não tem interação de mouse. Destruida automaticamente
+    }
+  }
+  rotate() {
+    this.rot = (this.rot + 90) % 360; this.el.style.transform = `rotate(${this.rot}deg)`;
+    let inner = document.getElementById(`inner-${this.id}`); if(inner) inner.style.transform = `rotate(-${this.rot}deg)`;
+    requestAnimationFrame(() => drawPipes());
+  }
+}
+
+let isWiring = false, wiringStart = null, wirePoints = [];
+let ignoreNextMouseup = false;
+
+function startWire(e, n, p) {
+  if (e.button !== 0 || e.altKey) return; e.stopPropagation();
+  if (!isWiring) {
+    isWiring = true; wiringStart = { n, p }; wirePoints = [getPortWorkspacePos(n, p)];
+    if(!document.getElementById('ghost-wire')) {
+      let path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('id', 'ghost-wire'); path.setAttribute('class', 'pipe-bg'); path.setAttribute('fill', 'none'); 
+      path.style.stroke = 'rgba(255,255,255,0.4)'; path.style.pointerEvents = 'none'; svg.appendChild(path);
+    }
+  } else {
+    if (wiringStart.n === n && wiringStart.p === p) return;
+    let pB = getPortWorkspacePos(n, p), last = wirePoints[wirePoints.length - 1];
+    if (Math.abs(pB.x - last.x) > 5 && Math.abs(pB.y - last.y) > 5) {
+      if (Math.abs(pB.x - last.x) > Math.abs(pB.y - last.y)) wirePoints.push({x: pB.x, y: last.y}); else wirePoints.push({x: last.x, y: pB.y});
+    }
+    wirePoints.push(pB); createLinkBetween(wiringStart.n, wiringStart.p, n, p, [...wirePoints]); cancelWiring();
+  }
+}
+
+function cancelWiring() {
+  let startNodeId = wiringStart ? wiringStart.n : null;
+  isWiring = false; wiringStart = null; wirePoints = [];
+  let ghost = document.getElementById('ghost-wire'); if(ghost) ghost.setAttribute('d', '');
+  if (startNodeId && nodes[startNodeId] && nodes[startNodeId].type === 'joint') cleanupJoints();
+}
+
+function createLinkBetween(n1, p1, n2, p2, points) {
+  if (!points) {
+    let posA = getPortWorkspacePos(n1, p1), posB = getPortWorkspacePos(n2, p2);
+    points = [posA, posB];
+  } else {
+    points = points.map(p => ({x: snap(p.x), y: snap(p.y)}));
+  }
+  let posA0 = getPortWorkspacePos(n1, p1), posB0 = getPortWorkspacePos(n2, p2);
+  if (points && points.length >= 2) { points[0] = posA0; points[points.length - 1] = posB0; }
+  let id = `L_${Date.now()}_${Math.floor(Math.random()*1000)}`; links[id] = { id: id, n1: n1, p1: p1, n2: n2, p2: p2, points: points };
+  
+  let hit = document.createElementNS('http://www.w3.org/2000/svg', 'path'); hit.setAttribute('id', `hit_${id}`); hit.setAttribute('class', 'pipe-hitbox'); hit.setAttribute('fill', 'none'); 
+  hit.oncontextmenu = (ev) => { ev.preventDefault(); deleteLink(id); }; hit.ondblclick = () => deleteLink(id); 
+  let bg = document.createElementNS('http://www.w3.org/2000/svg', 'path'); bg.setAttribute('id', `bg_${id}`); bg.setAttribute('class', 'pipe-bg'); bg.setAttribute('fill', 'none');
+  let fg = document.createElementNS('http://www.w3.org/2000/svg', 'path'); fg.setAttribute('id', `fg_${id}`); fg.setAttribute('class', 'pipe-flow'); fg.setAttribute('fill', 'none');
+  
+  svg.appendChild(hit); svg.appendChild(bg); svg.appendChild(fg); drawPipes();
+}
+
+function drawPipes() {
+  Object.values(links).forEach(l => {
+    let posA = getPortWorkspacePos(l.n1, l.p1), posB = getPortWorkspacePos(l.n2, l.p2);
+    l.points[0] = posA; l.points[l.points.length - 1] = posB;
+    let d = `M ${posA.x} ${posA.y}`;
+    for(let i=1; i<l.points.length; i++) d += ` L ${l.points[i].x} ${l.points[i].y}`;
+    
+    let hit = document.getElementById(`hit_${l.id}`); if(hit) hit.setAttribute('d', d);
+    let bg = document.getElementById(`bg_${l.id}`); if(bg) bg.setAttribute('d', d);
+    let fg = document.getElementById(`fg_${l.id}`); if(fg) fg.setAttribute('d', d);
+    
+    if (bg) bg.className.baseVal = pressurePipes[l.id] ? `pipe-bg press-${pressurePipes[l.id]}` : 'pipe-bg press-none';
+    if (fg) fg.className.baseVal = flowPipes[l.id] ? `pipe-flow fluid-${flowPipes[l.id].fluid} flow-${flowPipes[l.id].dir === 1 ? 'fwd' : 'bwd'}` : 'pipe-flow flow-none';
+  });
+}
+
+document.querySelectorAll('.drag-item').forEach(i => { i.ondragstart = e => e.dataTransfer.setData('type', i.dataset.type); });
+container.ondragover = e => e.preventDefault();
+container.ondrop = e => {
+  let type = e.dataTransfer.getData('type'); if(!type) return;
+  let wp = getWorkspacePos(e.clientX, e.clientY);
+  let id = type === 'valve' ? `V${vCount++}` : `${type}_${Date.now().toString().slice(-4)}`;
+  new Node(id, type, snap(wp.x - 60), snap(wp.y - 20));
+};
+
+function deleteNode(id) { Object.keys(links).forEach(k => { if(links[k].n1 === id || links[k].n2 === id) deleteLink(k) }); if(document.getElementById(`pill-${id}`)) document.getElementById(`pill-${id}`).remove(); nodes[id].el.remove(); delete nodes[id]; }
+function deleteLink(id) { 
+  if(document.getElementById(`hit_${id}`)) document.getElementById(`hit_${id}`).remove(); 
+  if(document.getElementById(`bg_${id}`)) document.getElementById(`bg_${id}`).remove(); 
+  if(document.getElementById(`fg_${id}`)) document.getElementById(`fg_${id}`).remove(); 
+  delete links[id]; 
+  cleanupJoints(); // AUTO-LIMPEZA DAS JUNÇÕES
+}
+
+// REMOVE JUNÇÕES ÓRFÃS OU RECONECTA SEM REDESENHAR O CAMINHO DO USUÁRIO
+function orientedPoints(linkId, fromNode, fromPort, toNode, toPort) {
+  let l = links[linkId];
+  if (!l) return [];
+  let pts = cleanPointList(l.points);
+  if (l.n1 === fromNode && l.p1 === fromPort && l.n2 === toNode && l.p2 === toPort) return pts;
+  if (l.n2 === fromNode && l.p2 === fromPort && l.n1 === toNode && l.p1 === toPort) return pts.reverse();
+  if (l.n1 === fromNode && l.n2 === toNode) return pts;
+  if (l.n2 === fromNode && l.n1 === toNode) return pts.reverse();
+  return pts;
+}
+
+function cleanupJoints() {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    let joints = Object.values(nodes).filter(n => n.type === 'joint');
+    for (let j of joints) {
+      let conns = getConnections(j.id);
+
+      if (conns.length <= 1) {
+        conns.forEach(c => { deleteLinkElement(c.link); delete links[c.link]; });
+        j.el.remove();
+        delete nodes[j.id];
+        changed = true;
+        break;
+      }
+
+      if (conns.length === 2) {
+        let c1 = conns[0], c2 = conns[1];
+        let ptsA = orientedPoints(c1.link, c1.n, c1.p, j.id, c1.pLocal);
+        let ptsB = orientedPoints(c2.link, j.id, c2.pLocal, c2.n, c2.p);
+        let merged = cleanPointList([...ptsA, ...ptsB.slice(1)]);
+
+        deleteLinkElement(c1.link); delete links[c1.link];
+        deleteLinkElement(c2.link); delete links[c2.link];
+        j.el.remove();
+        delete nodes[j.id];
+
+        createLinkBetween(c1.n, c1.p, c2.n, c2.p, merged);
+        changed = true;
+        break;
+      }
+    }
+  }
+}
+function deleteLinkElement(id) { document.getElementById(`hit_${id}`)?.remove(); document.getElementById(`bg_${id}`)?.remove(); document.getElementById(`fg_${id}`)?.remove(); }
+
+function saveCircuit() {
+  const data = {
+    nodes: Object.values(nodes).map(n => {
+      let phase = 0;
+      if(n.type === 'valve') { const p = document.getElementById(`pill-${n.id}`); if(p && p.parentElement.id === 'dz-1') phase = 1; if(p && p.parentElement.id === 'dz-2') phase = 2; }
+      return { id: n.id, type: n.type, x: n.x, y: n.y, rot: n.rot, phase: phase };
+    }),
+    links: Object.values(links).map(l => ({ n1: l.n1, p1: l.p1, n2: l.n2, p2: l.p2, points: l.points }))
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'circuito_hemodialise.json'; a.click();
+}
+function loadCircuit(event) {
+  const file = event.target.files[0]; if (!file) return; const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result); Object.keys(nodes).forEach(id => deleteNode(id)); vCount = 1;
+      data.nodes.forEach(n => {
+        let node = new Node(n.id, n.type, n.x, n.y, n.rot);
+        if (n.type === 'valve') { let pill = document.getElementById(`pill-${n.id}`); if (pill) document.getElementById(`dz-${n.phase}`).appendChild(pill); let num = parseInt(n.id.replace('V','')); if (!isNaN(num) && num >= vCount) vCount = num + 1; }
+      });
+      data.links.forEach(l => createLinkBetween(l.n1, l.p1, l.n2, l.p2, l.points));
+      applyPhaseLogic(); scale = 1; panX = 0; panY = 0; updateWorkspace();
+    } catch(err) { alert("Arquivo inválido."); }
+  }; reader.readAsText(file); event.target.value = ''; 
+}
+
+let draggedPill = null;
+function createPill(id) { let pill = document.createElement('div'); pill.id = `pill-${id}`; pill.className = 'v-pill'; pill.draggable = true; pill.textContent = id; pill.ondragstart = () => draggedPill = pill; document.getElementById('dz-0').appendChild(pill); }
+document.querySelectorAll('.dropzone').forEach(dz => { dz.ondragover = e => e.preventDefault(); dz.ondrop = e => { e.preventDefault(); if(draggedPill) dz.appendChild(draggedPill); applyPhaseLogic(); }; });
+document.getElementById('btn-p1').onclick = () => { activePhase = 1; document.getElementById('btn-p1').classList.add('active'); document.getElementById('btn-p2').classList.remove('active'); applyPhaseLogic(); }
+document.getElementById('btn-p2').onclick = () => { activePhase = 2; document.getElementById('btn-p2').classList.add('active'); document.getElementById('btn-p1').classList.remove('active'); applyPhaseLogic(); }
+function invertChambers() { Object.values(nodes).forEach(n => { if (n.type === 'chamber') n.vol = 100 - n.vol; }); }
+function applyPhaseLogic() { Object.values(nodes).filter(n => n.type === 'valve').forEach(v => { let pill = document.getElementById(`pill-${v.id}`); if (pill && pill.parentElement.id === `dz-${activePhase}`) v.isOpen = true; else if (pill && pill.parentElement.id !== 'dz-0') v.isOpen = false; }); updateAllVisuals(); }
+function updateAllVisuals() { Object.values(nodes).forEach(n => { if(n.type === 'valve') { n.el.classList.toggle('is-open', n.isOpen); let inner = document.getElementById(`inner-${n.id}`); if(inner) inner.innerHTML = `${n.isOpen ? '🟢' : '🔴'} ${n.id}`; }}); }
+
+// ================= FÍSICA AVANÇADA (Continuidade OBRIGATÓRIA) =================
+
+// Direção: 1 (sai do Node A pro Node B). -1 (entra no Node A do Node B)
+function getConnections(nodeId, portId = null) {
+  let res = [];
+  Object.values(links).forEach(l => {
+    if(l.n1 === nodeId && (!portId || l.p1 === portId)) res.push({ n: l.n2, p: l.p2, link: l.id, dir: 1, pLocal: l.p1 });
+    if(l.n2 === nodeId && (!portId || l.p2 === portId)) res.push({ n: l.n1, p: l.p1, link: l.id, dir: -1, pLocal: l.p2 });
+  });
+  return res;
+}
+
+// VALIDAÇÃO DE CONTINUIDADE (Retorna TRUE se chegar numa Fonte ou num Dreno)
+function checkContinuity(nId, pId, dir, visited) {
+  let state = nId + ':' + pId; if(visited.has(state)) return false; visited.add(state);
+  let node = nodes[nId]; if(!node) return false;
+  
+  if(dir === 'backward') { if(node.type === 'source' || (node.type === 'dialyzer' && pId === 'OUT')) return true; } 
+  else {
+    if(node.type === 'drain') return true;
+    if(node.type === 'dialyzer' && pId === 'IN') {
+      return getConnections(nId, 'OUT').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+    }
+  }
+  
+  if (node.type === 'chamber') {
+      if(dir === 'backward') {
+          if(pId === 'L' && node.vol > 0) return getConnections(nId, 'R').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+          if(pId === 'R' && node.vol < 100) return getConnections(nId, 'L').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+      } else {
+          if(pId === 'L' && node.vol < 100) return getConnections(nId, 'R').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+          if(pId === 'R' && node.vol > 0) return getConnections(nId, 'L').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+      }
+      return false;
+  }
+  
+  if (node.type === 'valve' && !node.isOpen) return false;
+  if (node.type === 'pump') return false;
+  
+  let nextPorts = (node.type === 'joint') ? node.ports.filter(p => p !== pId) : [(pId === 'IN') ? 'OUT' : 'IN'];
+  return nextPorts.some(np => getConnections(nId, np).some(c => checkContinuity(c.n, c.p, dir, new Set(visited))));
+}
+
+function spreadPressure(nId, pId, fluid, visited) {
+  let state = nId + ":" + pId; if(visited.has(state)) return; visited.add(state);
+  let node = nodes[nId]; if(!node) return;
+
+  if (node.type === 'chamber') { if (pId === 'L') node.fluidL = fluid; if (pId === 'R') node.fluidR = fluid; return; }
+  if (node.type === 'valve' && !node.isOpen) return;
+  if (node.type === 'pump') return;
+
+  let nextPorts = (node.type === 'joint') ? node.ports.filter(p => p !== pId) : [(pId === 'IN') ? 'OUT' : 'IN'];
+  nextPorts.forEach(np => { getConnections(nId, np).forEach(c => { pressurePipes[c.link] = fluid; spreadPressure(c.n, c.p, fluid, visited); }); });
+}
+
+function executePull(nId, pId, visited, flowAcc) {
+  let state = nId + ":" + pId; if(visited.has(state)) return null; visited.add(state);
+  let node = nodes[nId]; if(!node) return null;
+
+  if (node.type === 'source') return 'fresh';
+  if (node.type === 'dialyzer' && pId === 'OUT') return 'spent';
+
+  if (node.type === 'chamber') {
+    if (pId === 'L' && node.vol > 0) {
+      let found = null;
+      getConnections(nId, 'R').forEach(c => {
+        let res = executePull(c.n, c.p, new Set(visited), flowAcc);
+        if (res && !found) { found = node.fluidL || 'none'; node.fluidR = res; node.vol -= 0.8; flowAcc.push({l: c.link, d: -c.dir, f: res}); }
+      });
+      return found;
+    }
+    if (pId === 'R' && node.vol < 100) {
+      let found = null;
+      getConnections(nId, 'L').forEach(c => {
+        let res = executePull(c.n, c.p, new Set(visited), flowAcc);
+        if (res && !found) { found = node.fluidR || 'none'; node.fluidL = res; node.vol += 0.8; flowAcc.push({l: c.link, d: -c.dir, f: res}); }
+      });
+      return found;
+    }
+    return null;
+  }
+
+  if (node.type === 'valve' && !node.isOpen) return null;
+  if (node.type === 'pump') return null;
+
+  let nextPorts = (node.type === 'joint') ? node.ports.filter(p => p !== pId) : [(pId === 'IN') ? 'OUT' : 'IN'];
+  let found = null;
+  nextPorts.forEach(np => {
+    getConnections(nId, np).forEach(c => {
+      let res = executePull(c.n, c.p, new Set(visited), flowAcc);
+      if (res && !found) { found = res; flowAcc.push({l: c.link, d: -c.dir, f: res}); }
+    });
+  });
+  return found;
+}
+
+function executePush(nId, pId, fluid, visited, flowAcc) {
+  let state = nId + ":" + pId; if(visited.has(state)) return false; visited.add(state);
+  let node = nodes[nId]; if(!node) return false;
+
+  if (node.type === 'drain') return true;
+
+  // Dialisador: o líquido que entra em IN sai por OUT como líquido usado (laranja).
+  // Isso corrige a ausência de animação no ramo de saída do dialisador.
+  if (node.type === 'dialyzer') {
+    if (pId !== 'IN') return false;
+    let success = false;
+    getConnections(nId, 'OUT').forEach(c => {
+      if (executePush(c.n, c.p, 'spent', new Set(visited), flowAcc)) {
+        success = true;
+        flowAcc.push({l: c.link, d: c.dir, f: 'spent'});
+      }
+    });
+    return success;
+  }
+
+  if (node.type === 'chamber') {
+    if (pId === 'L' && node.vol < 100) {
+      let outFluid = node.fluidR || 'none'; node.fluidL = fluid; let success = false;
+      getConnections(nId, 'R').forEach(c => {
+        if (executePush(c.n, c.p, outFluid, new Set(visited), flowAcc)) { success = true; node.vol += 0.8; flowAcc.push({l: c.link, d: c.dir, f: outFluid}); }
+      });
+      return success;
+    }
+    if (pId === 'R' && node.vol > 0) {
+      let outFluid = node.fluidL || 'none'; node.fluidR = fluid; let success = false;
+      getConnections(nId, 'L').forEach(c => {
+        if (executePush(c.n, c.p, outFluid, new Set(visited), flowAcc)) { success = true; node.vol -= 0.8; flowAcc.push({l: c.link, d: c.dir, f: outFluid}); }
+      });
+      return success;
+    }
+    return false;
+  }
+
+  if (node.type === 'valve' && !node.isOpen) return false;
+  if (node.type === 'pump') return false;
+
+  let nextPorts = (node.type === 'joint') ? node.ports.filter(p => p !== pId) : [(pId === 'IN') ? 'OUT' : 'IN'];
+  let success = false;
+  nextPorts.forEach(np => {
+    getConnections(nId, np).forEach(c => {
+      if (executePush(c.n, c.p, fluid, new Set(visited), flowAcc)) { success = true; flowAcc.push({l: c.link, d: c.dir, f: fluid}); }
+    });
+  });
+  return success;
+}
+
+function runPhysics() {
+  pressurePipes = {}; flowPipes = {};
+
+  Object.values(nodes).forEach(n => {
+    if(n.type === 'source') getConnections(n.id, 'OUT').forEach(c => { pressurePipes[c.link] = 'fresh'; spreadPressure(c.n, c.p, 'fresh', new Set()); });
+    if(n.type === 'dialyzer') getConnections(n.id, 'OUT').forEach(c => { pressurePipes[c.link] = 'spent'; spreadPressure(c.n, c.p, 'spent', new Set()); });
+  });
+
+  Object.values(nodes).filter(n => n.type === 'pump').forEach(pump => {
+    let inConns = getConnections(pump.id, 'IN');
+    let outConns = getConnections(pump.id, 'OUT');
+    
+    inConns.forEach(inC => {
+      outConns.forEach(outC => {
+        // Validação de Circuito Totalmente Fechado!
+        let canPull = checkContinuity(inC.n, inC.p, 'backward', new Set());
+        let canPush = checkContinuity(outC.n, outC.p, 'forward', new Set());
+        
+        if (canPull && canPush) {
+          let pullFlows = []; let pulledFluid = executePull(inC.n, inC.p, new Set(), pullFlows);
+          if (pulledFluid) {
+             let pushFlows = []; executePush(outC.n, outC.p, pulledFluid, new Set(), pushFlows);
+             pullFlows.forEach(x => { flowPipes[x.l] = { fluid: x.f, dir: x.d }; pressurePipes[x.l] = x.f; });
+             pushFlows.forEach(x => { flowPipes[x.l] = { fluid: x.f, dir: x.d }; pressurePipes[x.l] = x.f; });
+             flowPipes[inC.link] = { fluid: pulledFluid, dir: -inC.dir }; pressurePipes[inC.link] = pulledFluid;
+             flowPipes[outC.link] = { fluid: pulledFluid, dir: outC.dir }; pressurePipes[outC.link] = pulledFluid;
+          }
+        }
+      });
+    });
+  });
+
+  Object.values(nodes).filter(n => n.type === 'chamber').forEach(n => {
+    let lEl = document.getElementById(`l-${n.id}`); let rEl = document.getElementById(`r-${n.id}`);
+    lEl.style.width = `${n.vol}%`; lEl.className = `vol-l fill-${n.fluidL}`;
+    rEl.style.width = `${100-n.vol}%`; rEl.className = `vol-r fill-${n.fluidR}`;
+    document.getElementById(`m-${n.id}`).style.left = `${n.vol}%`;
+    let pL = document.querySelector(`.port[data-n="${n.id}"][data-p="L"]`); if(pL) pL.className = `port L port-fill-${n.fluidL}`;
+    let pR = document.querySelector(`.port[data-n="${n.id}"][data-p="R"]`); if(pR) pR.className = `port R port-fill-${n.fluidR}`;
+  });
+  
+  drawPipes(); 
+  requestAnimationFrame(runPhysics);
+}
+
+new Node('chamA', 'chamber', 340, 160);
+new Node('chamB', 'chamber', 340, 420);
+updateWorkspace();
+requestAnimationFrame(runPhysics);
+
+container.oncontextmenu = (e) => e.preventDefault();
+</script>
+</body>
+</html>

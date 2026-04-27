@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convolução Interativa LTI</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --primary: #3b82f6;   /* x[n] */
+            --secondary: #10b981; /* h[n] */
+            --accent: #8b5cf6;    /* y[n] */
+            --text: #1e293b;
+            --muted: #64748b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 { margin: 0; font-size: 1.8rem; color: #0f172a; }
+        p { margin: 5px 0; color: var(--muted); }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 60px 0.7fr 60px 1.2fr;
+            gap: 15px;
+            width: 100%;
+            max-width: 1300px;
+            align-items: center;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .card h2 {
+            font-size: 1rem;
+            margin: 0 0 5px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .subtitle {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 15px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 300px;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .symbol {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #cbd5e1;
+            text-align: center;
+        }
+
+        .label-x { color: var(--primary); }
+        .label-h { color: var(--secondary); }
+        .label-y { color: var(--accent); }
+
+        .btn-clear {
+            margin-top: 15px;
+            padding: 6px 16px;
+            border: 1px solid #cbd5e1;
+            background-color: transparent;
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-clear:hover {
+            background-color: #f1f5f9;
+            color: var(--text);
+            border-color: #94a3b8;
+        }
+
+        .instruction {
+            margin-top: 20px;
+            font-size: 0.85rem;
+            background: #e2e8f0;
+            padding: 8px 15px;
+            border-radius: 20px;
+            color: #475569;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                display: flex;
+                flex-direction: column;
+            }
+            .symbol { transform: rotate(90deg); margin: -10px 0; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Convolução Discreta LTI</h1>
+    <p>Clique e arraste sobre os gráficos para desenhar o sinal</p>
+</header>
+
+<div class="container">
+    <div class="card">
+        <h2 class="label-x">Entrada x[n]</h2>
+        <div class="subtitle">10 pts (Max +1 / Min -1)</div>
+        <canvas id="canvasX"></canvas>
+        <button class="btn-clear" onclick="zeroArray('x')">Zerar Entrada</button>
+    </div>
+
+    <div class="symbol">∗</div>
+
+    <div class="card" style="border: 2px solid #e2e8f0;">
+        <h2 class="label-h">Sistema h[n]</h2>
+        <div class="subtitle">5 pts (Max +10 / Min -10)</div>
+        <canvas id="canvasH"></canvas>
+        <button class="btn-clear" onclick="zeroArray('h')">Zerar Sistema</button>
+    </div>
+
+    <div class="symbol">=</div>
+
+    <div class="card">
+        <h2 class="label-y">Saída y[n]</h2>
+        <div class="subtitle">14 pts (Escala Automática)</div>
+        <canvas id="canvasY"></canvas>
+    </div>
+</div>
+
+<div class="instruction">
+    Dica: Você pode "desenhar" a forma de onda deslizando o mouse.
+</div>
+
+<script>
+    const state = {
+        // Valores iniciais atualizados para respeitar as novas escalas
+        x: [0, 1, 0.5, -0.5, -1, 0, 0.8, 0, 0, 0],
+        h: [1, 5, 2, -3, 0],
+        y: [],
+        isDragging: false,
+        activeCanvas: null
+    };
+
+    const config = {
+        paddingTopBottom: 35,
+        paddingLeftRight: 35,
+        pointRadius: 6,
+        colors: {
+            x: '#3b82f6',
+            h: '#10b981',
+            y: '#8b5cf6',
+            grid: '#e2e8f0',
+            zero: '#94a3b8',
+            text: '#64748b'
+        }
+    };
+
+    const canvases = {
+        x: { el: document.getElementById('canvasX'), ctx: document.getElementById('canvasX').getContext('2d'), data: 'x' },
+        h: { el: document.getElementById('canvasH'), ctx: document.getElementById('canvasH').getContext('2d'), data: 'h' },
+        y: { el: document.getElementById('canvasY'), ctx: document.getElementById('canvasY').getContext('2d'), data: 'y' }
+    };
+
+    // Função que retorna as configurações de escala e grid para cada gráfico
+    function getLimits(dataKey, values = []) {
+        if (dataKey === 'x') return { max: 1, min: -1, step: 0.5, maxAbs: 1 };
+        if (dataKey === 'h') return { max: 10, min: -10, step: 5, maxAbs: 10 };
+        
+        // Para a saída y[n], a escala é dinâmica e arredondada para ficar esteticamente agradável
+        const maxValArray = Math.max(...values, 1);
+        const minValArray = Math.min(...values, -1);
+        const absMax = Math.max(Math.abs(maxValArray), Math.abs(minValArray));
+        
+        let step = 1;
+        if (absMax > 50) step = 20;
+        else if (absMax > 20) step = 10;
+        else if (absMax > 10) step = 5;
+        else if (absMax > 5) step = 2;
+        
+        const roundedMax = Math.ceil(absMax / step) * step;
+        // Evita divisões por zero se o gráfico for reto no zero
+        const finalMax = roundedMax === 0 ? 1 : roundedMax; 
+        
+        return { max: finalMax, min: -finalMax, step: step, maxAbs: finalMax };
+    }
+
+    function init() {
+        window.addEventListener('resize', setupCanvases);
+        setupCanvases();
+        calculateConvolution();
+        drawAll();
+
+        [canvases.x, canvases.h].forEach(item => {
+            item.el.addEventListener('mousedown', (e) => startInteraction(e, item));
+            item.el.addEventListener('mousemove', (e) => interact(e, item));
+            window.addEventListener('mouseup', stopInteraction);
+            
+            item.el.addEventListener('touchstart', (e) => startInteraction(e.touches[0], item), {passive: false});
+            item.el.addEventListener('touchmove', (e) => interact(e.touches[0], item), {passive: false});
+        });
+    }
+
+    function setupCanvases() {
+        Object.values(canvases).forEach(item => {
+            const rect = item.el.parentElement.getBoundingClientRect();
+            item.el.width = rect.width - 40;
+            item.el.height = 300;
+        });
+        drawAll();
+    }
+
+    function calculateConvolution() {
+        const x = state.x;
+        const h = state.h;
+        const lenY = x.length + h.length - 1;
+        state.y = new Array(lenY).fill(0);
+
+        for (let n = 0; n < lenY; n++) {
+            for (let k = 0; k < x.length; k++) {
+                if (n - k >= 0 && n - k < h.length) {
+                    state.y[n] += x[k] * h[n - k];
+                }
+            }
+        }
+    }
+
+    window.zeroArray = function(dataKey) {
+        if (state[dataKey]) {
+            state[dataKey].fill(0);
+            calculateConvolution();
+            drawAll();
+        }
+    };
+
+    function drawGraph(item) {
+        const { el, ctx, data } = item;
+        const values = state[data];
+        const w = el.width;
+        const h = el.height;
+        const pt = config.paddingTopBottom;
+        const pl = config.paddingLeftRight;
+        const color = config.colors[data];
+
+        ctx.clearRect(0, 0, w, h);
+
+        const zeroY = h / 2;
+        const availableHeight = (h - 2 * pt) / 2;
+        const stepX = (w - 2 * pl) / (values.length - 1);
+        
+        const limits = getLimits(data, values);
+        const valToY = (val) => zeroY - (val / limits.maxAbs) * availableHeight;
+
+        // --- DESENHAR GRID ---
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = config.colors.grid;
+        ctx.setLineDash([4, 4]);
+        ctx.fillStyle = config.colors.text;
+        ctx.font = '10px sans-serif';
+
+        // Grid Horizontal (Eixo Y)
+        for (let v = -limits.maxAbs; v <= limits.maxAbs; v += limits.step) {
+            const yPos = valToY(v);
+            ctx.beginPath();
+            ctx.moveTo(pl, yPos);
+            ctx.lineTo(w - pl, yPos);
+            ctx.stroke();
+
+            ctx.textAlign = 'right';
+            ctx.fillText(Number.isInteger(v) ? v : v.toFixed(1), pl - 10, yPos + 3);
+        }
+
+        // Grid Vertical (Eixo X)
+        for (let i = 0; i < values.length; i++) {
+            const xPos = pl + i * stepX;
+            ctx.beginPath();
+            ctx.moveTo(xPos, pt);
+            ctx.lineTo(xPos, h - pt);
+            ctx.stroke();
+
+            ctx.textAlign = 'center';
+            ctx.fillText(i, xPos, h - pt + 20);
+        }
+        ctx.setLineDash([]); 
+
+        // --- DESENHAR EIXO ZERO ---
+        ctx.strokeStyle = config.colors.zero;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(pl, zeroY);
+        ctx.lineTo(w - pl, zeroY);
+        ctx.stroke();
+
+        // --- DESENHAR HASTES ---
+        values.forEach((val, i) => {
+            const xPos = pl + i * stepX;
+            const yPos = valToY(val);
+
+            // Linha
+            ctx.strokeStyle = color + '66'; 
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(xPos, zeroY);
+            ctx.lineTo(xPos, yPos);
+            ctx.stroke();
+
+            // Ponto
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(xPos, yPos, config.pointRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Valor acima do ponto (formatado para 1 casa decimal)
+            if (data !== 'y') {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillText(val.toFixed(1), xPos, yPos > zeroY ? yPos + 15 : yPos - 10);
+            }
+        });
+    }
+
+    function drawAll() {
+        drawGraph(canvases.x);
+        drawGraph(canvases.h);
+        drawGraph(canvases.y);
+    }
+
+    function startInteraction(e, item) {
+        state.isDragging = true;
+        state.activeCanvas = item;
+        interact(e, item);
+    }
+
+    function stopInteraction() {
+        state.isDragging = false;
+        state.activeCanvas = null;
+    }
+
+    function interact(e, item) {
+        if (!state.isDragging || state.activeCanvas !== item) return;
+
+        const rect = item.el.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const values = state[item.data];
+        const limits = getLimits(item.data);
+        const w = item.el.width;
+        const h = item.el.height;
+        const pt = config.paddingTopBottom;
+        const pl = config.paddingLeftRight;
+
+        const stepX = (w - 2 * pl) / (values.length - 1);
+        let idx = Math.round((mouseX - pl) / stepX);
+        idx = Math.max(0, Math.min(values.length - 1, idx));
+
+        const zeroY = h / 2;
+        const availableHeight = (h - 2 * pt) / 2;
+        
+        // Calcula o valor real da interação baseado no novo limite absoluto do gráfico
+        let newVal = ((zeroY - mouseY) / availableHeight) * limits.maxAbs;
+        newVal = Math.max(limits.min, Math.min(limits.max, newVal));
+        
+        values[idx] = newVal;
+
+        calculateConvolution();
+        drawAll();
+    }
+
+    init();
+</script>
+
+</body>
+</html>

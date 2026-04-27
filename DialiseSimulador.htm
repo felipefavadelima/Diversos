@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Hemodiálise - Engenharia Biomédica</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --panel-bg: #ffffff;
+            --text-main: #2c3e50;
+            --blood-color: #e74c3c;
+            --venous-color: #c0392b;
+            --dialysate-fresh: #2ecc71;
+            --dialysate-spent: #f1c40f;
+            --alarm-color: #e74c3c;
+            --border-color: #bdc3c7;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 { margin: 0; font-size: 24px; color: #2980b9; }
+        p.subtitle { margin: 5px 0 0 0; color: #7f8c8d; font-size: 14px; }
+
+        .container {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            min-height: 0;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-color);
+        }
+
+        .dashboard {
+            flex: 0 0 350px;
+            overflow-y: auto;
+        }
+
+        .visualization {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        canvas {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.02);
+            cursor: crosshair; /* Indica que é interativo */
+        }
+
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .sensor-card {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        
+        .sensor-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background: #f0f3f5;
+        }
+
+        .sensor-card.blood { border-left-color: var(--blood-color); }
+        .sensor-card.dialysate { border-left-color: var(--dialysate-fresh); }
+        .sensor-card.pressure { border-left-color: #9b59b6; }
+
+        .sensor-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: bold;
+            color: #7f8c8d;
+        }
+
+        .sensor-value {
+            font-size: 20px;
+            font-weight: bold;
+            font-family: monospace;
+            margin-top: 5px;
+        }
+
+        .unit { font-size: 12px; color: #95a5a6; }
+
+        .controls h3, .faults h3 {
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #d68910; }
+
+        #alarmBanner {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--alarm-color);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 4px 10px rgba(231, 76, 60, 0.5);
+            display: none;
+            z-index: 10;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* --- MODAL (JANELA DE INFORMAÇÃO) --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: #fff;
+            width: 450px;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            overflow: hidden;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            background: #34495e;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 { margin: 0; font-size: 18px; }
+        .close-btn { 
+            background: none; border: none; color: white; 
+            font-size: 24px; cursor: pointer; padding: 0; width: auto;
+        }
+        .close-btn:hover { color: #e74c3c; }
+
+        .modal-body { padding: 20px; line-height: 1.5; font-size: 14px;}
+        .modal-body h4 { margin: 15px 0 5px 0; color: #2980b9; font-size: 15px; }
+        .modal-body p { margin: 0 0 10px 0; color: #34495e; }
+        .modal-body .highlight { background: #f1f2f6; padding: 10px; border-left: 3px solid #f39c12; margin-top: 15px;}
+
+        /* Instrução flutuante */
+        .tooltip-hint {
+            position: absolute;
+            bottom: 10px;
+            color: #7f8c8d;
+            font-style: italic;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Simulador de Máquina de Hemodiálise</h1>
+        <p class="subtitle">Análise de Instrumentação - Diagrama P&I (Piping and Instrumentation)</p>
+    </header>
+
+    <div class="container">
+        <div class="panel dashboard">
+            <div class="sensor-grid">
+                <div class="sensor-card blood" onclick="openModal('Qb')">
+                    <div class="sensor-title">Fluxo Sangue (Qb) ℹ️</div>
+                    <div class="sensor-value" id="valQb">0 <span class="unit">mL/min</span></div>
+                </div>
+                <div class="sensor-card dialysate" onclick="openModal('Qd')">
+                    <div class="sensor-title">Fluxo Dialsato (Qd) ℹ️</div>
+                    <div class="sensor-value" id="valQd">0 <span class="unit">mL/min</span></div>
+                </div>
+                <div class="sensor-card pressure" onclick="openModal('PA')">
+                    <div class="sensor-title">Pressão Arterial (PA) ℹ️</div>
+                    <div class="sensor-value" id="valPA">0 <span class="unit">mmHg</span></div>
+                </div>
+                <div class="sensor-card pressure" onclick="openModal('PV')">
+                    <div class="sensor-title">Pressão Venosa (PV) ℹ️</div>
+                    <div class="sensor-value" id="valPV">0 <span class="unit">mmHg</span></div>
+                </div>
+                <div class="sensor-card pressure" style="grid-column: span 2;" onclick="openModal('TMP')">
+                    <div class="sensor-title">Pressão Transmembrana (TMP) ℹ️</div>
+                    <div class="sensor-value" id="valTMP">0 <span class="unit">mmHg</span></div>
+                </div>
+                <div class="sensor-card dialysate" onclick="openModal('Cond')">
+                    <div class="sensor-title">Condutividade ℹ️</div>
+                    <div class="sensor-value" id="valCond">0.0 <span class="unit">mS/cm</span></div>
+                </div>
+                <div class="sensor-card dialysate" onclick="openModal('Temp')">
+                    <div class="sensor-title">Temperatura ℹ️</div>
+                    <div class="sensor-value" id="valTemp">0.0 <span class="unit">°C</span></div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <h3>Controle Principal</h3>
+                <button class="btn-primary" id="btnToggleSim">Iniciar Terapia</button>
+            </div>
+
+            <div class="faults">
+                <h3>Simulação de Falhas (Instrumentação)</h3>
+                <button class="btn-warning" onclick="triggerFault('air_bubble')">Detector de Bolha de Ar</button>
+                <button class="btn-warning" onclick="triggerFault('arterial_occlusion')">Oclusão de Linha Arterial</button>
+                <button class="btn-warning" onclick="triggerFault('dialyzer_clot')">Coagulação no Capilar (Filtro)</button>
+                <button class="btn-warning" onclick="triggerFault('blood_leak')">Detector de Vazamento de Sangue</button>
+                <button class="btn-primary" onclick="resetFaults()" style="background:#7f8c8d; margin-top:10px;">Resetar Alarmes</button>
+            </div>
+        </div>
+
+        <div class="panel visualization">
+            <div id="alarmBanner">ALARME: FALHA DETECTADA</div>
+            <canvas id="machineCanvas" width="800" height="600"></canvas>
+            <div class="tooltip-hint">💡 Clique em qualquer componente do diagrama para ver sua explicação clínica e de engenharia.</div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="infoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Título</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h4>O que é?</h4>
+                <p id="modalDesc">Descrição do componente.</p>
+                
+                <h4>Para que serve?</h4>
+                <p id="modalFunc">Função fisiológica ou técnica.</p>
+
+                <div class="highlight">
+                    <strong>Parâmetro / O que indica:</strong><br>
+                    <span id="modalParam">Explicação dos valores medidos.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('machineCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // ==========================================
+        // BANCO DE DADOS DE INFORMAÇÕES (DICIONÁRIO)
+        // ==========================================
+        const infoDB = {
+            'Qb': {
+                title: 'Bomba de Sangue / Fluxo (Qb)',
+                desc: 'Uma bomba peristáltica rotativa que "espreme" a linha de sangue (tubo de PVC macio) para mover o fluido.',
+                func: 'Retira o sangue do paciente (acesso vascular), empurra-o através do dialisador e o devolve. O fluxo contínuo evita coagulação fora do corpo.',
+                param: 'O fluxo (Qb) varia entre 300 e 400 mL/min. É um valor calculado com base na rotação da bomba (RPM) e no diâmetro do segmento de bomba da linha.'
+            },
+            'Qd': {
+                title: 'Fluxo de Dialsato (Qd)',
+                func: 'Gera um fluxo contra-corrente (sentido oposto ao sangue) dentro do dialisador para maximizar o gradiente de difusão das toxinas.',
+                desc: 'Sistema de bombas internas (geralmente de engrenagem ou membranas balanceadas) no módulo hidráulico.',
+                param: 'Geralmente configurado para 500 ou 800 mL/min. Valores monitorados para garantir que o líquido fresco passe constantemente pelo filtro.'
+            },
+            'PA': {
+                title: 'Sensor de Pressão Arterial (PA)',
+                desc: 'Um transdutor de pressão (frequentemente piezoresistivo) conectado à linha pré-bomba.',
+                func: 'Monitora a pressão de "sucção" (puxada) do acesso vascular do paciente (fístula ou cateter).',
+                param: 'É sempre um valor NEGATIVO (ex: -150 mmHg). Se ficar MUITO negativo, indica que a agulha colou na parede da veia ou há obstrução/dobra na linha.'
+            },
+            'PV': {
+                title: 'Sensor de Pressão Venosa (PV) / Trap',
+                desc: 'Transdutor acoplado a um reservatório (Cata-bolhas/Trap) na linha de retorno do sangue.',
+                func: 'Monitora a resistência encontrada para devolver o sangue limpo ao paciente e serve como câmara para capturar bolhas pequenas.',
+                param: 'É sempre POSITIVO (ex: 120 mmHg). Se subir muito, indica que há coágulos no filtro, dobra na linha de retorno ou estenose no acesso venoso.'
+            },
+            'TMP': {
+                title: 'Pressão Transmembrana (TMP)',
+                desc: 'Não é um sensor físico único, mas um valor calculado matematicamente pelo microcontrolador da máquina.',
+                func: 'Controla a "Ultrafiltração" (retirada de água do paciente). É a diferença de pressão entre o lado do sangue e o lado do líquido no filtro.',
+                param: 'Valores normais variam de 50 a 150 mmHg. Se a TMP sobe rapidamente, o capilar (filtro) está entupindo/coagulando e forçando a passagem do fluido.'
+            },
+            'Cond': {
+                title: 'Sensor de Condutividade',
+                desc: 'Célula de condutividade elétrica com eletrodos. Mede a capacidade do fluido de conduzir corrente.',
+                func: 'Garante que a proporção exata de água purificada e eletrólitos (sódio, potássio, cálcio) foi misturada.',
+                param: 'Alvo: ~14.0 mS/cm. Se estiver fora do limite, a máquina entra em "bypass", desviando o líquido do filtro, pois líquido hipotônico causa hemólise (destruição das hemácias).'
+            },
+            'Temp': {
+                title: 'Sensor de Temperatura / Aquecedor',
+                desc: 'Termistores (NTC) de alta precisão imersos no fluxo do bloco hidráulico.',
+                func: 'Mede e controla o aquecedor para levar a água de entrada da osmose (que pode estar fria) para a temperatura fisiológica.',
+                param: 'Geralmente configurada em 36.5°C. Evita que o paciente tenha hipotermia ou calafrios, mas pode ser levemente reduzida (35°C) para evitar quedas de pressão arterial no paciente.'
+            },
+            'Dialisador': {
+                title: 'Dialisador (Capilar / Filtro)',
+                desc: 'O "Rim Artificial". Cilindro de policarbonato contendo cerca de 10 mil a 15 mil fibras ocas semipermeáveis (como fios de cabelo ocos).',
+                func: 'Promove a troca de substâncias. O sangue passa por dentro dos fios, e o líquido passa por fora. Ureia e potássio saem do sangue por difusão.',
+                param: 'Não possui sensores eletrônicos diretos em seu corpo, mas sua saúde é deduzida indiretamente pela TMP, PA, PV e vazamento de sangue.'
+            },
+            'Heparina': {
+                title: 'Bomba de Heparina',
+                desc: 'Uma bomba de infusão tipo seringa controlada por um motor de passo linear.',
+                func: 'Injeta anticoagulante (heparina) de forma contínua ou em bolus na linha de sangue arterial.',
+                param: 'Garante que o sangue não coagule (trombose) ao entrar em contato com plásticos e materiais artificiais das linhas e do dialisador.'
+            },
+            'Ar': {
+                title: 'Detector de Bolha de Ar / Clamp',
+                desc: 'Sensor ultrassônico acoplado à linha venosa, seguido de uma válvula solenoide (Clamp de interrupção rápida).',
+                func: 'Segurança crítica: O ar bloqueia as ondas de ultrassom. Se uma bolha for detectada, o clamp "esmaga" a linha venosa instantaneamente.',
+                param: 'Previne que o paciente sofra uma Embolia Gasosa fatal, impedindo que o ar chegue à corrente sanguínea.'
+            },
+            'Blood Leak': {
+                title: 'Detector de Vazamento de Sangue',
+                desc: 'Sensor óptico infravermelho posicionado na linha de descarte (esgoto) do líquido dialisador.',
+                func: 'Verifica se o líquido gasto está turvo ou avermelhado.',
+                param: 'Indica ruptura nas membranas microscópicas do dialisador. Se romperem, o sangue escapa para o dialisato e é drenado, o que pode causar hemorragia severa.'
+            },
+            'Proporcionamento': {
+                title: 'Sistema de Proporcionamento',
+                desc: 'Módulo hidráulico da máquina contendo bombas de precisão (cerâmicas ou diafragma).',
+                func: 'Mistura água tratada por osmose reversa com os concentrados "Ácido" (eletrólitos) e "Básico" (bicarbonato) na proporção correta (ex: 1:34).',
+                param: 'É o "coração químico" da máquina, monitorado logo em seguida pelo sensor de Condutividade.'
+            }
+        };
+
+        // ==========================================
+        // LÓGICA DO MODAL
+        // ==========================================
+        const modal = document.getElementById('infoModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDesc = document.getElementById('modalDesc');
+        const modalFunc = document.getElementById('modalFunc');
+        const modalParam = document.getElementById('modalParam');
+
+        function openModal(key) {
+            const data = infoDB[key];
+            if(!data) return;
+            modalTitle.textContent = data.title;
+            modalDesc.textContent = data.desc;
+            modalFunc.textContent = data.func;
+            modalParam.textContent = data.param;
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+
+        // Fechar ao clicar fora do modal
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+
+        // ==========================================
+        // ESTADO DO SIMULADOR E FÍSICA
+        // ==========================================
+        let isRunning = false;
+        let activeFault = null;
+        let flowOffset = 0;
+        let pumpAngle = 0;
+
+        const baseTargets = { Qb: 300, Qd: 500, PA: -150, PV: 120, TMP: 100, Cond: 14.0, Temp: 36.5 };
+        let sensors = { Qb: 0, Qd: 0, PA: 0, PV: 0, TMP: 0, Cond: 0, Temp: 0 };
+
+        const domSensors = {
+            Qb: document.getElementById('valQb'), Qd: document.getElementById('valQd'),
+            PA: document.getElementById('valPA'), PV: document.getElementById('valPV'),
+            TMP: document.getElementById('valTMP'), Cond: document.getElementById('valCond'),
+            Temp: document.getElementById('valTemp')
+        };
+        const alarmBanner = document.getElementById('alarmBanner');
+        const btnToggle = document.getElementById('btnToggleSim');
+
+        btnToggle.addEventListener('click', () => {
+            if (activeFault) return;
+            isRunning = !isRunning;
+            btnToggle.textContent = isRunning ? "Parar Terapia" : "Iniciar Terapia";
+            btnToggle.className = isRunning ? "btn-danger" : "btn-primary";
+            if (!isRunning) stopFlows();
+        });
+
+        function updateLogic() {
+            if (!isRunning) decayToZero();
+            else applyNormalPhysics();
+
+            if (activeFault) applyFaultPhysics();
+
+            if (isRunning && !activeFault) {
+                 sensors.TMP = (sensors.PV - sensors.PA) / 2.5; 
+            }
+            updateDOM();
+        }
+
+        function decayToZero() {
+            Object.keys(sensors).forEach(key => {
+                sensors[key] += (0 - sensors[key]) * 0.1;
+            });
+        }
+
+        function applyNormalPhysics() {
+            sensors.Qb += (baseTargets.Qb - sensors.Qb) * 0.1 + (Math.random() * 4 - 2);
+            sensors.Qd += (baseTargets.Qd - sensors.Qd) * 0.1 + (Math.random() * 4 - 2);
+            sensors.PA += (baseTargets.PA - sensors.PA) * 0.1 + (Math.random() * 6 - 3);
+            sensors.PV += (baseTargets.PV - sensors.PV) * 0.1 + (Math.random() * 4 - 2);
+            sensors.Cond += (baseTargets.Cond - sensors.Cond) * 0.1 + (Math.random() * 0.04 - 0.02);
+            sensors.Temp += (baseTargets.Temp - sensors.Temp) * 0.1 + (Math.random() * 0.04 - 0.02);
+        }
+
+        function triggerFault(faultType) {
+            if (!isRunning) return;
+            activeFault = faultType;
+            isRunning = false; 
+            btnToggle.textContent = "Máquina em Alarme";
+            btnToggle.className = "btn-danger";
+            btnToggle.disabled = true;
+            alarmBanner.style.display = "block";
+
+            let msg = "";
+            switch(faultType) {
+                case 'air_bubble': msg = "ALARME: BOLHA DE AR NA LINHA VENOSA (Detector Ultrassônico)"; break;
+                case 'arterial_occlusion': msg = "ALARME: PRESSÃO ARTERIAL MUITO NEGATIVA (Oclusão/Acesso)"; break;
+                case 'dialyzer_clot': msg = "ALARME: TMP ALTA (Coagulação no Capilar)"; break;
+                case 'blood_leak': msg = "ALARME: VAZAMENTO DE SANGUE (Detector Óptico no Dialsato)"; break;
+            }
+            alarmBanner.textContent = msg;
+        }
+
+        function resetFaults() {
+            activeFault = null;
+            alarmBanner.style.display = "none";
+            btnToggle.disabled = false;
+            btnToggle.textContent = "Iniciar Terapia";
+            btnToggle.className = "btn-primary";
+            stopFlows();
+        }
+
+        function stopFlows() { sensors.Qb = 0; sensors.Qd = 0; }
+
+        function applyFaultPhysics() {
+            switch(activeFault) {
+                case 'arterial_occlusion':
+                    sensors.PA -= 15;
+                    if(sensors.PA < -300) sensors.PA = -300;
+                    sensors.Qb *= 0.8;
+                    break;
+                case 'dialyzer_clot':
+                    sensors.TMP += 10;
+                    if(sensors.TMP > 400) sensors.TMP = 400;
+                    sensors.PV += 8;
+                    if(sensors.PV > 300) sensors.PV = 300;
+                    sensors.Qb *= 0.9;
+                    break;
+                case 'air_bubble':
+                case 'blood_leak':
+                    sensors.Qb *= 0.5; 
+                    break;
+            }
+        }
+
+        function updateDOM() {
+            domSensors.Qb.innerHTML = `${Math.round(sensors.Qb)} <span class="unit">mL/min</span>`;
+            domSensors.Qd.innerHTML = `${Math.round(sensors.Qd)} <span class="unit">mL/min</span>`;
+            domSensors.PA.innerHTML = `${Math.round(sensors.PA)} <span class="unit">mmHg</span>`;
+            domSensors.PV.innerHTML = `${Math.round(sensors.PV)} <span class="unit">mmHg</span>`;
+            domSensors.TMP.innerHTML = `${Math.round(sensors.TMP)} <span class="unit">mmHg</span>`;
+            domSensors.Cond.innerHTML = `${sensors.Cond.toFixed(1)} <span class="unit">mS/cm</span>`;
+            domSensors.Temp.innerHTML = `${sensors.Temp.toFixed(1)} <span class="unit">°C</span>`;
+
+            domSensors.PA.style.color = (sensors.PA < -250) ? "red" : "inherit";
+            domSensors.PV.style.color = (sensors.PV > 250) ? "red" : "inherit";
+            domSensors.TMP.style.color = (sensors.TMP > 300) ? "red" : "inherit";
+        }
+
+        // ==========================================
+        // RENDERIZAÇÃO E HITBOXES NO CANVAS
+        // ==========================================
+        
+        // Definição das áreas clicáveis (x, y, largura, altura, chaveDicionario)
+        const hitboxes = [
+            { x: 80, y: 80, w: 40, h: 30, key: 'PA' },
+            { x: 250, y: 80, w: 60, h: 30, key: 'Heparina' },
+            { x: 350, y: 150, w: 100, h: 300, key: 'Dialisador' },
+            { x: 170, y: 120, w: 60, h: 60, key: 'Qb' }, // Área da bomba
+            { x: 175, y: 370, w: 50, h: 110, key: 'PV' }, // Pega a Trap e o Sensor PV
+            { x: 120, y: 435, w: 30, h: 30, key: 'Ar' },
+            { x: 650, y: 400, w: 100, h: 50, key: 'Proporcionamento' },
+            { x: 550, y: 400, w: 80, h: 30, key: 'Temp' }, // Aquecedor acoplado na explicação de Temp
+            { x: 650, y: 350, w: 40, h: 30, key: 'Cond' },
+            { x: 570, y: 350, w: 40, h: 30, key: 'Temp' },
+            { x: 600, y: 185, w: 80, h: 30, key: 'Blood Leak' }
+        ];
+
+        // Lidar com Cliques no Canvas
+        canvas.addEventListener('click', function(event) {
+            const rect = canvas.getBoundingClientRect();
+            // Calcula escala caso o canvas tenha sido redimensionado via CSS
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const mouseX = (event.clientX - rect.left) * scaleX;
+            const mouseY = (event.clientY - rect.top) * scaleY;
+
+            // Checa se clicou em alguma hitbox
+            for (let box of hitboxes) {
+                if (mouseX >= box.x && mouseX <= box.x + box.w &&
+                    mouseY >= box.y && mouseY <= box.y + box.h) {
+                    openModal(box.key);
+                    return; // Sai após achar o primeiro
+                }
+            }
+        });
+
+        // Adicionar efeito de Hover no Canvas (muda cursor quando sobre componente)
+        canvas.addEventListener('mousemove', function(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (event.clientX - rect.left) * scaleX;
+            const mouseY = (event.clientY - rect.top) * scaleY;
+
+            let overComponent = false;
+            for (let box of hitboxes) {
+                if (mouseX >= box.x && mouseX <= box.x + box.w &&
+                    mouseY >= box.y && mouseY <= box.y + box.h) {
+                    overComponent = true;
+                    break;
+                }
+            }
+            canvas.style.cursor = overComponent ? 'pointer' : 'crosshair';
+        });
+
+
+        function drawLine(x1, y1, x2, y2, color, thickness, dash = false, animate = false) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = thickness;
+            ctx.lineCap = 'round';
+            if (dash) {
+                ctx.setLineDash([15, 10]);
+                if (animate) ctx.lineDashOffset = -flowOffset;
+            } else {
+                ctx.setLineDash([]);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]); 
+        }
+
+        function drawComponentBox(x, y, w, h, label, color) {
+            ctx.fillStyle = '#ecf0f1';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeRect(x, y, w, h);
+            
+            ctx.fillStyle = '#34495e';
+            ctx.font = '12px Arial bold';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, x + w/2, y + h/2);
+            
+            // Adiciona pequeno ícone de informação para indicar que é clicável
+            ctx.fillStyle = '#3498db';
+            ctx.font = '10px Arial';
+            ctx.fillText("ℹ️", x + w - 8, y + 8);
+        }
+
+        function renderCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (sensors.Qb > 10) {
+                flowOffset += (sensors.Qb / 100);
+                pumpAngle += (sensors.Qb / 1500);
+            }
+
+            const patientX = 50, patientY = 300;
+            const dialyzer = {x: 350, y: 150, w: 100, h: 300};
+            const pump = {x: 200, y: 150, r: 30};
+            
+            // 1. LINHAS DE FLUIDO
+            drawLine(patientX, patientY-20, 100, 150, '#e74c3c', 6);
+            drawLine(100, 150, pump.x - pump.r, 150, '#e74c3c', 6);
+            drawLine(pump.x + pump.r, 150, dialyzer.x, 180, '#e74c3c', 6, true, true); 
+
+            drawLine(dialyzer.x, dialyzer.y + dialyzer.h - 30, 200, 450, '#c0392b', 6, true, true);
+            drawLine(200, 450, 150, 450, '#c0392b', 6);
+            drawLine(150, 450, patientX, patientY+20, '#c0392b', 6);
+
+            const sourceX = 750, sourceY = 400;
+            const drainX = 750, drainY = 200;
+            
+            drawLine(sourceX, sourceY, dialyzer.x + dialyzer.w, dialyzer.y + dialyzer.h - 50, '#2ecc71', 6, true, true);
+            let spentColor = (activeFault === 'blood_leak') ? '#e67e22' : '#f1c40f'; 
+            drawLine(dialyzer.x + dialyzer.w, dialyzer.y + 50, drainX, drainY, spentColor, 6, true, true);
+
+            // 2. COMPONENTES E SENSORES
+            ctx.fillStyle = '#bdc3c7';
+            ctx.beginPath();
+            ctx.arc(patientX-20, patientY, 40, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '12px Arial bold';
+            ctx.fillText("Paciente", patientX-20, patientY);
+
+            drawComponentBox(80, 80, 40, 30, 'PA', '#9b59b6');
+            drawLine(100, 110, 100, 150, '#9b59b6', 2); 
+
+            // Bomba de Sangue
+            ctx.fillStyle = '#ecf0f1';
+            ctx.beginPath();
+            ctx.arc(pump.x, pump.y, pump.r + 10, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = '#3498db';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.save();
+            ctx.translate(pump.x, pump.y);
+            ctx.rotate(pumpAngle);
+            ctx.fillStyle = '#7f8c8d';
+            ctx.fillRect(-5, -pump.r, 10, pump.r*2);
+            ctx.beginPath();
+            ctx.arc(0, -pump.r, 8, 0, Math.PI*2);
+            ctx.arc(0, pump.r, 8, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillText("Bomba (Qb) ℹ️", pump.x, pump.y + pump.r + 25);
+
+            drawComponentBox(250, 80, 60, 30, 'Heparina', '#34495e');
+            drawLine(280, 110, 280, 162, '#34495e', 2);
+
+            // Dialisador
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.strokeStyle = '#34495e';
+            ctx.lineWidth = 3;
+            ctx.fillRect(dialyzer.x, dialyzer.y, dialyzer.w, dialyzer.h);
+            ctx.strokeRect(dialyzer.x, dialyzer.y, dialyzer.w, dialyzer.h);
+            
+            for(let i=10; i<dialyzer.w; i+=15) {
+                drawLine(dialyzer.x + i, dialyzer.y + 10, dialyzer.x + i, dialyzer.y + dialyzer.h - 10, '#bdc3c7', 1);
+            }
+            ctx.fillStyle = 'rgba(231, 76, 60, 0.2)'; 
+            ctx.fillRect(dialyzer.x, dialyzer.y, dialyzer.w/2, dialyzer.h);
+            ctx.fillStyle = 'rgba(46, 204, 113, 0.2)';
+            ctx.fillRect(dialyzer.x + dialyzer.w/2, dialyzer.y, dialyzer.w/2, dialyzer.h);
+            
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '14px Arial bold';
+            ctx.fillText("DIALISADOR ℹ️", dialyzer.x + dialyzer.w/2, dialyzer.y - 15);
+
+            drawComponentBox(175, 420, 50, 60, 'Trap', '#e74c3c');
+            drawComponentBox(180, 370, 40, 30, 'PV', '#9b59b6');
+            drawLine(200, 400, 200, 420, '#9b59b6', 2); 
+
+            let clampColor = (activeFault === 'air_bubble') ? '#e74c3c' : '#34495e';
+            drawComponentBox(120, 435, 30, 30, 'Ar', clampColor);
+
+            drawComponentBox(650, 400, 100, 50, 'Proporcional', '#3498db');
+            drawComponentBox(550, 400, 80, 30, 'Aquecedor', '#e67e22');
+            
+            drawComponentBox(650, 350, 40, 30, 'Cond.', '#8e44ad');
+            drawComponentBox(570, 350, 40, 30, 'Temp.', '#8e44ad');
+
+            let bldColor = (activeFault === 'blood_leak') ? '#e74c3c' : '#34495e';
+            drawComponentBox(600, 185, 80, 30, 'Blood Leak', bldColor);
+
+            // Drenagem não clicável
+            ctx.fillStyle = '#ecf0f1';
+            ctx.strokeStyle = '#7f8c8d';
+            ctx.lineWidth = 2;
+            ctx.fillRect(730, 180, 60, 40);
+            ctx.strokeRect(730, 180, 60, 40);
+            ctx.fillStyle = '#34495e';
+            ctx.fillText("Esgoto", 760, 200);
+
+            requestAnimationFrame(renderCanvas);
+        }
+
+        setInterval(updateLogic, 100);
+        renderCanvas();
+
+    </script>
+</body>
+</html>

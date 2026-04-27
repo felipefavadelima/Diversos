@@ -1,0 +1,445 @@
+<!-- Este arquivo é um simulador básico de PPG com controle manual de SpO2 e frequência cardíaca para observação do sinal. 
+  Autoria: Sophia Celine -->
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador PPG - Controle de Saturação</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: #0f1117;
+      color: #edf2f7;
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: 320px;
+      background: #171a22;
+      border-right: 1px solid #2a3140;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+    }
+    .main {
+      flex: 1;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center; 
+    }
+    h1 {
+      font-size: 1.35rem;
+      margin: 0;
+      color: #7dd3fc;
+    }
+    h2 {
+      font-size: 1rem;
+      margin: 0 0 8px 0;
+      color: #93c5fd;
+    }
+    .panel {
+      background: #1b2130;
+      border: 1px solid #2f3a52;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+    }
+    .control-group {
+      background: #20283a;
+      border: 1px solid #33415d;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-weight: 600;
+      font-size: 0.92rem;
+      margin-bottom: 8px;
+    }
+    .val { color: #7dd3fc; }
+    input[type="range"] {
+      width: 100%;
+      margin-top: 4px;
+      cursor: pointer;
+      background: #0f1117;
+      color: white;
+      border: 1px solid #42516e;
+      border-radius: 6px;
+      padding: 8px;
+    }
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+    button:hover { transform: translateY(-1px); filter: brightness(1.08); }
+    .btn-primary { background: #38bdf8; color: #062033; }
+    .btn-secondary { background: #334155; color: white; }
+    
+    .wave-wrap {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    canvas {
+      width: 100%;
+      background: #071018;
+      border: 2px solid #253247;
+      border-radius: 12px;
+      display: block;
+    }
+    .legend {
+      display: flex;
+      gap: 16px;
+      font-size: 0.9rem;
+      flex-wrap: wrap;
+    }
+    .dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .red-dot { background: #ef4444; }
+    .ir-dot { background: #8b5cf6; }
+    
+    .hint {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      line-height: 1.45;
+    }
+    .small {
+      color: #94a3b8;
+      font-size: 0.84rem;
+    }
+
+    @media (max-width: 800px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #2a3140; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <h1>Monitor PPG</h1>
+
+    <div class="panel hint">
+      Ajuste a saturação de oxigênio (SpO₂) e observe como as amplitudes
+ das ondas Vermelha e Infravermelha variam no osciloscópio.
+    </div>
+
+    <div class="control-group">
+      <label>Saturação (SpO₂) <span class="val" id="lblSpo2">98%</span></label>
+      <input type="range" id="rngSpo2" min="50" max="100" value="98" step="1">
+    </div>
+
+    <div class="control-group">
+      <label>Frequência cardíaca <span class="val" id="lblHr">75 bpm</span></label>
+      <input type="range" id="rngHr" min="40" max="150" value="75">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="btnFreezeToggle" style="width:100%">PARAR (STOP)</button>
+    </div>
+
+    <div class="panel small">
+      LEDS Fixos:<br>
+      Vermelho: 660 nm<br>
+      Infravermelho: 940 nm
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="panel wave-wrap">
+      <div>
+        <h2>Osciloscópio (Fotodetector)</h2>
+        <div class="legend">
+          <span><span class="dot red-dot"></span>Canal 1 (<span id="legWlRed">660</span> nm)</span>
+          <span><span class="dot ir-dot"></span>Canal 2 (<span id="legWlIr">940</span> nm)</span>
+        </div>
+      </div>
+      <canvas id="waveCanvas" width="1100" height="400"></canvas>
+    </section>
+  </main>
+
+  <script>
+    const waveCanvas = document.getElementById('waveCanvas');
+    const ctx = waveCanvas.getContext('2d');
+
+    const rngSpo2 = document.getElementById('rngSpo2');
+    const rngHr = document.getElementById('rngHr');
+
+    const lblSpo2 = document.getElementById('lblSpo2');
+    const lblHr = document.getElementById('lblHr');
+    const btnFreezeToggle = document.getElementById('btnFreezeToggle');
+
+    let time = 0;
+    let isFrozen = false;
+    let frozenRed = [];
+    let frozenIr = [];
+
+    // Cores fixas
+    const colorRed = '#ef4444';
+    const colorIr = '#8b5cf6';
+    
+    // Comprimentos de onda fixos
+    const wlRed = 660;
+    const wlIr = 940;
+
+    function v(num) { return Number(num); }
+
+    function updateLabels() {
+      lblHr.textContent = `${rngHr.value} bpm`;
+      lblSpo2.textContent = `${rngSpo2.value}%`;
+      document.getElementById('legWlRed').textContent = wlRed;
+      document.getElementById('legWlIr').textContent = wlIr;
+    }
+
+    // Tabela simplificada de coeficientes de extinção
+    function getExtinction(wl) {
+      // Pontos de controle [nm, valor]
+      // Hb (Desoxi)
+      const hbCurve = [[380, 80], [450, 90], [500, 40], [600, 15], [660, 3.2], [700, 1.8], [805, 0.8], [940, 0.7], [1050, 0.5]];
+      // HbO2 (Oxi)
+      const hbo2Curve = [[380, 60], [450, 70], [500, 40], [600, 2], [660, 0.3], [700, 0.5], [805, 0.8], [940, 1.2], [1050, 1.4]];
+
+      const interpolate = (curve, w) => {
+        for (let i = 0; i < curve.length - 1; i++) {
+          if (w >= curve[i][0] && w <= curve[i+1][0]) {
+            const t = (w - curve[i][0]) / (curve[i+1][0] - curve[i][0]);
+            return curve[i][1] + t * (curve[i+1][1] - curve[i][1]);
+          }
+        }
+        return curve[curve.length-1][1];
+      };
+
+      return { hb: interpolate(hbCurve, wl), hbo2: interpolate(hbo2Curve, wl) };
+    }
+
+    // Calcula AC/DC baseado na Física simulada
+    function getSimulationParams() {
+      const hr = v(rngHr.value);
+      const spo2 = v(rngSpo2.value) / 100; // Converte 0-100 para 0.0-1.0
+
+      // 1. Calcular parâmetros do Infravermelho (Canal 2)
+      const { hb: hbIr, hbo2: hbo2Ir } = getExtinction(wlIr);
+      const extIr = (hbo2Ir * spo2) + (hbIr * (1 - spo2));
+      
+      let dcIr = 2.8 * Math.exp(-0.4 * extIr);
+      if (dcIr < 0.2) dcIr = 0.2;
+      
+      let acIr = dcIr * extIr * 0.15; 
+      if (acIr > 0.8) acIr = 0.8;
+
+      // 2. Calcular parâmetros do Vermelho (Canal 1)
+      const { hb: hbRed, hbo2: hbo2Red } = getExtinction(wlRed);
+      const extRed = (hbo2Red * spo2) + (hbRed * (1 - spo2));
+      
+      let dcRed = 2.8 * Math.exp(-0.4 * extRed);
+      if (dcRed < 0.2) dcRed = 0.2;
+
+      let acRed = dcRed * extRed * 0.15;
+      if (acRed > 0.8) acRed = 0.8;
+
+      return { 
+        hr, 
+        dcRed: dcRed, acRed: acRed, 
+        dcIr: dcIr, acIr: acIr
+      };
+    }
+
+    function generateWaveSamples(dc, ac, hr, phaseShift = 0) {
+      const points = [];
+      const f = hr / 60;
+      // 6 segundos de amostra
+      for (let i = 0; i < waveCanvas.width; i++) {
+        const t = (i / waveCanvas.width) * 6 + time;
+        // Forma da onda PPG
+        const pulse = Math.sin(2 * Math.PI * f * t + phaseShift);
+        const harmonic = 0.35 * Math.sin(4 * Math.PI * f * t + phaseShift - 0.5);
+        const dicrotic = 0.12 * Math.sin(6 * Math.PI * f * t + phaseShift + 0.9);
+        
+        const y = dc + ac * (0.75 * pulse + harmonic + dicrotic);
+        points.push(y);
+      }
+      return points;
+    }
+
+    function drawGrid(minV, maxV, stepV) {
+      ctx.fillStyle = '#071018';
+      ctx.fillRect(0, 0, waveCanvas.width, waveCanvas.height);
+      
+      // Configuração de texto
+      ctx.font = '11px "Segoe UI", Consolas, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+
+      const rangeV = maxV - minV;
+      const numHLines = Math.round(rangeV / stepV); // Número de divisões baseado no passo
+      const totalSeconds = 6;  // Divisões principais Horizontais
+      const subDivs = 5;       // Subdivisões (linhas finas)
+
+      // --- 1. Desenhar Subdivisões (Linhas finas) ---
+      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = '#162231'; // Cor sutil para o grid fino
+      ctx.beginPath();
+
+      // Subdivisões Horizontais (Tensão)
+      for (let i = 0; i < numHLines; i++) {
+        const valBase = minV + i * stepV;
+        for (let j = 1; j < subDivs; j++) {
+          const val = valBase + j * (stepV / subDivs);
+          // Converter Valor -> Pixel Y
+          const norm = (val - minV) / rangeV;
+          const y = waveCanvas.height - (norm * waveCanvas.height);
+          ctx.moveTo(35, y);
+          ctx.lineTo(waveCanvas.width, y);
+        }
+      }
+
+      // Subdivisões Verticais (Tempo)
+      const pxPerSec = (waveCanvas.width - 35) / totalSeconds;
+      for (let t = 0; t < totalSeconds; t++) {
+        for (let j = 1; j < subDivs; j++) {
+          const x = 35 + (t * pxPerSec) + (j * (pxPerSec / subDivs));
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, waveCanvas.height - 20);
+        }
+      }
+      ctx.stroke();
+
+      // --- 2. Desenhar Linhas Principais e Textos ---
+      for (let i = 0; i <= numHLines; i++) {
+        const val = minV + i * stepV;
+        const norm = (val - minV) / rangeV;
+        const y = waveCanvas.height - (norm * waveCanvas.height);
+        
+        ctx.beginPath();
+        ctx.strokeStyle = '#2d3b55'; // Linha principal mais visível
+        ctx.lineWidth = 1;
+        ctx.moveTo(35, y); // Margem esquerda para números
+        ctx.lineTo(waveCanvas.width, y);
+        ctx.stroke();
+
+        // Números Y
+        let decimals = 2;
+        if (stepV >= 1) decimals = 0;
+        else if (stepV >= 0.1) decimals = 1;
+
+        if (y > 10) { // Evita cortar texto no topo
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(val.toFixed(decimals) + " V", 30, y);
+        }
+      }
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      for (let t = 0; t <= totalSeconds; t++) {
+        const x = 35 + t * pxPerSec;
+        
+        ctx.beginPath();
+        ctx.strokeStyle = (t === 0) ? '#475569' : '#2d3b55';
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, waveCanvas.height - 20); // Deixar espaço para o texto
+        ctx.stroke();
+
+        // Números X
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(t + " s", x, waveCanvas.height - 15);
+      }
+    }
+
+    function drawWave(points, color, minV, maxV) {
+      const w = waveCanvas.width - 35; // largura útil
+      
+      ctx.beginPath();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = color;
+      
+      points.forEach((value, i) => {
+        const x = 35 + (i / points.length) * w;
+        const y = waveCanvas.height - ((value - minV) / (maxV - minV)) * waveCanvas.height;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    function draw() {
+      const { hr, dcRed, acRed, dcIr, acIr } = getSimulationParams();
+      
+      if (!isFrozen) {
+        frozenRed = generateWaveSamples(dcRed, acRed, hr, 0);
+        frozenIr = generateWaveSamples(dcIr, acIr, hr, 0.25);
+      }
+
+      // Auto-Scale Logic
+      let allPoints = frozenRed.concat(frozenIr);
+      if (allPoints.length === 0) return;
+
+      let minVal = Math.min(...allPoints);
+      let maxVal = Math.max(...allPoints);
+      let range = maxVal - minVal;
+      if (range < 0.05) range = 0.05;
+
+      // Calcular "Step" arredondado
+      const roughStep = range / 6;
+      const exponent = Math.floor(Math.log10(roughStep));
+      const mantissa = roughStep / Math.pow(10, exponent);
+      
+      let niceStep;
+      if (mantissa <= 1.0) niceStep = 1 * Math.pow(10, exponent);
+      else if (mantissa <= 2.0) niceStep = 2 * Math.pow(10, exponent);
+      else if (mantissa <= 5.0) niceStep = 5 * Math.pow(10, exponent);
+      else niceStep = 10 * Math.pow(10, exponent);
+
+      const visualMin = Math.floor((minVal - range * 0.05) / niceStep) * niceStep;
+      const visualMax = Math.ceil((maxVal + range * 0.05) / niceStep) * niceStep;
+
+      drawGrid(visualMin, visualMax, niceStep);
+      drawWave(frozenRed, colorRed, visualMin, visualMax);
+      drawWave(frozenIr, colorIr, visualMin, visualMax);
+    }
+
+    function animate() {
+      if (!isFrozen) time += 0.012;
+      draw();
+      requestAnimationFrame(animate);
+    }
+
+    [rngHr, rngSpo2].forEach(el => {
+      el.addEventListener('input', updateLabels);
+    });
+
+    btnFreezeToggle.addEventListener('click', () => {
+      isFrozen = !isFrozen;
+      btnFreezeToggle.textContent = isFrozen ? 'CONTINUAR (RUN)' : 'PARAR (STOP)';
+      btnFreezeToggle.classList.toggle('btn-secondary');
+      btnFreezeToggle.classList.toggle('btn-primary');
+    });
+
+    updateLabels();
+    animate();
+  </script>
+
+Desenvolvido por Sophia Celine
+</body></html>

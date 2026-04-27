@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Fisiológico Renal Advanced - Pro V2</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --red-blood: #ef4444;
+            --blue-vein: #3b82f6;
+            --yellow-urine: #fbbf24;
+            --purple-prot: #a855f7;
+            --white-salt: #ffffff;
+            --green-ok: #10b981;
+            --border-color: #334155;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header { text-align: center; margin-bottom: 20px; width: 100%; }
+        h1 { margin: 0; font-weight: 800; color: var(--text-main); letter-spacing: -1px; }
+        p.subtitle { color: var(--text-muted); margin-top: 5px; }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 300px 600px 300px;
+            gap: 20px;
+            max-width: 1240px;
+            width: 100%;
+        }
+
+        /* Paineis */
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .panel-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--blue-vein);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin: 0 0 5px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Controles */
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; }
+        .val-badge { background: #334155; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--blue-vein); }
+
+        .btn-pathology {
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            background: #0f172a;
+            color: var(--text-muted);
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .btn-pathology:hover { background: #1e293b; color: var(--text-main); }
+        .btn-pathology.active {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: var(--blue-vein);
+            color: var(--blue-vein);
+        }
+        .btn-pathology.active[data-type="glom"] { border-color: #f97316; color: #f97316; background: rgba(249, 115, 22, 0.1);}
+        .btn-pathology.active[data-type="ira"] { border-color: var(--red-blood); color: var(--red-blood); background: rgba(239, 68, 68, 0.1);}
+
+        /* Monitor Clínico */
+        .monitor-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #0f172a; padding: 10px; border-radius: 6px;
+            border-left: 3px solid var(--border-color);
+            font-family: monospace; font-size: 0.9rem;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .monitor-row:hover {
+            background: #1e293b; filter: brightness(1.2); transform: translateX(-2px);
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+        }
+        .monitor-row.danger { border-left-color: var(--red-blood); }
+        .monitor-row.warning { border-left-color: #f97316; }
+        .monitor-row.good { border-left-color: var(--green-ok); }
+        
+        .monitor-label { color: var(--text-muted); pointer-events: none; }
+        .monitor-val { font-weight: bold; font-size: 1.1rem; pointer-events: none; }
+
+        /* Área de Simulação Visual */
+        .sim-container {
+            position: relative;
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .canvas {
+            position: relative;
+            width: 100%;
+            height: 450px;
+            background-image: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        /* Anatomia (Interativa) */
+        .anatomy { position: absolute; cursor: pointer; transition: filter 0.3s, transform 0.2s; }
+        .anatomy:hover { filter: brightness(1.5) drop-shadow(0 0 10px rgba(255,255,255,0.3)); transform: scale(1.02); }
+
+        .vessel-in { top: 40px; left: -20px; width: 350px; height: 60px; background: rgba(239, 68, 68, 0.15); border: 2px solid var(--red-blood); border-radius: 30px; z-index: 2;}
+        .vessel-out { top: 120px; left: -20px; width: 350px; height: 60px; background: rgba(59, 130, 246, 0.15); border: 2px solid var(--blue-vein); border-radius: 30px; z-index: 2;}
+        
+        .glom-capsule {
+            top: 30px; left: 250px; width: 140px; height: 140px;
+            background: rgba(255,255,255,0.05); border: 3px solid var(--border-color); border-radius: 50%;
+            z-index: 1; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.8rem; font-weight: bold; color: rgba(255,255,255,0.3);
+        }
+        .glom-tuft {
+            width: 80px; height: 80px; background: rgba(239, 68, 68, 0.4); border-radius: 50%;
+            border: 2px dashed var(--red-blood); pointer-events: none;
+        }
+
+        .tubule-path {
+            top: 165px; left: 290px; width: 60px; height: 200px;
+            border: 15px solid rgba(251, 191, 36, 0.2);
+            border-top: none; border-bottom-left-radius: 40px; border-bottom-right-radius: 40px;
+            z-index: 0;
+        }
+
+        .bladder-area {
+            bottom: 20px; left: 320px; width: 120px; height: 60px;
+            background: rgba(251, 191, 36, 0.1); border: 2px dashed var(--yellow-urine); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--yellow-urine);
+        }
+
+        /* Info Box Didática */
+        .info-box {
+            background: var(--panel-bg);
+            border-top: 1px solid var(--border-color);
+            padding: 20px;
+            min-height: 160px;
+        }
+        .info-title { font-weight: bold; color: var(--blue-vein); margin-bottom: 8px; display: flex; align-items: center; gap: 10px; font-size: 1.1rem;}
+        .info-text { font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; }
+
+        /* Partículas e Animações */
+        .particle { position: absolute; border-radius: 50%; z-index: 10; pointer-events: none;}
+        
+        /* Legenda e Controles de Visibilidade */
+        .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; padding: 12px; background: #0f172a; border-bottom: 1px solid var(--border-color); font-size: 0.85rem;}
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-label { cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s;}
+        .legend-label:hover { color: var(--blue-vein); text-decoration: underline; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; vertical-align: middle; }
+        input[type="checkbox"].vis-toggle { cursor: pointer; width: 16px; height: 16px; accent-color: var(--blue-vein); }
+
+        /* Animações CSS Base */
+        @keyframes pulseBlood { 0% { transform: scaleY(1); } 50% { transform: scaleY(1.05); } 100% { transform: scaleY(1); } }
+        
+        /* Rotas Físicas */
+        @keyframes pBloodPass {
+            0% { top: 60px; left: -10px; }
+            40% { top: 60px; left: 280px; } 
+            60% { top: 140px; left: 280px; } 
+            100% { top: 140px; left: -10px; } 
+        }
+
+        @keyframes pExcrete {
+            0% { top: 60px; left: -10px; }
+            30% { top: 60px; left: 320px; } 
+            50% { top: 320px; left: 320px; } 
+            70% { top: 320px; left: 375px; } 
+            100% { top: 400px; left: 375px; opacity: 0; transform: scale(2);} 
+        }
+
+        @keyframes pReabsorb {
+            0% { top: 60px; left: -10px; }
+            20% { top: 60px; left: 320px; } 
+            40% { top: 250px; left: 320px; } 
+            60% { top: 140px; left: 250px; } 
+            100% { top: 140px; left: -10px; } 
+        }
+
+        /* Notificação Clínica */
+        #clinical-alert {
+            margin-top: 15px; padding: 10px; border-radius: 6px; font-weight: bold; text-align: center;
+            font-size: 0.9rem; transition: 0.3s;
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard { grid-template-columns: 1fr; }
+            .canvas { height: 500px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Simulador Fisiológico: Néfron em Tempo Real</h1>
+        <p class="subtitle">Interaja com os controles hemodinâmicos e observe a resposta renal estrutural e laboratorial.</p>
+    </header>
+
+    <div class="dashboard">
+        
+        <div class="panel">
+            <h2 class="panel-title">Parâmetros Sistêmicos</h2>
+            
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Pressão Arterial (PAM)</span>
+                    <span class="val-badge" id="lbl-pa">Normal (120/80)</span>
+                </div>
+                <input type="range" id="inp-pa" min="40" max="180" value="90">
+                <small style="color: var(--text-muted); font-size: 0.7rem;">Afeta diretamente a pressão hidrostática glomerular.</small>
+            </div>
+
+            <div class="control-group" style="margin-top: 15px;">
+                <div class="control-header">
+                    <span>Volemia (Hidratação)</span>
+                    <span class="val-badge" id="lbl-vol">Normovolemia</span>
+                </div>
+                <input type="range" id="inp-vol" min="10" max="100" value="50">
+            </div>
+
+            <div class="control-group" style="margin-top: 15px;">
+                <div class="control-header">
+                    <span>Ingestão de Sódio (Na+)</span>
+                    <span class="val-badge" id="lbl-na">Equilibrada</span>
+                </div>
+                <input type="range" id="inp-na" min="10" max="100" value="50">
+            </div>
+
+            <div class="control-group" style="margin-top: 15px;">
+                <div class="control-header">
+                    <span>Metabolismo Proteico</span>
+                    <span class="val-badge" id="lbl-ureia">Normal</span>
+                </div>
+                <input type="range" id="inp-ureia" min="10" max="100" value="50">
+                <small style="color: var(--text-muted); font-size: 0.7rem;">Geração de Ureia e resíduos nitrogenados.</small>
+            </div>
+
+            <h2 class="panel-title" style="margin-top: 20px;">Quadro Clínico</h2>
+            <button class="btn-pathology active" data-type="normal" onclick="setPathology('normal')">
+                ✅ Rim Saudável (Homeostase)
+            </button>
+            <button class="btn-pathology" data-type="glom" onclick="setPathology('glom')">
+                ⚠️ Glomerulonefrite (Lesão de Barreira)
+            </button>
+            <button class="btn-pathology" data-type="ira" onclick="setPathology('ira')">
+                🚨 Lesão Renal Aguda (Queda da TFG)
+            </button>
+        </div>
+
+        <div class="sim-container">
+            <div class="legend">
+                <div class="legend-item">
+                    <input type="checkbox" class="vis-toggle" id="chk-hem" checked onchange="toggleVis('hem')">
+                    <span class="legend-label" onclick="showInfo('hem')"><i class="dot" style="background: var(--red-blood);"></i> Hemácias</span>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" class="vis-toggle" id="chk-prot" checked onchange="toggleVis('prot')">
+                    <span class="legend-label" onclick="showInfo('prot')"><i class="dot" style="background: var(--purple-prot);"></i> Proteínas</span>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" class="vis-toggle" id="chk-agua" checked onchange="toggleVis('agua')">
+                    <span class="legend-label" onclick="showInfo('agua')"><i class="dot" style="background: var(--blue-vein);"></i> Água</span>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" class="vis-toggle" id="chk-sais" checked onchange="toggleVis('sais')">
+                    <span class="legend-label" onclick="showInfo('sais')"><i class="dot" style="background: var(--white-salt);"></i> Íons (Na/K)</span>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" class="vis-toggle" id="chk-ureia" checked onchange="toggleVis('ureia')">
+                    <span class="legend-label" onclick="showInfo('ureia')"><i class="dot" style="background: var(--yellow-urine);"></i> Ureia</span>
+                </div>
+            </div>
+
+            <div class="canvas" id="canvas-area">
+                <div class="anatomy vessel-in" id="art-aferente" onclick="showInfo('arteria')"></div>
+                <div class="anatomy vessel-out" id="veia-renal" onclick="showInfo('veia')"></div>
+                
+                <div class="anatomy glom-capsule" onclick="showInfo('glomerulo')">
+                    <div class="glom-tuft" id="glom-tuft"></div>
+                </div>
+                
+                <div class="anatomy tubule-path" onclick="showInfo('tubulo')"></div>
+                
+                <div class="anatomy bladder-area" onclick="showInfo('bexiga')">COLETOR</div>
+            </div>
+
+            <div class="info-box">
+                <div class="info-title" id="info-title">ℹ️ Guia Interativo de Fisiologia</div>
+                <div class="info-text" id="info-text">
+                    <b>Dica:</b> Clique em <u>qualquer elemento</u> na tela (estruturas do rim, itens da legenda acima ou linhas do monitor de exames à direita) para carregar sua explicação detalhada e correlação clínica aqui. Use as caixas de seleção na legenda para isolar partículas específicas.
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Monitor Fisiológico</h2>
+            
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px;">SANGUE / SÉRICOS (Clique para Detalhes)</div>
+            
+            <div class="monitor-row" id="row-tfg" onclick="showInfo('tfg')">
+                <span class="monitor-label">TFG Estimada</span>
+                <span class="monitor-val"><span id="val-tfg">120</span> <small>mL/min</small></span>
+            </div>
+            
+            <div class="monitor-row" id="row-ureia" onclick="showInfo('ureia_serica')">
+                <span class="monitor-label">Ureia Sérica</span>
+                <span class="monitor-val"><span id="val-ureia-serica">30</span> <small>mg/dL</small></span>
+            </div>
+            
+            <div class="monitor-row" id="row-potassio" onclick="showInfo('potassio')">
+                <span class="monitor-label">Potássio (K+)</span>
+                <span class="monitor-val"><span id="val-potassio">4.0</span> <small>mEq/L</small></span>
+            </div>
+
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; margin-bottom: 5px;">URINÁLISE (EAS) (Clique para Detalhes)</div>
+
+            <div class="monitor-row" id="row-diurese" onclick="showInfo('diurese')">
+                <span class="monitor-label">Diurese (Volume)</span>
+                <span class="monitor-val"><span id="val-diurese">1.5</span> <small>L/dia</small></span>
+            </div>
+
+            <div class="monitor-row" id="row-prot" onclick="showInfo('proteinuria')">
+                <span class="monitor-label">Proteinúria</span>
+                <span class="monitor-val" id="val-prot">Negativo</span>
+            </div>
+
+            <div class="monitor-row" id="row-hem" onclick="showInfo('hematuria')">
+                <span class="monitor-label">Hematúria</span>
+                <span class="monitor-val" id="val-hem">Negativo</span>
+            </div>
+
+            <div id="clinical-alert" style="background: rgba(16, 185, 129, 0.1); color: var(--green-ok);">
+                Sinais vitais estáveis. Filtração adequada.
+            </div>
+        </div>
+
+    </div>
+
+    
+    <script>
+        // =====================================================================
+        // SIMULADOR FISIOLÓGICO RENAL — REVISÃO DIDÁTICA
+        // ---------------------------------------------------------------------
+        // Objetivo desta revisão:
+        // 1) preservar a interface original (layout, elementos e interação visual);
+        // 2) organizar melhor o código para manutenção futura;
+        // 3) tornar a lógica mais coerente do ponto de vista didático;
+        // 4) deixar explícito que este NÃO é um modelo fisiológico validado, mas
+        //    uma aproximação educacional para visualizar relações qualitativas.
+        // =====================================================================
+
+        // ------------------------
+        // Atalhos utilitários
+        // ------------------------
+        const $ = (id) => document.getElementById(id);
+        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const invLerp = (a, b, value) => (value - a) / (b - a);
+        const remap = (value, inMin, inMax, outMin, outMax) => {
+            if (inMax === inMin) return outMin;
+            const t = clamp(invLerp(inMin, inMax, value), 0, 1);
+            return lerp(outMin, outMax, t);
+        };
+        const smoothTowards = (current, target, alpha) => current + (target - current) * alpha;
+
+        // ------------------------
+        // Referências de DOM
+        // ------------------------
+        const DOM = {
+            canvas: $('canvas-area'),
+            artAferente: $('art-aferente'),
+            glomTuft: $('glom-tuft'),
+            infoTitle: $('info-title'),
+            infoText: $('info-text'),
+            clinicalAlert: $('clinical-alert'),
+
+            labels: {
+                pa: $('lbl-pa'),
+                vol: $('lbl-vol'),
+                na: $('lbl-na'),
+                ureia: $('lbl-ureia')
+            },
+
+            sliders: {
+                pa: $('inp-pa'),
+                vol: $('inp-vol'),
+                na: $('inp-na'),
+                ureia: $('inp-ureia')
+            },
+
+            values: {
+                tfg: $('val-tfg'),
+                ureiaSerica: $('val-ureia-serica'),
+                potassio: $('val-potassio'),
+                diurese: $('val-diurese'),
+                prot: $('val-prot'),
+                hem: $('val-hem')
+            },
+
+            rows: {
+                tfg: $('row-tfg'),
+                ureia: $('row-ureia'),
+                potassio: $('row-potassio'),
+                diurese: $('row-diurese')
+            }
+        };
+
+        // ------------------------
+        // Dicionário didático
+        // ------------------------
+        const DICTIONARY = {
+            // 1. Anatomia
+            arteria: {
+                title: '🩸 Arteríola Aferente',
+                text:
+                    'É a via de entrada do sangue para o glomérulo. Didaticamente, ela representa o componente hemodinâmico que mais determina quanto sangue chega ao filtro renal. ' +
+                    'No simulador, quando a pressão arterial média cai muito, a perfusão renal também cai e a filtração despenca. Na fisiologia real existe autorregulação renal em uma faixa intermediária, mas essa compensação falha em hipotensão importante.'
+            },
+            veia: {
+                title: '🔵 Veia Renal / Rede Peritubular',
+                text:
+                    'Depois que o sangue passa pelo glomérulo, ele segue para a circulação peritubular, que participa da reabsorção. Água e solutos úteis que entraram no túbulo podem voltar para o sangue por aqui. ' +
+                    'No desenho simplificado, esta estrutura representa o retorno venoso do rim e, ao mesmo tempo, a ideia de que filtrar não basta: o rim também precisa reabsorver com precisão.'
+            },
+            glomerulo: {
+                title: '🥅 Glomérulo de Malpighi',
+                text:
+                    'É o “filtro inicial” do néfron. A água e moléculas pequenas atravessam mais facilmente; hemácias e a maior parte das proteínas devem permanecer no compartimento vascular. ' +
+                    'No simulador, glomerulonefrite significa perda de seletividade da barreira: proteínas e hemácias podem aparecer no túbulo. Já na lesão renal aguda, a principal ênfase é a queda importante da TFG.'
+            },
+            tubulo: {
+                title: '🧪 Túbulos Renais',
+                text:
+                    'Aqui o filtrado glomerular é “lapidado”. O rim filtra um volume enorme ao longo do dia, mas a maior parte da água e vários solutos são reabsorvidos. ' +
+                    'Por isso, produzir pouca urina não significa necessariamente filtrar pouco em qualquer contexto; porém, neste simulador, a diurese acompanha de modo qualitativo a perfusão, a volemia e a integridade tubular, para fins didáticos.'
+            },
+            bexiga: {
+                title: '🚽 Ducto Coletor e Excreção',
+                text:
+                    'Tudo que não foi reabsorvido segue para a urina final. Neste modelo educacional, o coletor resume várias etapas da nefrologia clínica: concentração urinária, excreção de ureia e eliminação de água e eletrólitos. ' +
+                    'Quando a perfusão renal cai muito ou quando há lesão renal aguda, menos partículas alcançam essa rota final.'
+            },
+
+            // 2. Parâmetros do monitor
+            tfg: {
+                title: '📊 Taxa de Filtração Glomerular (TFG)',
+                text:
+		    'A Taxa de Filtração Glomerular (TFG) é estimada principalmente por meio de equações matemáticas, como a CKD-EPI ou a MDRD, que utilizam o nível de creatinina sérica como o principal marcador da capacidade de filtragem dos rins. Como a concentração de creatinina no sangue depende não apenas da função renal, mas também da produção muscular, essas fórmulas ajustam o resultado integrando variáveis biológicas como idade e sexo, permitindo converter um valor estático em um fluxo dinâmico de filtração (geralmente medido em mL/min/1,73m²).'+
+                    'A TFG é o principal resumo funcional do rim neste simulador. Valores altos indicam boa capacidade de filtração; valores baixos sugerem hipoperfusão renal, perda de função glomerular ou lesão renal aguda. ' +
+                    'Importante: aqui ela é calculada por uma lógica qualitativa baseada em pressão, volemia e patologia selecionada. Não equivale a uma equação clínica real de depuração.'
+            },
+            ureia_serica: {
+                title: '🧪 Ureia Sérica',
+                text:
+		    'A ureia sérica (no sangue) é um resíduo produzido pelo fígado durante a quebra das proteínas e transportado pelo sangue até os rins para ser filtrado e eliminado pela urina. Sua medição em exames de sangue serve como um indicador fundamental da função renal, pois níveis elevados podem sugerir que os rins não estão filtrando o sangue adequadamente, ou indicar fatores como desidratação e dietas hiperproteicas. Por ser influenciada por diversos fatores metabólicos, ela é frequentemente analisada em conjunto com a creatinina para oferecer um diagnóstico mais preciso sobre a saúde do sistema excretor.'+
+                    'A ureia sobe quando sua produção aumenta ou quando a excreção cai. Por isso, neste simulador ela depende de dois componentes: carga proteica/metabolismo proteico e capacidade renal de excretar. ' +
+                    'Em estados de hipoperfusão e desidratação, a ureia também sobe com mais facilidade, representando de forma simplificada o comportamento pré-renal.'
+            },
+            potassio: {
+                title: '⚡ Potássio Plasmático (K+)',
+                text:
+                    'O rim participa decisivamente da excreção de potássio. Se a TFG cai muito e a diurese reduz, o potássio tende a subir. ' +
+                    'No simulador, a hipercalemia aparece como consequência principalmente de baixa filtração e oligúria. Na prática clínica, outros fatores também interferem, como acidose, drogas e lise celular.'
+            },
+            diurese: {
+                title: '💧 Diurese (Volume urinário em 24 h)',
+                text:
+                    'A diurese exibida aqui é uma variável integrada. Ela aumenta com maior oferta de água e melhor perfusão, e cai em desidratação, choque e lesão renal aguda. ' +
+                    'O objetivo é ilustrar o raciocínio clínico básico: rim bem perfundido tende a manter débito urinário; rim mal perfundido ou lesionado tende à oligúria ou, em cenários extremos, anúria.'
+            },
+            proteinuria: {
+                title: '🥩 Proteinúria',
+                text:
+                    'Proteinúria significa perda anormal de proteínas para a urina. Em termos didáticos, ela sugere falha da barreira glomerular, especialmente da seletividade por tamanho e carga elétrica. ' +
+                    'No simulador, a glomerulonefrite ativa essa perda. Em um contexto real, a proteinúria pode variar de discreta a maciça e ter múltiplas causas.'
+            },
+            hematuria: {
+                title: '🩸 Hematúria',
+                text:
+                    'Hemácias não deveriam atravessar a barreira glomerular em condições normais. Quando aparecem na urina, isso sugere lesão de barreira ou sangramento ao longo do trato urinário. ' +
+                    'Neste modelo, a hematúria fica ligada ao quadro glomerular para reforçar a ideia de barreira rompida.'
+            },
+
+            // 3. Itens da legenda
+            hem: {
+                title: '🔴 Hemácias',
+                text:
+                    '<b>Função:</b> transporte de oxigênio.<br><b>No simulador:</b> em condições normais permanecem no vaso. ' +
+                    'Se aparecerem na via de excreção, isso representa perda grave de seletividade do filtro e explica por que hematúria chama tanta atenção clinicamente.'
+            },
+            prot: {
+                title: '🟣 Proteínas plasmáticas',
+                text:
+                    '<b>Função:</b> contribuir para pressão oncótica e transporte de moléculas.<br><b>No simulador:</b> devem permanecer na circulação. ' +
+                    'Quando passam para o túbulo, isso representa proteinúria e ajuda a visualizar por que pacientes com perda importante de albumina podem desenvolver edema.'
+            },
+            agua: {
+                title: '🔵 Água',
+                text:
+                    '<b>Função:</b> compor o plasma e o filtrado.<br><b>No simulador:</b> parte é filtrada e grande parte é reabsorvida. ' +
+                    'O equilíbrio entre filtração e reabsorção muda com volemia, perfusão e integridade tubular. Este comportamento é simplificado para manter a visualização intuitiva.'
+            },
+            sais: {
+                title: '⚪ Íons / Eletrólitos',
+                text:
+                    '<b>Função:</b> manter osmolaridade, excitabilidade celular e volume extracelular.<br><b>No simulador:</b> acompanham água em parte do trajeto e sofrem reabsorção preferencial. ' +
+                    'A carga de sódio foi incluída como modulador didático do trabalho tubular e da retenção hídrica, não como modelo quantitativo de balanço de sódio.'
+            },
+            ureia: {
+                title: '🟡 Ureia',
+                text:
+                    '<b>Origem:</b> metabolismo proteico.<br><b>No simulador:</b> é o principal “resíduo” amarelo que deveria ser excretado. ' +
+                    'Se a filtração cai, mais ureia permanece no sangue. Por isso, muita ureia circulando e pouca ureia sendo excretada representam um estado de retenção de escórias nitrogenadas.'
+            },
+
+            // 4. Explicações de cenário clínico
+            pathology_normal: {
+                title: '✅ Rim Saudável (Homeostase)',
+                text:
+                    'Neste modo, a barreira glomerular está preservada e a função tubular é adequada. ' +
+                    'Mudanças de pressão, volemia, sódio e metabolismo proteico ainda alteram os resultados, mas o sistema tenta manter estabilidade. ' +
+                    'É o melhor cenário para observar a ideia de autorregulação renal em uma versão simplificada.'
+            },
+            pathology_glom: {
+                title: '⚠️ Glomerulonefrite (Lesão de Barreira)',
+                text:
+                    'Aqui o foco não é apenas “filtrar menos”, mas principalmente filtrar de forma errada. ' +
+                    'A barreira glomerular perde seletividade, permitindo a passagem de proteínas e hemácias. ' +
+                    'Por isso o simulador passa a mostrar proteinúria e hematúria, além de uma TFG um pouco reduzida.'
+            },
+            pathology_ira: {
+                title: '🚨 Lesão Renal Aguda (Queda da TFG)',
+                text:
+                    'Neste modo, o principal problema é a queda abrupta da função renal global. ' +
+                    'O simulador responde com grande redução da TFG, tendência à oligúria e retenção progressiva de ureia e potássio. ' +
+                    'É uma representação didática de um cenário em que a capacidade de depuração está criticamente comprometida.'
+            }
+        };
+
+        function showInfo(key) {
+            if (!DICTIONARY[key]) return;
+            DOM.infoTitle.innerHTML = DICTIONARY[key].title;
+            DOM.infoText.innerHTML = DICTIONARY[key].text;
+        }
+
+        // ------------------------
+        // Visibilidade das partículas
+        // ------------------------
+        const p_visibility = { hem: true, prot: true, agua: true, sais: true, ureia: true };
+
+        function toggleVis(type) {
+            p_visibility[type] = !!$(`chk-${type}`)?.checked;
+        }
+
+        // ------------------------
+        // Estado global do simulador
+        // ------------------------
+        const state = {
+            pathology: 'normal',
+            inputs: {
+                pa: 90,
+                vol: 50,
+                na: 50,
+                ureia: 50
+            },
+            clinical: {
+                tfg_target: 120,
+                tfg_current: 120,
+                ureia_target: 30,
+                ureia_current: 30,
+                k_target: 4.0,
+                k_current: 4.0,
+                urina_target: 1.5,
+                urina_current: 1.5
+            },
+            urinalysis: {
+                proteinuria: 'Negativo',
+                hematuria: 'Negativo'
+            }
+        };
+
+        const CONFIG = {
+            baseline: {
+                tfg: 120,
+                ureia: 30,
+                potassio: 4.0,
+                diurese: 1.5
+            },
+            smoothing: {
+                tfg: 0.10,
+                ureia: 0.05,
+                potassio: 0.05,
+                diurese: 0.10
+            },
+            loopMs: {
+                monitor: 100,
+                particles: 200
+            }
+        };
+
+        const P_TYPES = {
+            hem: { color: 'var(--red-blood)', size: '12px' },
+            prot: { color: 'var(--purple-prot)', size: '10px' },
+            agua: { color: 'var(--blue-vein)', size: '8px' },
+            sais: { color: 'var(--white-salt)', size: '6px' },
+            ureia: { color: 'var(--yellow-urine)', size: '10px' }
+        };
+
+        // ------------------------
+        // Perfis de patologia
+        // ------------------------
+        function getPathologyProfile(type) {
+            const profiles = {
+                normal: {
+                    gfrFactor: 1.00,
+                    tubularFactor: 1.00,
+                    proteinLeak: 0.00,
+                    hemLeak: 0.00,
+                    infoKey: 'pathology_normal'
+                },
+                glom: {
+                    gfrFactor: 0.72,
+                    tubularFactor: 0.92,
+                    proteinLeak: 0.90,
+                    hemLeak: 0.65,
+                    infoKey: 'pathology_glom'
+                },
+                ira: {
+                    gfrFactor: 0.18,
+                    tubularFactor: 0.28,
+                    proteinLeak: 0.05,
+                    hemLeak: 0.03,
+                    infoKey: 'pathology_ira'
+                }
+            };
+            return profiles[type] || profiles.normal;
+        }
+
+        // ------------------------
+        // Curvas fisiológicas simplificadas
+        // ------------------------
+        function computePerfusionFactor(pa) {
+            // Aproximação didática da autorregulação renal:
+            // - PA muito baixa: colapso da filtração
+            // - faixa intermediária: relativa estabilidade
+            // - PA muito alta: pequeno aumento, sem exagerar hiperfiltração
+            if (pa < 50) return remap(pa, 40, 50, 0.08, 0.25);
+            if (pa < 65) return remap(pa, 50, 65, 0.25, 0.60);
+            if (pa < 80) return remap(pa, 65, 80, 0.60, 0.92);
+            if (pa <= 140) return 1.00;
+            return remap(pa, 140, 180, 1.00, 1.08);
+        }
+
+        function computeVolumeFactor(vol) {
+            // Volemia baixa derruba perfusão efetiva; volemia excessiva aumenta pouco a filtração.
+            if (vol < 25) return remap(vol, 10, 25, 0.45, 0.72);
+            if (vol < 45) return remap(vol, 25, 45, 0.72, 0.96);
+            if (vol <= 65) return remap(vol, 45, 65, 0.96, 1.04);
+            return remap(vol, 65, 100, 1.04, 1.08);
+        }
+
+        function computeSodiumStress(na) {
+            // Modulação discreta: excesso de sódio aumenta a carga tubular/retentora;
+            // baixa ingestão reduz essa carga. Mantido pequeno para não dominar o modelo.
+            return remap(na, 10, 100, -0.18, 0.18);
+        }
+
+        function computeProteinLoadFactor(ureiaSlider) {
+            // Representa produção de ureia por metabolismo proteico.
+            return remap(ureiaSlider, 10, 100, 0.65, 1.70);
+        }
+
+        function computeUrinalysis(pathology, pa) {
+            if (pathology !== 'glom') {
+                return {
+                    proteinuria: 'Negativo',
+                    hematuria: 'Negativo',
+                    proteinColor: 'var(--text-muted)',
+                    hemColor: 'var(--text-muted)'
+                };
+            }
+
+            // Em glomerulonefrite, pressões mais altas tendem a “mostrar” mais o vazamento.
+            const pressureBoost = remap(pa, 40, 180, -0.10, 0.20);
+            const proteinScore = clamp(0.75 + pressureBoost, 0, 1.2);
+            const hemScore = clamp(0.45 + pressureBoost, 0, 1.0);
+
+            const proteinuria = proteinScore > 0.95 ? 'Positivo (+++)' : (proteinScore > 0.75 ? 'Positivo (++)' : 'Positivo (+)');
+            const hematuria = hemScore > 0.75 ? 'Positivo (Hematúria)' : 'Traços';
+
+            return {
+                proteinuria,
+                hematuria,
+                proteinColor: 'var(--purple-prot)',
+                hemColor: 'var(--red-blood)'
+            };
+        }
+
+        // ------------------------
+        // Atualização de rótulos
+        // ------------------------
+        function updateLabels(id, rawVal) {
+            const val = Number(rawVal);
+            const lbl = DOM.labels[id];
+            if (!lbl) return;
+
+            if (id === 'pa') {
+                if (val < 65) lbl.innerText = 'Hipotensão/Choque';
+                else if (val > 110) lbl.innerText = 'Hipertensão';
+                else lbl.innerText = 'Normal (120/80)';
+            }
+
+            if (id === 'vol') {
+                lbl.innerText = val < 30 ? 'Desidratado' : (val > 70 ? 'Hiper-hidratado (Edema)' : 'Normovolemia');
+            }
+
+            if (id === 'na') {
+                lbl.innerText = val < 30 ? 'Dieta Hipossódica' : (val > 70 ? 'Excesso de Sal' : 'Equilibrada');
+            }
+
+            if (id === 'ureia') {
+                lbl.innerText = val > 70 ? 'Alta Carga Proteica' : 'Normal';
+            }
+        }
+
+        // ------------------------
+        // Seleção de patologia
+        // ------------------------
+        function setPathology(type) {
+            state.pathology = type;
+
+            document.querySelectorAll('.btn-pathology').forEach((btn) => btn.classList.remove('active'));
+            document.querySelector(`.btn-pathology[data-type="${type}"]`)?.classList.add('active');
+
+            if (type === 'normal') DOM.glomTuft.style.background = 'rgba(239, 68, 68, 0.4)';
+            if (type === 'glom') DOM.glomTuft.style.background = 'rgba(249, 115, 22, 0.6)';
+            if (type === 'ira') DOM.glomTuft.style.background = 'rgba(71, 85, 105, 0.8)';
+
+            calculateClinicalTargets();
+            showInfo(getPathologyProfile(type).infoKey);
+        }
+
+        // ------------------------
+        // Núcleo do modelo clínico didático
+        // ------------------------
+        function calculateClinicalTargets() {
+            const { pa, vol, na, ureia } = state.inputs;
+            const pathology = getPathologyProfile(state.pathology);
+
+            const perfusionFactor = computePerfusionFactor(pa);
+            const volumeFactor = computeVolumeFactor(vol);
+            const sodiumStress = computeSodiumStress(na);
+            const proteinLoadFactor = computeProteinLoadFactor(ureia);
+
+            // TFG ---------------------------------------------------------------
+            // Pressão e volemia modulam perfusão. A patologia reduz capacidade global.
+            let tfg = CONFIG.baseline.tfg * perfusionFactor * volumeFactor * pathology.gfrFactor;
+
+            // Pequena hiperfiltração didática apenas em cenário normal e muito bem perfundido.
+            if (state.pathology === 'normal' && pa > 130 && vol > 65) {
+                tfg *= 1.05;
+            }
+            tfg = clamp(tfg, 0, 135);
+
+            // Diurese -----------------------------------------------------------
+            // Combina perfusão, volemia, função tubular e leve influência da carga de sódio.
+            let diurese = CONFIG.baseline.diurese;
+            diurese *= Math.pow(perfusionFactor, 0.65);
+            diurese *= remap(vol, 10, 100, 0.45, 1.60);
+            diurese *= pathology.tubularFactor;
+            diurese *= 1 + (sodiumStress * 0.15);
+
+            if (state.pathology === 'ira' && (pa < 70 || vol < 30)) {
+                diurese *= 0.50;
+            }
+            diurese = clamp(diurese, 0.05, 4.5);
+
+            // Ureia sérica ------------------------------------------------------
+            // Produção ↑ com metabolismo proteico; excreção ↓ com queda de TFG.
+            // Desidratação aumenta mais a retenção de ureia neste modelo simplificado.
+            const excretionCapacity = clamp(0.18 + (tfg / 120) * 0.82, 0.12, 1.15);
+            const dehydrationPenalty = vol < 35 ? remap(vol, 10, 35, 1.55, 1.10) : 1.00;
+            let ureiaSerica = CONFIG.baseline.ureia * proteinLoadFactor * dehydrationPenalty / excretionCapacity;
+            ureiaSerica = clamp(ureiaSerica, 8, 220);
+
+            // Potássio ----------------------------------------------------------
+            // Aumenta principalmente quando há baixa TFG + oligúria.
+            let potassio = CONFIG.baseline.potassio;
+            potassio += clamp((45 - tfg) / 18, 0, 2.0);
+            potassio += clamp((0.60 - diurese) / 0.35, 0, 1.4);
+            if (state.pathology === 'ira') potassio += 0.20;
+            potassio = clamp(potassio, 3.2, 7.8);
+
+            // Urinálise ---------------------------------------------------------
+            state.urinalysis = computeUrinalysis(state.pathology, pa);
+
+            // Guarda alvos para transição suave no monitor.
+            state.clinical.tfg_target = tfg;
+            state.clinical.ureia_target = ureiaSerica;
+            state.clinical.k_target = potassio;
+            state.clinical.urina_target = diurese;
+        }
+
+        // ------------------------
+        // Atualização visual do monitor
+        // ------------------------
+        function setRowStatus(id, status) {
+            const row = $(id);
+            if (!row) return;
+            row.className = `monitor-row ${status}`;
+        }
+
+        function updateClinicalAlert(tfg, ureiaSerica, potassio, diurese) {
+            const alertBox = DOM.clinicalAlert;
+
+            if (potassio > 6.0) {
+                alertBox.innerHTML = '🚨 Risco Iminente de Arritmia Cardíaca (Hipercalemia Grave).';
+                alertBox.style.background = 'rgba(239, 68, 68, 0.2)';
+                alertBox.style.color = 'var(--red-blood)';
+                return;
+            }
+
+            if (ureiaSerica > 100) {
+                alertBox.innerHTML = '⚠️ Síndrome Urêmica. Indicação de Diálise Urgente.';
+                alertBox.style.background = 'rgba(239, 68, 68, 0.2)';
+                alertBox.style.color = 'var(--red-blood)';
+                return;
+            }
+
+            if (state.pathology === 'ira' && (tfg < 30 || diurese < 0.5)) {
+                alertBox.innerHTML = '⚠️ Lesão Renal Aguda Importante. Baixa depuração e oligúria.';
+                alertBox.style.background = 'rgba(249, 115, 22, 0.2)';
+                alertBox.style.color = '#f97316';
+                return;
+            }
+
+            if (state.pathology === 'glom') {
+                alertBox.innerHTML = '⚠️ Síndrome Nefrítica. Perda de proteínas e sangue.';
+                alertBox.style.background = 'rgba(249, 115, 22, 0.2)';
+                alertBox.style.color = '#f97316';
+                return;
+            }
+
+            if (tfg < 60 && state.pathology === 'normal') {
+                alertBox.innerHTML = '⚠️ Hipoperfusão Renal (Choque/Desidratação). Aumente a pressão ou volume.';
+                alertBox.style.background = 'rgba(249, 115, 22, 0.2)';
+                alertBox.style.color = '#f97316';
+                return;
+            }
+
+            alertBox.innerHTML = '✅ Sinais vitais estáveis. Fisiologia preservada.';
+            alertBox.style.background = 'rgba(16, 185, 129, 0.1)';
+            alertBox.style.color = 'var(--green-ok)';
+        }
+
+        function updateMonitorUI() {
+            const tfg = state.clinical.tfg_current;
+            const ureiaSerica = state.clinical.ureia_current;
+            const potassio = state.clinical.k_current;
+            const diurese = state.clinical.urina_current;
+
+            DOM.values.tfg.innerText = tfg.toFixed(0);
+            DOM.values.ureiaSerica.innerText = ureiaSerica.toFixed(0);
+            DOM.values.potassio.innerText = potassio.toFixed(1);
+            DOM.values.diurese.innerText = diurese.toFixed(1);
+
+            setRowStatus('row-tfg', tfg < 60 ? (tfg < 15 ? 'danger' : 'warning') : 'good');
+            setRowStatus('row-ureia', ureiaSerica > 50 ? (ureiaSerica > 100 ? 'danger' : 'warning') : 'good');
+            setRowStatus('row-potassio', potassio > 5.0 ? (potassio > 6.0 ? 'danger' : 'warning') : 'good');
+            setRowStatus('row-diurese', diurese < 0.5 ? 'danger' : (diurese > 3.0 ? 'warning' : 'good'));
+
+            DOM.values.prot.innerText = state.urinalysis.proteinuria;
+            DOM.values.hem.innerText = state.urinalysis.hematuria;
+            DOM.values.prot.style.color = state.urinalysis.proteinColor;
+            DOM.values.hem.style.color = state.urinalysis.hemColor;
+
+            updateClinicalAlert(tfg, ureiaSerica, potassio, diurese);
+        }
+
+        // ------------------------
+        // Partículas visuais
+        // ------------------------
+        function computeParticleAnimationSpeed() {
+            let animSpeed = 1.5 - (state.inputs.pa / 180);
+            if (state.inputs.pa < 50) animSpeed = 3;
+            return clamp(animSpeed, 0.45, 3);
+        }
+
+        function computeSpawnRate() {
+            let spawnRate = state.inputs.pa / 90;
+            if (state.inputs.pa < 50) spawnRate = 0.1;
+            return clamp(spawnRate, 0.1, 1.8);
+        }
+
+        function getTubularHandlingFractions() {
+            // Quanto menor a volemia, maior a tendência de reabsorver água.
+            // Quanto maior a carga de sódio, mais o sistema tenta reter/excretar seletivamente,
+            // mas mantemos a influência modesta para não “quebrar” a animação.
+            const waterReabsorption = clamp(
+                remap(state.inputs.vol, 10, 100, 0.95, 0.70) - remap(state.inputs.na, 10, 100, -0.04, 0.04),
+                0.55,
+                0.98
+            );
+
+            const saltReabsorption = clamp(
+                remap(state.inputs.na, 10, 100, 0.92, 0.76) + remap(state.inputs.vol, 10, 100, 0.03, -0.05),
+                0.55,
+                0.97
+            );
+
+            return { waterReabsorption, saltReabsorption };
+        }
+
+        function spawn(type) {
+            if (!p_visibility[type]) return;
+            if (document.hidden) return;
+
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.background = P_TYPES[type].color;
+            particle.style.width = P_TYPES[type].size;
+            particle.style.height = P_TYPES[type].size;
+
+            const pathology = getPathologyProfile(state.pathology);
+            const { waterReabsorption, saltReabsorption } = getTubularHandlingFractions();
+            const filtrationChance = clamp(state.clinical.tfg_current / 140, 0.02, 0.92);
+
+            let path = 'pBloodPass';
+            const isFiltered = Math.random() < filtrationChance;
+
+            if (isFiltered) {
+                if (type === 'ureia') {
+                    path = 'pExcrete';
+                } else if (type === 'agua') {
+                    path = Math.random() < waterReabsorption ? 'pReabsorb' : 'pExcrete';
+                } else if (type === 'sais') {
+                    path = Math.random() < saltReabsorption ? 'pReabsorb' : 'pExcrete';
+                }
+
+                if (state.pathology === 'glom') {
+                    if (type === 'prot' && Math.random() < pathology.proteinLeak) path = 'pExcrete';
+                    if (type === 'hem' && Math.random() < pathology.hemLeak) path = 'pExcrete';
+                }
+            }
+
+            // Hipotensão extrema: quase nada é filtrado, tudo tende a permanecer na circulação.
+            if (state.inputs.pa < 50) {
+                path = 'pBloodPass';
+            }
+
+            const duration = (Math.random() * 1.5 + 2.5).toFixed(1);
+            const yOffset = Math.floor(Math.random() * 30);
+            particle.style.marginTop = `${yOffset}px`;
+            particle.style.animation = `${path} ${duration}s ease-in-out forwards`;
+
+            DOM.canvas.appendChild(particle);
+            setTimeout(() => {
+                if (particle.parentNode) particle.remove();
+            }, duration * 1000 + 120);
+        }
+
+        // ------------------------
+        // Loop principal
+        // ------------------------
+        function tickMonitor() {
+            state.clinical.tfg_current = smoothTowards(state.clinical.tfg_current, state.clinical.tfg_target, CONFIG.smoothing.tfg);
+            state.clinical.ureia_current = smoothTowards(state.clinical.ureia_current, state.clinical.ureia_target, CONFIG.smoothing.ureia);
+            state.clinical.k_current = smoothTowards(state.clinical.k_current, state.clinical.k_target, CONFIG.smoothing.potassio);
+            state.clinical.urina_current = smoothTowards(state.clinical.urina_current, state.clinical.urina_target, CONFIG.smoothing.diurese);
+
+            updateMonitorUI();
+        }
+
+        function tickParticles() {
+            if (document.hidden) return;
+
+            DOM.artAferente.style.animation = `pulseBlood ${computeParticleAnimationSpeed()}s infinite ease-in-out`;
+            const spawnRate = computeSpawnRate();
+
+            if (Math.random() < 0.30 * spawnRate) spawn('hem');
+            if (Math.random() < 0.40 * spawnRate) spawn('prot');
+            if (Math.random() < (state.inputs.vol / 50) * spawnRate) spawn('agua');
+            if (Math.random() < (state.inputs.na / 50) * spawnRate) spawn('sais');
+            if (Math.random() < (state.inputs.ureia / 50) * spawnRate) spawn('ureia');
+        }
+
+        // ------------------------
+        // Inicialização
+        // ------------------------
+        function initializeControls() {
+            ['pa', 'vol', 'na', 'ureia'].forEach((id) => {
+                DOM.sliders[id].addEventListener('input', (event) => {
+                    state.inputs[id] = Number.parseInt(event.target.value, 10);
+                    updateLabels(id, event.target.value);
+                    calculateClinicalTargets();
+                });
+
+                // Garante coerência entre o valor HTML inicial e os rótulos do estado.
+                state.inputs[id] = Number.parseInt(DOM.sliders[id].value, 10);
+                updateLabels(id, DOM.sliders[id].value);
+            });
+        }
+
+        function initialize() {
+            initializeControls();
+            calculateClinicalTargets();
+            updateMonitorUI();
+            showInfo('pathology_normal');
+
+            setInterval(tickMonitor, CONFIG.loopMs.monitor);
+            setInterval(tickParticles, CONFIG.loopMs.particles);
+        }
+
+        initialize();
+    </script>
+
+</body>
+</html>

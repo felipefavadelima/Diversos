@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Hemodiálise</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --primary-dark: #0284c7;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #334155;
+            --text-light: #64748b;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #22c55e;
+            --border: #e2e8f0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        body { background-color: var(--bg); color: var(--text-main); padding: 20px; }
+
+        header { text-align: center; margin-bottom: 30px; }
+        header h1 { color: var(--primary-dark); font-weight: 600; }
+        header p { color: var(--text-light); font-size: 0.95rem; }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr 350px;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border);
+        }
+
+        .card h2 { font-size: 1.1rem; margin-bottom: 15px; color: var(--primary-dark); border-bottom: 2px solid var(--border); padding-bottom: 5px; }
+
+        /* Controles */
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--text-main); margin-bottom: 5px; }
+        .control-group input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+        .value-display { color: var(--primary); font-weight: bold; }
+
+        /* Paciente */
+        .patient-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+        
+        .patient-figure-container {
+            width: 120px;
+            height: 250px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .patient-outline {
+            width: 100%; height: 100%;
+            background-color: #e2e8f0;
+            mask: url('data:image/svg+xml;utf8,<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C10.34 2 9 3.34 9 5C9 6.66 10.34 8 12 8C13.66 8 15 6.66 15 5C15 3.34 13.66 2 12 2ZM11 19.5V22H13V19.5L16 13L16.21 11.83C16.59 9.8 14.86 8 12.79 8H11.21C9.14 8 7.41 9.8 7.79 11.83L8 13L11 19.5ZM19 10C19 11.1 18.1 12 17 12C15.9 12 15 11.1 15 10C15 8.9 15.9 8 17 8C18.1 8 19 8.9 19 10ZM9 12C7.9 12 7 11.1 7 10C7 8.9 7.9 8 9 8C10.1 8 11 8.9 11 10C11 11.1 10.1 12 9 12Z"/></svg>') center/contain no-repeat;
+            -webkit-mask: url('data:image/svg+xml;utf8,<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2a3 3 0 100 6 3 3 0 000-6zm-1.8 7a3.8 3.8 0 00-3.7 3.1l-.8 4.7c-.1.7.5 1.2 1.1 1.2h1.6l2.1 6h3l2.1-6h1.6c.6 0 1.2-.5 1.1-1.2l-.8-4.7A3.8 3.8 0 0013.8 9h-3.6z"/></svg>') center/contain no-repeat;
+            position: absolute;
+            z-index: 2;
+        }
+
+        .patient-fluid {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%;
+            background-color: var(--primary);
+            transition: height 0.3s linear;
+            z-index: 1;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .stat-box {
+            background: var(--bg); padding: 10px; border-radius: 8px; text-align: center; border: 1px solid var(--border);
+        }
+        .stat-box span { display: block; font-size: 0.75rem; color: var(--text-light); text-transform: uppercase; font-weight: bold; }
+        .stat-box strong { font-size: 1.2rem; color: var(--text-main); transition: color 0.3s; }
+        .ref-val { display: block; font-size: 0.7rem; color: #94a3b8; margin-top: 4px; }
+
+        .health-status {
+            margin-top: 20px; padding: 10px 20px; border-radius: 20px; font-weight: bold; text-align: center; width: 100%;
+            transition: all 0.3s;
+        }
+        .status-good { background-color: #dcfce7; color: #166534; }
+        .status-warn { background-color: #fee2e2; color: #991b1b; }
+
+        /* Ações */
+        .actions { display: flex; gap: 8px; margin-top: 20px; justify-content: center; flex-wrap: wrap;}
+        select, button {
+            padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;
+            background: white; color: var(--text-main);
+        }
+        .btn-play { background: var(--success); color: white; border: none; flex-grow: 1; }
+        .btn-play:hover { background: #16a34a; }
+        .btn-pause { background: var(--warning); color: white; border: none; flex-grow: 1; }
+        .btn-reset { background: var(--text-light); color: white; border: none; }
+
+        /* Gráficos */
+        .chart-container { height: 200px; width: 100%; margin-bottom: 20px; }
+
+        @media (max-width: 1024px) {
+            .container { grid-template-columns: 1fr; }
+            .patient-panel { grid-row: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Simulador de Hemodiálise</h1>
+        <p>Ajuste os parâmetros da máquina e acompanhe os efeitos no paciente em tempo real.</p>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h2>Parâmetros da Máquina</h2>
+            
+            <div class="control-group">
+                <label>Fluxo de Sangue (Qb) <span class="value-display" id="val-qb">300 ml/min</span></label>
+                <input type="range" id="input-qb" min="150" max="450" step="10" value="300">
+            </div>
+
+            <div class="control-group">
+                <label>Pressão Transmembrana (TMP) <span class="value-display" id="val-tmp">100 mmHg</span></label>
+                <input type="range" id="input-tmp" min="0" max="300" step="10" value="100">
+            </div>
+
+            <div class="control-group">
+                <label>Coef. Ultrafiltração (Kuf) <span class="value-display" id="val-kuf">10 ml/h/mmHg</span></label>
+                <input type="range" id="input-kuf" min="2" max="25" step="1" value="10">
+            </div>
+
+            <div class="control-group">
+                <label>Área da Membrana <span class="value-display" id="val-area">1.5 m²</span></label>
+                <input type="range" id="input-area" min="0.8" max="2.5" step="0.1" value="1.5">
+            </div>
+
+            <div class="control-group">
+                <label>Sódio Dialisato (Na+) <span class="value-display" id="val-dna">138 mEq/L</span></label>
+                <input type="range" id="input-dna" min="130" max="145" step="1" value="138">
+            </div>
+
+            <div class="control-group">
+                <label>Potássio Dialisato (K+) <span class="value-display" id="val-dk">2.0 mEq/L</span></label>
+                <input type="range" id="input-dk" min="1.0" max="4.0" step="0.5" value="2.0">
+            </div>
+
+            <div class="actions">
+                <select id="sim-speed">
+                    <option value="1000">1x (Lento)</option>
+                    <option value="500" selected>2x (Normal)</option>
+                    <option value="100">10x (Rápido)</option>
+                </select>
+                <button class="btn-play" id="btn-toggle" onclick="toggleSimulation()">INICIAR</button>
+                <button class="btn-reset" onclick="resetSimulation()">RESETAR</button>
+            </div>
+        </div>
+
+        <div class="card patient-panel">
+            <h2>Paciente</h2>
+            
+            <div class="patient-figure-container">
+                <div class="patient-fluid" id="fluid-level" style="height: 100%;"></div>
+                <div class="patient-outline"></div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <span>Peso Atual</span><strong id="out-weight">75.00 kg</strong>
+                    <small class="ref-val">Alvo Seco: 71.00 kg</small>
+                </div>
+                <div class="stat-box">
+                    <span>Taxa de UF / Hora</span><strong id="out-ufrate">0.00 ml/kg/h</strong>
+                    <small class="ref-val">Ideal: < 13 ml/kg/h</small>
+                </div>
+                <div class="stat-box">
+                    <span>Ureia Sangue</span><strong id="out-urea">80.0 mg/dL</strong>
+                    <small class="ref-val" id="out-urea-ref">Ref sangue: 17–43 mg/dL | Pós-HD: &lt;40</small>
+                    <small class="ref-val" id="out-ktv">Dose: Kt/V 0.00 | URR 0%</small>
+                </div>
+                <div class="stat-box">
+                    <span>Ureia no Efluente</span><strong id="out-durea">0.0 mg/dL</strong>
+                    <small class="ref-val">Dialisato + UF</small>
+                </div>
+                <div class="stat-box">
+                    <span>Sódio (Na+)</span><strong id="out-na">135.0 mEq/L</strong>
+                    <small class="ref-val">Ref: 135 - 145 mEq/L</small>
+                </div>
+                <div class="stat-box">
+                    <span>Potássio (K+)</span><strong id="out-k">6.5 mEq/L</strong>
+                    <small class="ref-val">Ref: 3.5 - 5.0 mEq/L</small>
+                </div>
+            </div>
+
+            <div id="health-banner" class="health-status status-good">
+                Status: Estável
+            </div>
+            
+            <p style="margin-top: 15px; font-size: 0.85rem; color: var(--text-light);">
+                Tempo de Terapia (Simulado): <span id="out-time" style="font-weight:bold; color: var(--text-main); font-size: 1.1rem;">0 min</span>
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Monitoramento</h2>
+            <div class="chart-container">
+                <canvas id="ureaChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="weightChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /*
+         * SIMULADOR DE HEMODIÁLISE — VERSÃO REVISADA
+         * Mantém praticamente a mesma interface, mas melhora o motor matemático:
+         * - ureia por balanço de massa explícito;
+         * - volume de distribuição da ureia como variável de estado;
+         * - remoção convectiva por ultrafiltração;
+         * - ureia no efluente com unidade corrigida;
+         * - clearance de ureia dependente de Qb, Qd e KoA;
+         * - sódio e potássio com modelos efetivos mais estáveis;
+         * - cálculo de Kt/V e URR.
+         *
+         * Continua sendo um simulador educacional simplificado, não clínico.
+         */
+
+        const MODEL = {
+            dtMin: 1,
+            qd_mL_min: 500,                   // fluxo de dialisato fixo
+            koaUreaPerM2_mL_min: 500,         // KoA efetivo para ureia por m²
+            tbwFraction: 0.60,                // água corporal total aproximada
+            ecfFraction: 0.20,                // volume extracelular aproximado
+            kEffectiveVolumeFraction: 0.40,   // volume efetivo para K+ com tamponamento intracelular
+            ureaSievingCoefficient: 1.0,
+            naClearancePerM2_L_min: 0.020,
+            kClearancePerM2_L_min: 0.055,
+            maxTherapyMin: 6 * 60,
+            minVurea_L: 20,
+            minVecf_L: 8,
+            minVk_L: 15
+        };
+
+        const basePatient = {
+            dryWeight: 71.0,
+            weight: 75.0,
+            urea: 80.0,
+            na: 135.0,
+            k: 6.5,
+            ufRemoved: 0.0,
+            timeMin: 0
+        };
+
+        function createInitialState() {
+            const state = JSON.parse(JSON.stringify(basePatient));
+
+            state.initialUrea = state.urea;
+
+            // Ureia: concentração em mg/dL, volume em L, massa em mg.
+            state.Vurea_L = state.weight * MODEL.tbwFraction;
+            state.ureaMass_mg = state.urea * 10 * state.Vurea_L;
+
+            // Sódio: modelo extracelular efetivo, concentração em mEq/L, massa em mEq.
+            state.Vecf_L = state.weight * MODEL.ecfFraction;
+            state.naMass_mEq = state.na * state.Vecf_L;
+
+            // Potássio: volume efetivo maior para representar tamponamento intracelular.
+            state.Vk_L = state.weight * MODEL.kEffectiveVolumeFraction;
+            state.kMass_mEq = state.k * state.Vk_L;
+
+            state.ktv = 0.0;
+            state.urr = 0.0;
+
+            return state;
+        }
+
+        let patient = createInitialState();
+        let simulationInterval;
+        let isRunning = false;
+
+        let ureaChart, weightChart;
+
+        function initCharts() {
+            const ctxUrea = document.getElementById('ureaChart').getContext('2d');
+            const ctxWeight = document.getElementById('weightChart').getContext('2d');
+
+            Chart.defaults.font.family = "'Segoe UI', sans-serif";
+            Chart.defaults.color = '#64748b';
+
+            ureaChart = new Chart(ctxUrea, {
+                type: 'line',
+                data: { labels: [0], datasets: [{ label: 'Ureia (mg/dL)', data: [patient.urea], borderColor: '#ef4444', tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } } }
+            });
+
+            weightChart = new Chart(ctxWeight, {
+                type: 'line',
+                data: { labels: [0], datasets: [{ label: 'Peso (kg)', data: [patient.weight], borderColor: '#0ea5e9', tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } } }
+            });
+        }
+
+        const inputs = ['qb', 'tmp', 'kuf', 'area', 'dna', 'dk'];
+        const getVal = (id) => parseFloat(document.getElementById(`input-${id}`).value);
+
+        inputs.forEach(id => {
+            const input = document.getElementById(`input-${id}`);
+            const display = document.getElementById(`val-${id}`);
+            input.addEventListener('input', (e) => {
+                let unit = '';
+                if(id === 'qb') unit = ' ml/min';
+                if(id === 'tmp') unit = ' mmHg';
+                if(id === 'kuf') unit = ' ml/h/mmHg';
+                if(id === 'area') unit = ' m²';
+                if(id === 'dna' || id === 'dk') unit = ' mEq/L';
+                display.innerText = e.target.value + unit;
+            });
+        });
+
+        document.getElementById('sim-speed').addEventListener('change', function() {
+            if (isRunning) {
+                clearInterval(simulationInterval);
+                simulationInterval = setInterval(simulationTick, parseInt(this.value));
+            }
+        });
+
+        function calculateUreaClearance_mL_min(qb_mL_min, qd_mL_min, koA_mL_min) {
+            /*
+             * Aproximação de clearance de dialisador contracorrente para soluto pequeno.
+             * O valor final é limitado para não ultrapassar Qb nem Qd.
+             */
+            if (qb_mL_min <= 0 || qd_mL_min <= 0 || koA_mL_min <= 0) return 0;
+
+            let clearance;
+            if (Math.abs(qb_mL_min - qd_mL_min) < 1e-6) {
+                clearance = (qb_mL_min * koA_mL_min) / (qb_mL_min + koA_mL_min);
+            } else {
+                const expTerm = Math.exp(koA_mL_min * (1 / qd_mL_min - 1 / qb_mL_min));
+                const denominator = 1 - (qb_mL_min / qd_mL_min) * expTerm;
+                clearance = qb_mL_min * (1 - expTerm) / denominator;
+            }
+
+            if (!Number.isFinite(clearance)) return 0;
+            return Math.max(0, Math.min(clearance, qb_mL_min, qd_mL_min));
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function simulationTick() {
+            const qb = getVal('qb');
+            const tmp = getVal('tmp');
+            const kuf = getVal('kuf');
+            const area = getVal('area');
+            const dialNa = getVal('dna');
+            const dialK = getVal('dk');
+            const dt = MODEL.dtMin;
+
+            patient.timeMin += dt;
+
+            // Ultrafiltração: Quf = Kuf × TMP.
+            const ufRate_mL_min_prescribed = Math.max(0, (kuf * tmp) / 60);
+            const excessVolume_L = Math.max(0, patient.weight - patient.dryWeight);
+            const requestedVolumeRemoved_L = (ufRate_mL_min_prescribed * dt) / 1000;
+            const volumeRemoved_L = Math.min(requestedVolumeRemoved_L, excessVolume_L);
+            const ufRate_mL_min_effective = (volumeRemoved_L * 1000) / dt;
+
+            patient.ufRemoved += volumeRemoved_L;
+            patient.weight -= volumeRemoved_L;
+
+            // Clearance de ureia.
+            const koA_urea_mL_min = MODEL.koaUreaPerM2_mL_min * area;
+            const kUrea_mL_min = calculateUreaClearance_mL_min(qb, MODEL.qd_mL_min, koA_urea_mL_min);
+            const kUrea_L_min = kUrea_mL_min / 1000;
+
+            // Ureia: balanço de massa, incluindo difusão e convecção por UF.
+            const ureaConc_mg_L_before = patient.urea * 10;
+            const ureaDiffusiveRemoved_mg = kUrea_L_min * ureaConc_mg_L_before * dt;
+            const ureaConvectiveRemoved_mg = MODEL.ureaSievingCoefficient * ureaConc_mg_L_before * volumeRemoved_L;
+            const totalUreaRemoved_mg = Math.min(patient.ureaMass_mg, ureaDiffusiveRemoved_mg + ureaConvectiveRemoved_mg);
+
+            patient.ureaMass_mg -= totalUreaRemoved_mg;
+            patient.Vurea_L = Math.max(MODEL.minVurea_L, patient.Vurea_L - volumeRemoved_L);
+            patient.urea = patient.ureaMass_mg / (10 * patient.Vurea_L);
+
+            patient.ktv += (kUrea_L_min * dt) / patient.Vurea_L;
+            patient.urr = Math.max(0, (1 - patient.urea / patient.initialUrea) * 100);
+
+            // Ureia no efluente: dialisato de saída + ultrafiltrado.
+            const effluentVolume_L = (MODEL.qd_mL_min / 1000) * dt + volumeRemoved_L;
+            const effluentUrea_mg_dL = effluentVolume_L > 0 ? totalUreaRemoved_mg / (effluentVolume_L * 10) : 0;
+
+            // Sódio: compartimento extracelular efetivo.
+            const kNa_L_min = MODEL.naClearancePerM2_L_min * area;
+            const naDiffusiveFlux_mEq = kNa_L_min * (dialNa - patient.na) * dt;
+            const naConvectiveRemoved_mEq = patient.na * volumeRemoved_L;
+
+            patient.naMass_mEq += naDiffusiveFlux_mEq - naConvectiveRemoved_mEq;
+            patient.Vecf_L = Math.max(MODEL.minVecf_L, patient.Vecf_L - volumeRemoved_L);
+            patient.na = patient.naMass_mEq / patient.Vecf_L;
+            patient.na = clamp(patient.na, 110, 170);
+
+            // Potássio: volume efetivo maior para reduzir queda artificial excessiva.
+            const kK_L_min = MODEL.kClearancePerM2_L_min * area;
+            const kDiffusiveFlux_mEq = kK_L_min * (patient.k - dialK) * dt;
+            const kConvectiveRemoved_mEq = patient.k * volumeRemoved_L;
+
+            patient.kMass_mEq -= (kDiffusiveFlux_mEq + kConvectiveRemoved_mEq);
+            patient.kMass_mEq = Math.max(0, patient.kMass_mEq);
+            patient.Vk_L = Math.max(MODEL.minVk_L, patient.Vk_L);
+            patient.k = patient.kMass_mEq / patient.Vk_L;
+            patient.k = clamp(patient.k, 0, 10);
+
+            updateUI(ufRate_mL_min_effective, effluentUrea_mg_dL);
+
+            if (patient.timeMin % 5 === 0) {
+                ureaChart.data.labels.push(patient.timeMin);
+                ureaChart.data.datasets[0].data.push(patient.urea);
+                ureaChart.update();
+
+                weightChart.data.labels.push(patient.timeMin);
+                weightChart.data.datasets[0].data.push(patient.weight);
+                weightChart.update();
+            }
+        }
+
+        function updateUI(ufRate_mL_min, effluentUrea_mg_dL) {
+            const ufRate_mL_kg_h = patient.weight > 0 ? (ufRate_mL_min * 60) / patient.weight : 0;
+
+            document.getElementById('out-weight').innerText = patient.weight.toFixed(2) + ' kg';
+            document.getElementById('out-ufrate').innerText = ufRate_mL_kg_h.toFixed(1) + ' ml/kg/h';
+            document.getElementById('out-urea').innerText = patient.urea.toFixed(1) + ' mg/dL';
+            document.getElementById('out-durea').innerText = effluentUrea_mg_dL.toFixed(1) + ' mg/dL';
+            document.getElementById('out-na').innerText = patient.na.toFixed(1) + ' mEq/L';
+            document.getElementById('out-k').innerText = patient.k.toFixed(1) + ' mEq/L';
+            document.getElementById('out-ktv').innerText = `Dose: Kt/V ${patient.ktv.toFixed(2)} | URR ${patient.urr.toFixed(0)}%`;
+
+            const h = Math.floor(patient.timeMin / 60);
+            const m = patient.timeMin % 60;
+            document.getElementById('out-time').innerText = h > 0 ? `${h}h ${m}m` : `${m} min`;
+
+            document.getElementById('out-ufrate').style.color = (ufRate_mL_kg_h > 13) ? 'var(--danger)' : 'var(--text-main)';
+            document.getElementById('out-urea').style.color = (patient.urea < 40) ? 'var(--success)' : 'var(--warning)';
+            document.getElementById('out-na').style.color = (patient.na < 135 || patient.na > 145) ? 'var(--danger)' : 'var(--text-main)';
+            document.getElementById('out-k').style.color = (patient.k < 3.5 || patient.k > 5.5) ? 'var(--danger)' : 'var(--text-main)';
+
+            const excessoPeso = Math.max(0, patient.weight - patient.dryWeight);
+            const percentualLiquido = (excessoPeso / Math.max(0.1, basePatient.weight - basePatient.dryWeight)) * 100;
+            document.getElementById('fluid-level').style.height = `${Math.min(100, Math.max(0, percentualLiquido))}%`;
+
+            const healthBanner = document.getElementById('health-banner');
+            let statusText = "Status: Estável";
+            let isWarning = false;
+
+            if (ufRate_mL_kg_h > 13) {
+                statusText = "ALERTA: Risco de Hipotensão! (UF > 13 ml/kg/h)";
+                isWarning = true;
+            } else if (patient.k < 3.5) {
+                statusText = "ALERTA: Hipocalemia! (K+ sanguíneo muito baixo)";
+                isWarning = true;
+            } else if (patient.k > 6.0 && patient.timeMin > 0) {
+                statusText = "AVISO: Hipercalemia ainda presente.";
+                isWarning = true;
+            } else if (patient.ktv >= 1.2 && patient.urr >= 65) {
+                statusText = "Dose de diálise adequada no modelo simplificado.";
+            }
+
+            if (patient.weight <= patient.dryWeight + 1e-6 && patient.timeMin > 0) {
+                statusText = "Meta de peso atingida!";
+                if (isRunning) toggleSimulation();
+            }
+
+            if (patient.timeMin >= MODEL.maxTherapyMin) {
+                statusText = "Tempo máximo da simulação atingido.";
+                if (isRunning) toggleSimulation();
+            }
+
+            healthBanner.className = `health-status ${isWarning ? 'status-warn' : 'status-good'}`;
+            healthBanner.innerText = statusText;
+        }
+
+        function toggleSimulation() {
+            const btn = document.getElementById('btn-toggle');
+            const speed = parseInt(document.getElementById('sim-speed').value);
+
+            if (isRunning) {
+                clearInterval(simulationInterval);
+                btn.innerText = "RETOMAR";
+                btn.className = "btn-play";
+            } else {
+                simulationInterval = setInterval(simulationTick, speed);
+                btn.innerText = "PAUSAR";
+                btn.className = "btn-pause";
+            }
+            isRunning = !isRunning;
+        }
+
+        function resetSimulation() {
+            if (isRunning) toggleSimulation();
+            patient = createInitialState();
+
+            ureaChart.data.labels = [0];
+            ureaChart.data.datasets[0].data = [patient.urea];
+            ureaChart.update();
+
+            weightChart.data.labels = [0];
+            weightChart.data.datasets[0].data = [patient.weight];
+            weightChart.update();
+
+            document.getElementById('btn-toggle').innerText = "INICIAR";
+            updateUI(0, 0);
+        }
+
+        window.onload = () => {
+            initCharts();
+            updateUI(0, 0);
+        };
+    </script>
+</body>
+</html>

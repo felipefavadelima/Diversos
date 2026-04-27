@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCADA HMI Avançado: Tratamento de Água - Hemodiálise</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: #151b2b;
+            --grid-color: #1e293b;
+            --pipe-bg: #1e293b;
+            --text-main: #e2e8f0;
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.4);
+            --warning: #f59e0b;
+            --warning-glow: rgba(245, 158, 11, 0.4);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.6);
+            --border: #334155;
+            --highlight: #3b82f6;
+            --lcd-green: #22c55e;
+            --lcd-red: #ef4444;
+            --lcd-yellow: #eab308;
+        }
+
+        body { font-family: 'Roboto', sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; }
+        body::before { content: ''; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px); background-size: 30px 30px; opacity: 0.3; z-index: -1; }
+
+        /* Tela Inicial (Para liberar áudio do navegador) */
+        #tela-inicial { position: fixed; top:0; left:0; width:100vw; height:100vh; background: #020617; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        #tela-inicial h1 { color: var(--highlight); font-size: 3rem; margin-bottom: 10px; font-family: 'Orbitron', sans-serif; }
+        #tela-inicial p { color: #94a3b8; font-size: 1.2rem; margin-bottom: 40px; max-width: 600px; }
+        .btn-start { padding: 15px 40px; font-size: 1.5rem; background: var(--success); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; box-shadow: 0 0 20px var(--success-glow); }
+        .btn-start:hover { transform: scale(1.05); background: #059669; }
+
+        header { width: 100%; max-width: 1600px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-bottom: 20px; }
+        h1 { margin: 0; font-size: 1.8rem; font-weight: 700; }
+        h1 span { color: var(--highlight); }
+
+        .status-container { display: flex; align-items: center; gap: 15px; }
+        .status-global { background: #022c22; padding: 10px 25px; border-radius: 4px; font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 1.1rem; border: 1px solid var(--success); color: var(--lcd-green); box-shadow: 0 0 10px var(--success-glow); transition: all 0.3s ease; }
+        .status-global.alarme { background: #450a0a; border-color: var(--danger); color: var(--lcd-red); box-shadow: 0 0 15px var(--danger-glow); animation: piscar-critico 0.8s infinite; }
+        .status-global.alerta-pronto { background: #422006; border-color: var(--warning); color: var(--lcd-yellow); box-shadow: 0 0 15px var(--warning-glow); }
+
+        #timer-falha { display: none; background: #7f1d1d; border: 1px solid #f87171; padding: 10px 20px; border-radius: 4px; color: #fca5a5; font-family: 'Orbitron', sans-serif; font-size: 1.2rem; font-weight: bold; box-shadow: 0 0 15px var(--danger-glow); animation: piscar-critico 1s infinite; }
+
+        .scada-wrapper { width: 100%; max-width: 1600px; overflow-x: auto; background: var(--panel-bg); border-radius: 8px; border: 1px solid var(--border); box-shadow: inset 0 0 20px rgba(0,0,0,0.5); padding: 30px 30px 140px 30px; box-sizing: border-box; margin-bottom: 20px; }
+        #scada-container { display: flex; align-items: center; min-width: 1400px; position: relative; }
+
+        .equipamento { min-width: 150px; height: 210px; background: linear-gradient(145deg, #1e293b, #0f172a); border: 2px solid #475569; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 12px; box-sizing: border-box; cursor: pointer; transition: all 0.2s; z-index: 2; position: relative; }
+        .equipamento:hover { border-color: var(--highlight); transform: scale(1.02); }
+        .equipamento.selecionado { border-color: var(--highlight); box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        .equipamento.alerta { border-color: var(--danger); box-shadow: 0 0 20px var(--danger-glow); }
+        .equipamento.aviso { border-color: var(--warning); box-shadow: 0 0 15px var(--warning-glow); }
+        
+        .eq-icon { font-size: 2.8rem; margin-top: 5px; }
+        .eq-nome { font-size: 0.85rem; font-weight: 700; text-align: center; color: #cbd5e1; text-transform: uppercase; }
+        
+        .sensores-bloco { width: 100%; display: flex; flex-direction: column; gap: 4px; }
+        .sensor { background: #000; border: 1px inset #334155; padding: 4px 6px; border-radius: 3px; display: flex; justify-content: space-between; align-items: center; }
+        .sensor-lbl { font-size: 0.65rem; color: #94a3b8; }
+        .sensor-val { font-family: 'Orbitron', monospace; font-weight: 700; font-size: 0.8rem; color: var(--lcd-green); }
+        .sensor-val.warning { color: var(--warning); }
+        .sensor-val.danger { color: var(--lcd-red); animation: piscar 1s infinite; }
+
+        .tubo-container { flex-grow: 1; min-width: 40px; height: 16px; background: var(--pipe-bg); border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; position: relative; z-index: 1; margin: 0 -4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+        .agua-fluxo { width: 100%; height: 100%; opacity: 0.8; background-image: linear-gradient(90deg, transparent 25%, rgba(56, 189, 248, 0.8) 50%, transparent 75%); background-size: 30px 100%; animation: fluir-agua 0.8s linear infinite; }
+        .tubo-container.parado .agua-fluxo { animation-play-state: paused; background-image: none; background-color: #334155; }
+
+        .diag-col { display: flex; flex-direction: column; align-items: center; position: relative; }
+        .diag-stack { display: flex; flex-direction: column; align-items: center; }
+        .diag-top-line { width: 16px; height: 40px; background: var(--pipe-bg); border-left: 2px solid #0f172a; border-right: 2px solid #0f172a; position: relative; box-shadow: inset 2px 0 4px rgba(0,0,0,0.35), inset -2px 0 4px rgba(0,0,0,0.35); }
+        .diag-top-line .agua-fluxo { width: 100%; height: 100%; opacity: 0.8; background-image: linear-gradient(180deg, transparent 25%, rgba(56, 189, 248, 0.8) 50%, transparent 75%); background-size: 100% 30px; animation: fluir-agua-vertical 0.8s linear infinite; }
+        .diag-top-line.parado .agua-fluxo { animation-play-state: paused; background-image: none; background-color: #334155; }
+        .diag-line-label { font-size: 0.68rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; text-align: center; }
+        .diag-line-label.small { font-size: 0.62rem; margin: 4px 0 6px; }
+        .diag-node { min-width: 120px; padding: 7px 10px; background: linear-gradient(145deg, #172033, #0e1728); border: 1px solid #475569; border-radius: 6px; font-size: 0.72rem; font-weight: 700; text-align: center; color: #cbd5e1; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+        .diag-node.subtle { border-style: dashed; color: #93c5fd; }
+        .diag-return { position: absolute; bottom: -92px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; z-index: 0; }
+        .diag-return .diag-line-label { color: #7dd3fc; }
+        .diag-return-line { width: 16px; height: 78px; background: var(--pipe-bg); border-left: 2px solid #0f172a; border-right: 2px solid #0f172a; box-shadow: inset 2px 0 4px rgba(0,0,0,0.35), inset -2px 0 4px rgba(0,0,0,0.35); }
+        .diag-return-line .agua-fluxo { width: 100%; height: 100%; opacity: 0.8; background-image: linear-gradient(180deg, transparent 25%, rgba(56, 189, 248, 0.8) 50%, transparent 75%); background-size: 100% 30px; animation: fluir-agua-vertical 0.8s linear infinite reverse; }
+        .diag-return-line.parado .agua-fluxo { animation-play-state: paused; background-image: none; background-color: #334155; }
+        .diag-arrow { font-size: 1rem; color: #38bdf8; line-height: 1; }
+        @keyframes fluir-agua-vertical { 0% { background-position: 0 0; } 100% { background-position: 0 30px; } }
+
+        @keyframes fluir-agua { 0% { background-position: 0 0; } 100% { background-position: 30px 0; } }
+        @keyframes piscar { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes piscar-critico { 0%, 100% { opacity: 1; box-shadow: 0 0 15px var(--danger-glow); } 50% { opacity: 0.5; box-shadow: none; } }
+
+        .paineis-layout { width: 100%; max-width: 1600px; display: grid; grid-template-columns: 1fr 1fr 350px; gap: 20px; }
+        .panel-box { background: var(--panel-bg); border: 1px solid var(--border); padding: 20px; border-radius: 8px; display: flex; flex-direction: column; }
+        .panel-box h3 { margin-top: 0; color: #cbd5e1; font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+
+        .btn-acao { background: #1e293b; color: var(--text-main); border: 1px solid #475569; padding: 12px 15px; border-radius: 4px; cursor: pointer; font-weight: 500; transition: all 0.2s; width: 100%; margin-bottom: 10px; text-align: left; display: flex; justify-content: space-between; }
+        .btn-acao:hover { background: #334155; border-color: var(--highlight); transform: translateX(5px); }
+        .btn-acao:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-acao.destaque { background: rgba(59, 130, 246, 0.1); border-color: var(--highlight); color: #60a5fa; }
+        .btn-acao.danger { background: rgba(239, 68, 68, 0.1); border-color: var(--danger); color: #f87171; }
+        .btn-acao.success { background: rgba(16, 185, 129, 0.1); border-color: var(--success); color: #34d399; text-align: center; display: block; }
+
+        #log-console { background: #020617; border: 1px inset #334155; flex-grow: 1; overflow-y: auto; padding: 12px; font-size: 0.85rem; border-radius: 4px; font-family: 'Consolas', monospace; display: flex; flex-direction: column; gap: 4px; height: 250px; }
+        .log-time { color: #64748b; margin-right: 8px; }
+        .log-info { color: #cbd5e1; }
+        .log-warn { color: var(--warning); }
+        .log-err { color: #f87171; font-weight: bold; }
+
+        .painel-professor { border-color: #78350f; background: linear-gradient(145deg, #2e1008, #1a0804); }
+        .painel-professor h3 { color: var(--warning); border-color: #78350f; }
+        .prof-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .btn-prof { background: #451a03; color: #fef3c7; border: 1px solid #92400e; padding: 8px; cursor: pointer; border-radius: 4px; font-size: 0.8rem; }
+        .btn-prof:hover { background: #78350f; }
+
+        /* ESTILOS DA JANELA MODAL */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal-box { background: #0f172a; border: 2px solid var(--highlight); border-radius: 8px; width: 90%; max-width: 600px; padding: 25px; box-shadow: 0 0 30px rgba(59, 130, 246, 0.3); animation: slideIn 0.3s ease-out; max-height: 90vh; overflow-y: auto;}
+        @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-titulo { font-size: 1.4rem; color: var(--highlight); margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+        .modal-corpo { font-size: 1rem; line-height: 1.6; color: #cbd5e1; margin: 20px 0; }
+        .modal-corpo strong { color: #e2e8f0; }
+        .modal-efeito { background: #450a0a; border-left: 4px solid var(--danger); padding: 10px; margin-top: 15px; font-size: 0.9rem; }
+        .modal-botoes { display: flex; justify-content: flex-end; gap: 15px; margin-top: 20px; }
+        .btn-confirmar { background: var(--success); color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-cancelar { background: #334155; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        .btn-confirmar:hover { background: #059669; }
+        .btn-cancelar:hover { background: #475569; }
+
+    </style>
+</head>
+<body>
+
+    <div id="tela-inicial">
+        <h1>SCADA // RDC-11</h1>
+        <p>Simulador Interativo de Tratamento de Água para Hemodiálise. Resolva os problemas técnicos antes que o tempo se esgote para garantir a segurança dos pacientes.</p>
+        <button class="btn-start" onclick="iniciarSimulacao()">LIGAR PAINEL SCADA</button>
+    </div>
+
+    <header>
+        <h1><span>SCADA //</span> RDC-11 Hemodiálise HMI</h1>
+        <div class="status-container">
+            <div id="timer-falha">DOWNTIME: 00:00</div>
+            <div id="status-global" class="status-global">AGUARDANDO INÍCIO...</div>
+        </div>
+    </header>
+
+    <div class="scada-wrapper">
+        <div id="scada-container">
+            <div class="equipamento" id="eq-rede" onclick="abrirInfoEquipamento('rede')">
+                <div class="eq-icon">🏢</div><div class="eq-nome">Rede Pública</div>
+                <div class="sensores-bloco">
+                    <div class="sensor"><span class="sensor-lbl">PIT-01</span><span class="sensor-val" id="val-p-rede">-- B</span></div>
+                    <div class="sensor"><span class="sensor-lbl">TIT-01</span><span class="sensor-val" id="val-temp">-- °C</span></div>
+                </div>
+            </div>
+            
+            <div class="tubo-container parado"><div class="agua-fluxo"></div></div>
+
+            <div class="diag-col">
+                <div class="diag-stack">
+                    <div class="diag-line-label">Linha de retrolavagem</div>
+                    <div class="diag-node subtle">↻ Coletor de retrolavagem / dreno</div>
+                    <div class="diag-top-line parado"><div class="agua-fluxo"></div></div>
+                    <div class="equipamento" id="eq-multimidia" onclick="abrirInfoEquipamento('multimidia')">
+                        <div class="eq-icon">⏳</div><div class="eq-nome">Filtro Areia</div>
+                        <div class="sensores-bloco">
+                            <div class="sensor"><span class="sensor-lbl">PIT-02</span><span class="sensor-val" id="val-p-mult">-- B</span></div>
+                            <div class="sensor"><span class="sensor-lbl">PDIT-01</span><span class="sensor-val" id="val-dp-mult">-- B</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tubo-container parado"><div class="agua-fluxo"></div></div>
+
+            <div class="equipamento" id="eq-abrandador" onclick="abrirInfoEquipamento('abrandador')">
+                <div class="eq-icon">⚗️</div><div class="eq-nome">Abrandador</div>
+                <div class="sensores-bloco">
+                    <div class="sensor"><span class="sensor-lbl">DUREZA</span><span class="sensor-val" id="val-dureza">-- ppm</span></div>
+                    <div class="sensor"><span class="sensor-lbl">LIT-01 (Sal)</span><span class="sensor-val" id="val-sal">--%</span></div>
+                </div>
+            </div>
+
+            <div class="tubo-container parado"><div class="agua-fluxo"></div></div>
+
+            <div class="equipamento" id="eq-carvao" onclick="abrirInfoEquipamento('carvao')">
+                <div class="eq-icon">⬛</div><div class="eq-nome">Filtro Carvão</div>
+                <div class="sensores-bloco">
+                    <div class="sensor"><span class="sensor-lbl">CLORO</span><span class="sensor-val" id="val-cloro">-- ppm</span></div>
+                    <div class="sensor"><span class="sensor-lbl">SATURAÇÃO</span><span class="sensor-val" id="val-sat-carvao">--%</span></div>
+                </div>
+            </div>
+
+            <div class="tubo-container parado"><div class="agua-fluxo"></div></div>
+
+            <div class="equipamento" id="eq-microfiltro" onclick="abrirInfoEquipamento('microfiltro')">
+                <div class="eq-icon">🧻</div><div class="eq-nome">Microfiltro 5µm</div>
+                <div class="sensores-bloco">
+                    <div class="sensor"><span class="sensor-lbl">PIT-03 (Suc)</span><span class="sensor-val" id="val-p-micro">-- B</span></div>
+                    <div class="sensor"><span class="sensor-lbl">PDIT-02</span><span class="sensor-val" id="val-dp-micro">-- B</span></div>
+                </div>
+            </div>
+
+            <div class="tubo-container parado"><div class="agua-fluxo"></div></div>
+
+            <div class="equipamento" id="eq-bomba" onclick="abrirInfoEquipamento('bomba')">
+                <div class="eq-icon">⚙️</div><div class="eq-nome">Bomba AP</div>
+                <div class="sensores-bloco">
+                    <div class="sensor"><span class="sensor-lbl">PIT-04</span><span class="sensor-val" id="val-p-bomba">-- B</span></div>
+                    <div class="sensor"><span class="sensor-lbl">FREQ</span><span class="sensor-val" id="val-hz-bomba">-- Hz</span></div>
+                </div>
+            </div>
+
+            <div class="tubo-container parado"><div class="agua-fluxo"></div></div>
+
+            <div class="equipamento" id="eq-osmose" onclick="abrirInfoEquipamento('osmose')">
+                <div class="eq-icon">🔬</div><div class="eq-nome">Osmose Reversa</div>
+                <div class="sensores-bloco">
+                    <div class="sensor"><span class="sensor-lbl">CIT-01</span><span class="sensor-val" id="val-cond">-- µS</span></div>
+                    <div class="sensor"><span class="sensor-lbl">REJEIÇÃO</span><span class="sensor-val" id="val-rej">--%</span></div>
+                </div>
+            </div>
+
+            <div class="tubo-container parado"><div class="agua-fluxo"></div></div>
+
+            <div class="equipamento" id="eq-uv" onclick="abrirInfoEquipamento('uv')">
+                <div class="eq-icon" id="icone-uv">💡</div><div class="eq-nome">Esterilizador UV</div>
+                <div class="sensores-bloco">
+                    <div class="sensor"><span class="sensor-lbl">INTENSIDADE</span><span class="sensor-val" id="val-uv-int">--%</span></div>
+                    <div class="sensor"><span class="sensor-lbl">VIDA ÚTIL</span><span class="sensor-val" id="val-uv-vida">-- h</span></div>
+                </div>
+            </div>
+
+            <div class="tubo-container parado"><div class="agua-fluxo"></div></div>
+
+            <div class="diag-col">
+                <div class="equipamento" id="eq-loop" onclick="abrirInfoEquipamento('loop')">
+                    <div class="eq-icon">🏥</div><div class="eq-nome">Loop Internação</div>
+                    <div class="sensores-bloco">
+                        <div class="sensor"><span class="sensor-lbl">FIT-01 (Ida)</span><span class="sensor-val" id="val-vazao">-- m³/h</span></div>
+                        <div class="sensor"><span class="sensor-lbl">MÁQUINAS</span><span class="sensor-val" id="val-maq">-- / --</span></div>
+                    </div>
+                </div>
+                <div class="diag-return">
+                    <div class="diag-line-label small">Retorno dos leitos para o sistema</div>
+                    <div class="diag-arrow">↺</div>
+                    <div class="diag-return-line parado"><div class="agua-fluxo"></div></div>
+                    <div class="diag-node subtle">Retorno sanitário do loop / recirculação contínua</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="paineis-layout">
+        <div class="panel-box">
+            <h3>🎛️ Painel de Operação</h3>
+            <p id="op-desc" style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 10px;">Clique em um equipamento na planta acima para ver explicações mais completas e opções de ação. O diagrama também mostra linhas auxiliares de retrolavagem e retorno do loop.</p>
+            <div id="op-acoes" style="display: none; flex-grow: 1;"></div>
+        </div>
+
+        <div class="panel-box">
+            <h3>📝 Registro de Alarmes e Eventos</h3>
+            <div id="log-console"></div>
+        </div>
+
+        <div class="panel-box painel-professor">
+            <h3>🔧 Painel do Instrutor (Falhas)</h3>
+            <div class="prof-grid">
+                <button class="btn-prof" onclick="injetarFalha('colmata_areia')">↳ Colmatar Filtro de Areia</button>
+                <button class="btn-prof" onclick="injetarFalha('falta_sal')">↳ Esvaziar Tanque de Salmoura</button>
+                <button class="btn-prof" onclick="injetarFalha('entope_micro')">↳ Obstruir Microfiltro 5µm</button>
+                <button class="btn-prof" onclick="injetarFalha('rompe_osmose')">↳ Romper Membrana RO</button>
+                <button class="btn-prof" onclick="injetarFalha('queima_uv')">↳ Queimar Reator UV</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-base" class="modal-overlay">
+        <div class="modal-box">
+            <h2 id="modal-titulo" class="modal-titulo">Título</h2>
+            <div id="modal-corpo" class="modal-corpo">Corpo do texto explicativo.</div>
+            <div class="modal-botoes" id="modal-botoes"></div>
+        </div>
+    </div>
+
+    <script>
+        // BASE DE CONHECIMENTO EDUCACIONAL (TEXTOS RICOS)
+        const biblioteca = {
+            rede: {
+                nome: "Rede Pública de Abastecimento (Água Bruta)",
+                funcao: "É o ponto de partida do sistema. Embora seja considerada 'potável' para consumo humano, esta água é extremamente tóxica para um paciente em hemodiálise (contém cloro, metais pesados, alumínio, flúor e minerais). O sistema SCADA monitora a pressão de entrada (PIT-01) para garantir que há volume de água suficiente para alimentar a planta, e a temperatura (TIT-01), pois a água muito fria contrai os poros da membrana de osmose, exigindo mais pressão da bomba. Nesta etapa, também se observa a estabilidade do abastecimento do hospital, oscilações de pressão ao longo do dia e eventuais eventos de manutenção da concessionária. Em uma planta real, qualquer instabilidade aqui se propaga para todas as unidades a jusante, por isso a leitura da rede é um indicador de contexto operacional e não apenas um número isolado.",
+                cascata: "<strong>Efeito Cascata:</strong> Quedas na pressão da rede (falta de água na rua ou falha na bomba de recalque do hospital) criam um vácuo no sistema. Isso despressuriza todos os filtros seguintes, forçando a Bomba de Alta Pressão a trabalhar a seco, o que causa cavitação (destruição do rotor) e desarme imediato do sistema."
+            },
+            multimidia: {
+                nome: "Filtro Multimídia (Leito de Areia)",
+                funcao: "Atua como a primeira barreira física do tratamento. É composto por camadas de diferentes granulometrias (cascalho, areia e antracito). Ele retém partículas macroscópicas, barro, lodo e matéria em suspensão (turbidez). A saúde deste filtro é monitorada pela <strong>Pressão Diferencial (PDIT)</strong>: o sistema calcula a pressão da água entrando menos a pressão da água saindo. Se o valor for alto, significa que a sujeira está bloqueando a passagem da água. Em operação real, a evolução lenta do diferencial de pressão costuma indicar saturação progressiva do leito; já uma subida abrupta sugere evento de turbidez na rede ou falha no regime de retrolavagem. Por isso, o equipamento foi enriquecido no diagrama com a linha superior de retrolavagem/dreno, representando o circuito auxiliar que permite a limpeza hidráulica do leito sem desmontagem.",
+                cascata: "<strong>Efeito Cascata:</strong> Um filtro colmatado (entupido de barro) age como uma rolha na tubulação. A pressão da água despenca após ele. Isso faz com que a sujeira seja empurrada com força para o microfiltro, entupindo-o em poucas horas, e causa o desarme da bomba principal por baixa pressão na linha de sucção.",
+                acoes: {
+                    "Comando: Retrolavagem (Backwash)": "<strong>Explicação:</strong> O CLP aciona as válvulas pneumáticas para inverter o sentido do fluxo da água sob alta pressão (de baixo para cima). Isso 'ferve' e expande o leito de areia, desgrudando as partículas de sujeira e expulsando tudo pelo ralo (esgoto). Ao final, o filtro é compactado novamente, a pressão diferencial é zerada, e o fluxo limpo é restaurado.",
+                    "Enxágue Pós-Retrolavagem": "<strong>Explicação:</strong> Após a retrolavagem, o filtro ainda libera finos e partículas remanescentes. O enxágue direciona temporariamente a água para descarte até que a turbidez e a pressão diferencial estabilizem, evitando que sujeira siga para o abrandador e para o microfiltro.",
+                    "Inspeção do Coletor Superior": "<strong>Explicação:</strong> Em manutenção corretiva, verifica-se o distribuidor interno, as crepinas e a integridade do leito. Danos mecânicos nessa região podem criar caminhos preferenciais, reduzindo a eficiência da filtração mesmo quando a pressão parece aceitável."
+                }
+            },
+            abrandador: {
+                nome: "Abrandador (Resina de Troca Iônica)",
+                funcao: "Responsável por remover a 'dureza' da água (íons de Cálcio e Magnésio). O tanque é cheio de esferas microscópicas de resina carregadas com Sódio. Como a resina tem mais afinidade com cálcio e magnésio, ela os 'captura' da água e libera o sódio em troca (que é altamente solúvel e inofensivo para o equipamento). No supervisório, esse bloco funciona como proteção direta da osmose: quando a resina está saudável, a água segue com baixo potencial de incrustação. Quando o sal se esgota, a regeneração deixa de ser efetiva e o risco deixa de ser invisível, passando a aparecer depois como queda da integridade da membrana e piora da condutividade.",
+                cascata: "<strong>Efeito Cascata:</strong> Se o operador esquecer de repor o sal, a resina satura e para de funcionar. A água 'dura' segue para a Osmose Reversa. O Cálcio e o Magnésio se precipitam, formando uma crosta de pedra (incrustação calcária) que entope microscopicamente a membrana da Osmose. Isso destrói o equipamento mais caro da sala, diminuindo a rejeição e permitindo que toxinas cheguem ao paciente.",
+                acoes: {
+                    "Repor Salmoura (NaCl)": "<strong>Explicação:</strong> O operador alimenta o tanque auxiliar com pastilhas de sal de alta pureza. O sal se dissolve na água formando a salmoura, que é o 'combustível' necessário para limpar a resina.",
+                    "Comando: Forçar Regeneração": "<strong>Explicação:</strong> O sistema eletrônico do cabeçote suga a salmoura do tanque e banha a resina. O excesso brutal de sódio na salmoura força a resina a soltar o cálcio/magnésio (que vão para o esgoto) e a se recarregar com sódio novamente, restaurando 100% da sua capacidade de abrandamento."
+                }
+            },
+            carvao: {
+                nome: "Filtro de Carvão Ativado",
+                funcao: "A etapa de proteção química e vital para o paciente. O carvão ativado possui uma superfície extremamente porosa que atrai e retém (fenômeno de adsorção) o Cloro Livre, as Cloraminas e compostos orgânicos. <strong>Atenção:</strong> O Cloro é um veneno letal na hemodiálise, causando hemólise (explosão dos glóbulos vermelhos no sangue do paciente). No contexto didático, este bloco é um dos mais importantes para reforçar que nem toda falha se manifesta primeiro como obstrução; muitas falhas são químicas e a consequência mais grave aparece somente nos estágios seguintes, quando a membrana da osmose começa a perder desempenho.",
+                cascata: "<strong>Efeito Cascata:</strong> A saturação do carvão permite a passagem do Cloro. Além de ser letal para o paciente, o Cloro atua como um ácido corrosivo sobre as membranas de Poliamida da Osmose Reversa. Em questão de horas, o Cloro oxida e 'derrete' os poros da membrana, destruindo irreversivelmente a capacidade da Osmose de purificar a água.",
+                acoes: {
+                    "Substituir Leito Filtrante": "<strong>Explicação:</strong> Diferente do filtro de areia, o carvão não pode ser simplesmente 'lavado' (retrolavagem) para voltar a funcionar, pois a adsorção química é definitiva. O técnico precisa isolar o tanque, remover todo o carvão velho e contaminado por sucção, e preencher o equipamento com carvão ativado virgem."
+                }
+            },
+            microfiltro: {
+                nome: "Microfiltro Cartucho 5µm (Polishing)",
+                funcao: "Funciona como a última linha de defesa física antes do equipamento de alta pressão. É composto por elementos brancos de polipropileno trançado com poros de 5 micrômetros (menores que um glóbulo vermelho humano). Ele garante que nenhum pó de carvão, areia fina ou resíduos que tenham escapado dos filtros anteriores cheguem à bomba ou à membrana. É um componente aparentemente simples, mas operacionalmente estratégico, porque transforma falhas difusas do pré-tratamento em um sintoma claro: aumento de pressão diferencial e queda de pressão de sucção. Em aula, ele ajuda muito a explicar por que um único cartucho saturado consegue parar a planta inteira.",
+                cascata: "<strong>Efeito Cascata:</strong> Se o microfiltro entupir (geralmente evidenciado por um aumento na Pressão Diferencial - PDIT-02), o fluxo de água é estrangulado. A pressão na entrada da Bomba de Alta Pressão cai a zero, gerando o risco de 'Cavitação' (formação e implosão de bolhas de vapor que destroem o metal da bomba). O sistema irá desarmar por segurança (pressostato de baixa).",
+                acoes: {
+                    "Substituir Elemento Filtrante": "<strong>Explicação:</strong> Manutenção física. O operador despressuriza a carcaça de aço inox, retira os elementos filtrantes sujos (que costumam estar marrons ou pretos), higieniza o interior da carcaça e insere novos filtros brancos, restaurando o fluxo livre de água."
+                }
+            },
+            bomba: {
+                nome: "Bomba de Alta Pressão (com Inversor VFD)",
+                funcao: "O 'músculo' do sistema. Para que o fenômeno da Osmose Reversa ocorra, é necessário vencer a pressão osmótica natural da água. Esta bomba suga a água pré-tratada e a comprime violentamente (geralmente entre 10 e 15 Bar) contra as membranas. Ela é controlada por um Inversor de Frequência (VFD), que acelera ou desacelera a rotação (Hz) do motor baseando-se na quantidade de máquinas de diálise ligadas naquele momento. Na lógica do SCADA, a bomba também funciona como elo entre segurança de processo e desempenho: ela precisa entregar pressão suficiente para a separação por membrana, mas nunca pode operar sem água adequada na sucção ou contra condições críticas impostas pelos estágios anteriores.",
+                cascata: "<strong>Efeito Cascata:</strong> A bomba é altamente dependente do pré-tratamento. Se houver falta de água na sucção dela (pressão menor que 1 Bar), o atrito das engrenagens sem lubrificação (água) pode derreter os selos mecânicos e queimar o motor em minutos.",
+                acoes: {
+                    "Reset de Segurança / Rearmar Painel": "<strong>Explicação:</strong> Comando enviado ao CLP para reconhecer um alarme e tentar reiniciar a operação. O CLP fará uma varredura de segurança: verificará se há pressão na rede, se os filtros estão limpos e se a água está liberada. Só então ele iniciará a rampa de aceleração suave do motor."
+                }
+            },
+            osmose: {
+                nome: "Osmose Reversa (Membranas RO)",
+                funcao: "O coração tecnológico da planta. Consiste em tubos de pressão contendo membranas de poliamida enroladas em espiral. A água entra sob extrema pressão; a água pura (Permeado) consegue atravessar os poros em nível molecular, enquanto os sais, metais, bactérias e toxinas são bloqueados e descartados para o esgoto (Rejeito). A qualidade é medida pelo Condutivímetro (CIT-01) - quanto menor a condutividade (ideal < 5 µS/cm), mais pura é a água. Este é o ponto em que vários problemas anteriores deixam de ser apenas 'suspeitas' e passam a se tornar mensuráveis: cloro residual, dureza elevada, temperatura inadequada e fouling convergem aqui e aparecem como piora de rejeição, maior condutividade e risco de desvio da água para descarte.",
+                cascata: "<strong>Efeito Cascata:</strong> Se a condutividade subir acima do limite estabelecido pela norma de saúde (geralmente > 10 µS/cm), significa que a membrana rasgou ou incrustou. O sistema SCADA acionará instantaneamente uma válvula direcional (divert valve) mandando toda a água para o esgoto e desarmará o sistema para garantir que água contaminada não chegue à corrente sanguínea dos pacientes.",
+                acoes: {
+                    "Executar CIP (Limpeza Química)": "<strong>Explicação:</strong> CIP (Clean-In-Place). Um circuito fechado é montado para circular soluções químicas específicas (ácidos para dissolver calcário e alcalinos para matéria orgânica) por várias horas. Isso dissolve incrustações superficiais e tenta recuperar parte da rejeição salina da membrana.",
+                    "Substituição de Membranas": "<strong>Explicação:</strong> Manutenção de altíssimo custo. Quando a CIP não surte mais efeito e a integridade da membrana foi comprometida de forma irreversível (por cloro ou dureza), os elementos espirais precisam ser retirados e substituídos por novos."
+                }
+            },
+            uv: {
+                nome: "Esterilizador Ultravioleta (UV-C)",
+                funcao: "Barreira microbiológica final. Consiste em uma câmara de aço inox por onde a água circula ao redor de um tubo de quartzo que contém uma lâmpada emissora de luz UV-C (comprimento de onda de 254nm). A radiação não 'mata' as bactérias por impacto, mas penetra em suas células e destrói seu DNA, impedindo que elas se reproduzam e formem colônias nas máquinas de hemodiálise. Nesta versão melhorada, vale a pena usar o texto da janela para reforçar que intensidade UV não depende só da lâmpada: incrustação no quartzo, envelhecimento do emissor, temperatura e vazão também afetam a dose efetiva recebida pela água.",
+                cascata: "<strong>Efeito Cascata:</strong> Segundo a norma RDC-11 da Anvisa, a desinfecção UV é mandatória e inegociável. O SCADA monitora o reator com um sensor fotométrico. Se a lâmpada queimar, o reator perder intensidade ou o vidro sujar, o sistema corta imediatamente a bomba e emite um alarme crítico. A clínica é paralisada.",
+                acoes: {
+                    "Substituir Lâmpada e Limpar Quartzo": "<strong>Explicação:</strong> Ação de manutenção corretiva. O técnico desliga a energia do painel, saca a lâmpada queimada, retira o tubo de vidro de quartzo para limpá-lo (pois sujeira no vidro bloqueia a luz UV) e instala um novo emissor, zerando o horímetro de vida útil."
+                }
+            },
+            loop: {
+                nome: "Loop de Internação / Tubulação de Distribuição",
+                funcao: "É a rede de tubos (geralmente em aço inox sanitário 316L ou PEX) que leva a água pura da sala de tratamento até o salão de hemodiálise, passando atrás de cada poltrona, e retorna para a sala de máquinas. Chama-se 'Loop' porque a água pura nunca pode ficar parada (água parada gera biofilme bacteriano). Ela circula continuamente em alta velocidade. Para deixar isso mais explícito no diagrama, foi adicionada uma perna visual de retorno dos leitos para o sistema de tratamento, representando a recirculação contínua e o conceito de anel fechado. Esse retorno não é decorativo: ele é essencial para evitar estagnação, manter velocidade sanitária e reduzir a formação de biofilme ao longo da distribuição.",
+                cascata: "<strong>Efeito Cascata:</strong> O sistema hidráulico é dinâmico. Conforme enfermeiros ligam ou desligam máquinas de diálise lá no salão, a pressão no Loop oscila. O SCADA lê essa oscilação (através do transmissor FIT/PIT do Loop) e manda o Inversor da Bomba acelerar ou frear em tempo real para manter a pressão sempre constante nas torneiras da clínica.",
+                acoes: {
+                    "Adicionar +5 Máquinas": "<strong>Explicação:</strong> Simula a conexão de pacientes extras na sala.",
+                    "Remover -5 Máquinas": "<strong>Explicação:</strong> Simula o término da sessão de hemodiálise de alguns pacientes.",
+                    "Inspecionar Retorno do Loop": "<strong>Explicação:</strong> O retorno do loop mantém a recirculação contínua da água tratada de volta à sala técnica. A inspeção confirma se não há pontos mortos, bolsas de ar, perda de pressão ou trechos de baixa velocidade que favoreçam biofilme.",
+                    "Executar Sanitização do Loop": "<strong>Explicação:</strong> Procedimento de manutenção programada em que o anel de distribuição e retorno recebe sanitização química ou térmica. O objetivo é reduzir carga microbiológica, remover biofilme inicial e preservar a qualidade microbiológica entre a produção e os pontos de uso."
+                }
+            }
+        };
+
+        // ESTADO GLOBAL DO SISTEMA
+        const state = {
+            running: false, p_rede_base: 3.2, p_rede: 3.2, temp: 24.5,
+            multimidia: { dp: 0.1, degradacao: 0.001 },
+            abrandador: { dureza: 1.5, sal: 80, sal_rate: 0.05 },
+            carvao: { cloro: 0.01, sat: 15, sat_rate: 0.02 },
+            microfiltro: { dp: 0.15, degradacao: 0.002 },
+            bomba: { pressao: 12.5, hz: 50 },
+            osmose: { cond: 2.1, integridade: 99.8 },
+            uv: { intensidade: 98, vida: 8500, queimada: false },
+            loop: { maquinas: 10, total_maq: 40, vazao_nominal: 1.5 }
+        };
+
+        let lastSelectedId = null;
+        let loopPrincipal;
+
+        // SISTEMA DE ÁUDIO E TIMER
+        let audioCtx;
+        let beepInterval;
+        let timerInterval;
+        let tempoFalha = 0;
+
+        function iniciarSimulacao() {
+            document.getElementById('tela-inicial').style.display = 'none';
+            
+            // Inicia o contexto de áudio
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            addLog("SISTEMA SCADA BOOT SEQ COMPLETE. Operador Autenticado.", "info");
+            
+            // Liga o sistema visualmente e logicamente
+            state.running = true;
+            document.querySelectorAll('.tubo-container, .diag-top-line, .diag-return-line').forEach(t => t.classList.remove('parado'));
+            
+            loopPrincipal = setInterval(atualizarSupervisorio, 500);
+            agendarProximaFalhaAleatoria();
+        }
+
+        // MOTOR DE FALHAS ALEATÓRIAS
+        function agendarProximaFalhaAleatoria() {
+            // Escolhe um tempo aleatório entre 60 e 120 segundos
+            const tempoDeEspera = (Math.random() * 60000) + 60000;
+            setTimeout(dispararFalhaAleatoria, tempoDeEspera);
+        }
+
+        function dispararFalhaAleatoria() {
+            // Se o sistema já está parado com outra falha, apenas agenda para tentar de novo daqui a 20 seg
+            if (!state.running) {
+                setTimeout(dispararFalhaAleatoria, 20000);
+                return;
+            }
+
+            const falhas = ['colmata_areia', 'falta_sal', 'entope_micro', 'rompe_osmose', 'queima_uv'];
+            const falhaEscolhida = falhas[Math.floor(Math.random() * falhas.length)];
+            
+            addLog(`[ALERTA DE SISTEMA] Detectada anomalia iminente...`, "warn");
+            injetarFalha(falhaEscolhida); // Injeta na simulação
+            agendarProximaFalhaAleatoria(); // Prepara a próxima
+        }
+
+        function playBeep() {
+            if (!audioCtx) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Som industrial
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.3);
+        }
+
+        function iniciarAlarmeETimer() {
+            if(timerInterval) return; // já rodando
+            tempoFalha = 0;
+            document.getElementById('timer-falha').style.display = 'inline-block';
+            
+            if(!beepInterval) beepInterval = setInterval(playBeep, 1000);
+
+            timerInterval = setInterval(() => {
+                tempoFalha++;
+                const min = String(Math.floor(tempoFalha / 60)).padStart(2, '0');
+                const sec = String(tempoFalha % 60).padStart(2, '0');
+                document.getElementById('timer-falha').innerText = `DOWNTIME: ${min}:${sec}`;
+            }, 1000);
+        }
+
+        function pararAlarmeETimer() {
+            if(timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+            if(beepInterval) { clearInterval(beepInterval); beepInterval = null; }
+            document.getElementById('timer-falha').style.display = 'none';
+        }
+
+        function addLog(msg, tipo = 'info') {
+            const consoleEl = document.getElementById('log-console');
+            const time = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+            let corClass = tipo === 'warn' ? 'log-warn' : (tipo === 'err' ? 'log-err' : 'log-info');
+            consoleEl.insertAdjacentHTML('afterbegin', `<div class="log-entry"><span class="log-time">[${time}]</span><span class="${corClass}">${msg}</span></div>`);
+            if(consoleEl.children.length > 50) consoleEl.removeChild(consoleEl.lastChild);
+        }
+
+        function atualizarSupervisorio() {
+            if(!state.running && timerInterval === null) {
+                // Se parou de repente (intertravamento de segurança visualizado na varredura passada)
+                iniciarAlarmeETimer();
+            }
+
+            let impacto_vazao = state.running ? (state.loop.maquinas / state.loop.total_maq) : 0;
+            state.p_rede = state.p_rede_base - (impacto_vazao * 0.4) + (Math.random() * 0.05 - 0.025);
+            state.temp += (Math.random() * 0.2 - 0.1);
+
+            if (state.running) {
+                state.multimidia.dp += state.multimidia.degradacao;
+                state.abrandador.sal -= state.abrandador.sal_rate;
+                state.carvao.sat += state.carvao.sat_rate;
+                // CASCATA FÍSICA: Areia suja -> Microfiltro sobrecarrega
+                state.microfiltro.dp += state.multimidia.dp > 0.8 ? 0.03 : state.microfiltro.degradacao;
+
+                if(!state.uv.queimada) {
+                    state.uv.vida -= 1;
+                    if(state.uv.vida <= 0) state.uv.queimada = true;
+                }
+            }
+
+            if (state.abrandador.sal <= 0) { state.abrandador.sal = 0; if (state.running) state.abrandador.dureza += 0.4; }
+            if (state.carvao.sat > 90 && state.running) state.carvao.cloro += 0.02;
+            
+            // CASCATA FÍSICA: Dureza alta e cloro destroem a Osmose
+            if (state.abrandador.dureza > 20 && state.running) state.osmose.integridade -= 0.05;
+            if (state.carvao.cloro > 0.1 && state.running) state.osmose.integridade -= 0.2;
+
+            state.uv.intensidade = state.uv.queimada ? 0 : (state.uv.vida / 8500) * 100;
+
+            // PRESSÕES EM CASCATA
+            let p_pos_mult = state.p_rede - state.multimidia.dp;
+            let p_sucao = p_pos_mult - state.microfiltro.dp; 
+
+            state.osmose.cond = 1.5 + ((100 - state.osmose.integridade) * 0.8) + (state.temp > 28 ? 0.5 : 0);
+
+            // BOMBA REAGE
+            if (state.running) {
+                if (p_sucao < 0.6) {
+                    state.bomba.hz = 30; // Modula para não cavitar
+                    state.bomba.pressao = 8.0;
+                } else {
+                    state.bomba.hz = 50 + (impacto_vazao * 10);
+                    state.bomba.pressao = 10 + (state.bomba.hz * 0.05);
+                }
+            } else {
+                state.bomba.hz = 0; state.bomba.pressao = 0;
+            }
+
+            // RENDERIZAÇÃO
+            updateSensor('val-p-rede', state.p_rede, 1.5, 1.0, 'B', false);
+            updateSensor('val-temp', state.temp, 28, 32, '°C');
+
+            updateSensor('val-p-mult', p_pos_mult, 1.0, 0.5, 'B', false);
+            updateSensor('val-dp-mult', state.multimidia.dp, 0.8, 1.2, 'B');
+            avaliaEquipamento('eq-multimidia', state.multimidia.dp, 0.8, 1.2);
+
+            updateSensor('val-dureza', state.abrandador.dureza, 10, 15, 'ppm');
+            updateSensor('val-sal', state.abrandador.sal, 20, 5, '%', false);
+            avaliaEquipamento('eq-abrandador', state.abrandador.dureza, 10, 15);
+            if(state.abrandador.sal <= 5) document.getElementById('eq-abrandador').classList.add('alerta');
+
+            updateSensor('val-cloro', state.carvao.cloro, 0.05, 0.1, 'ppm');
+            updateSensor('val-sat-carvao', state.carvao.sat, 80, 95, '%');
+            avaliaEquipamento('eq-carvao', state.carvao.cloro, 0.05, 0.1);
+
+            updateSensor('val-p-micro', p_sucao, 1.0, 0.6, 'B', false);
+            updateSensor('val-dp-micro', state.microfiltro.dp, 0.6, 1.0, 'B');
+            avaliaEquipamento('eq-microfiltro', state.microfiltro.dp, 0.6, 1.0);
+
+            updateSensor('val-p-bomba', state.bomba.pressao, 15, 18, 'B');
+            updateSensor('val-hz-bomba', state.bomba.hz, 60, 65, 'Hz');
+            avaliaEquipamento('eq-bomba', state.bomba.pressao, 15, 18);
+
+            updateSensor('val-cond', state.osmose.cond, 4.0, 8.0, 'µS');
+            updateSensor('val-rej', state.osmose.integridade, 95, 90, '%', false);
+            avaliaEquipamento('eq-osmose', state.osmose.cond, 4.0, 8.0);
+
+            updateSensor('val-uv-int', state.uv.intensidade, 60, 40, '%', false);
+            document.getElementById('val-uv-vida').innerText = Math.max(0, state.uv.vida).toFixed(0) + ' h';
+            document.getElementById('icone-uv').style.textShadow = state.uv.queimada ? 'none' : '0 0 15px #60a5fa';
+            avaliaEquipamento('eq-uv', state.uv.intensidade, 60, 40, false);
+
+            document.getElementById('val-maq').innerText = `${state.loop.maquinas} / ${state.loop.total_maq}`;
+            updateSensor('val-vazao', state.running ? 0.5 + (state.loop.maquinas * 0.08) : 0.0, 3.0, 4.0, 'm³/h');
+
+            // INTERTRAVAMENTOS DE SEGURANÇA (O sistema desliga)
+            if (state.running) {
+                if (p_sucao < 0.3) { addLog("FALHA CRÍTICA: Desarme PSL-01 (Baixa Pressão Sucção). Filtros obstruídos.", "err"); pararSistema(); } 
+                else if (state.osmose.cond > 10.0) { addLog("FALHA CRÍTICA: Desarme CSH-01 (Alta Condutividade). Membrana danificada.", "err"); pararSistema(); } 
+                else if (state.uv.queimada) { addLog("FALHA CRÍTICA: Desarme RDC-11 (UV Inoperante).", "err"); pararSistema(); }
+            }
+            avaliarStatusGlobal();
+        }
+
+        function updateSensor(id, val, warn, dang, und, asc = true) {
+            const el = document.getElementById(id); el.innerText = val.toFixed(1) + ' ' + und; el.className = 'sensor-val';
+            if((asc ? val >= dang : val <= dang)) el.classList.add('danger');
+            else if((asc ? val >= warn : val <= warn)) el.classList.add('warning');
+        }
+
+        function avaliaEquipamento(id, val, warn, dang, asc = true) {
+            const el = document.getElementById(id); el.classList.remove('alerta', 'aviso');
+            if((asc ? val >= dang : val <= dang)) el.classList.add('alerta');
+            else if((asc ? val >= warn : val <= warn)) el.classList.add('aviso');
+        }
+
+        function avaliarStatusGlobal() {
+            const alertas = document.querySelectorAll('.equipamento.alerta').length;
+            const avisos = document.querySelectorAll('.equipamento.aviso').length;
+            const st = document.getElementById('status-global');
+            
+            if (!state.running) {
+                st.className = alertas > 0 ? "status-global alarme" : "status-global alerta-pronto";
+                st.innerText = alertas > 0 ? `SISTEMA TRAVADO: CASCATA GEROU ${alertas} FALHA(S). CORRIJA E REARME.` : `SISTEMA PARADO - PRONTO PARA REARME NA BOMBA AP`;
+                return;
+            }
+            if (alertas > 0) { st.className = "status-global alarme"; st.innerText = `FALHA - ${alertas} EQUIPAMENTO(S) FORA DO SETPOINT`; }
+            else if (avisos > 0) { st.className = "status-global"; st.style.borderColor = "var(--warning)"; st.style.color = "var(--warning)"; st.innerText = `AVISO ATIVO (MANUTENÇÃO PREVENTIVA NECESSÁRIA)`; }
+            else { st.className = "status-global"; st.style.borderColor = ""; st.style.color = ""; st.innerText = "SISTEMA ONLINE - OPERAÇÃO NORMAL"; }
+        }
+
+        function pararSistema() {
+            state.running = false; 
+            document.querySelectorAll('.tubo-container, .diag-top-line, .diag-return-line').forEach(t => t.classList.add('parado'));
+            if(lastSelectedId) montarPainelOp(lastSelectedId);
+            iniciarAlarmeETimer();
+        }
+
+        // MODAIS EDUCACIONAIS
+        const modalBase = document.getElementById('modal-base');
+        const modalTitulo = document.getElementById('modal-titulo');
+        const modalCorpo = document.getElementById('modal-corpo');
+        const modalBotoes = document.getElementById('modal-botoes');
+
+        function fecharModal() { modalBase.style.display = 'none'; }
+
+        function abrirInfoEquipamento(id) {
+            document.querySelectorAll('.equipamento').forEach(e => e.classList.remove('selecionado'));
+            const el = document.getElementById('eq-' + id);
+            if(el) el.classList.add('selecionado');
+            lastSelectedId = id;
+
+            const info = biblioteca[id];
+            modalTitulo.innerText = "📚 Sobre: " + info.nome;
+            
+            let htmlCorpo = `<p><strong>O que faz na vida real?</strong><br>${info.funcao}</p>`;
+            htmlCorpo += `<p><strong>Como interpretar no supervisório?</strong><br>Observe o comportamento combinado dos sensores, o impacto sobre os equipamentos seguintes e o risco operacional associado. A ideia não é olhar um único valor de forma isolada, e sim entender a cadeia de causa e efeito dentro do tratamento.</p>`;
+            if(info.acoes) {
+                const listaAcoes = Object.keys(info.acoes).map(a => `<li><strong>${a}</strong>: procedimento disponível neste treinamento.</li>`).join('');
+                htmlCorpo += `<p><strong>Procedimentos relacionados neste bloco:</strong></p><ul style="margin-top:6px; padding-left: 20px;">${listaAcoes}</ul>`;
+            }
+            if(info.cascata) htmlCorpo += `<div class="modal-efeito">${info.cascata}</div>`;
+            htmlCorpo += `<p style="margin-top:15px; color:#93c5fd;"><strong>Leitura didática:</strong> Use esta janela para conectar o equipamento à segurança do paciente, à proteção dos componentes seguintes e à lógica de intertravamentos do sistema.</p>`;
+            
+            if(el && el.classList.contains('alerta')) {
+                htmlCorpo += `<p style="color: var(--danger); margin-top: 15px;"><strong>⚠️ DIAGNÓSTICO ATUAL:</strong> O equipamento está em falha! Observe os sensores piscando em vermelho. Utilize o Painel de Operação para aplicar uma ação corretiva.</p>`;
+            }
+
+            modalCorpo.innerHTML = htmlCorpo;
+            modalBotoes.innerHTML = `<button class="btn-cancelar" onclick="fecharModal()">Entendi</button>`;
+            
+            modalBase.style.display = 'flex';
+            montarPainelOp(id);
+        }
+
+        function montarPainelOp(id) {
+            const acoesDiv = document.getElementById('op-acoes');
+            acoesDiv.style.display = 'block'; acoesDiv.innerHTML = '';
+            document.getElementById('op-desc').innerText = "Escolha um procedimento de manutenção abaixo:";
+
+            const info = biblioteca[id];
+            if(!info) return;
+
+            const criarBtn = (txt, fn, styleClass = '') => {
+                const b = document.createElement('button');
+                b.className = `btn-acao ${styleClass}`; b.innerText = txt; 
+                b.onclick = () => iniciarAcaoModal(id, txt, fn);
+                acoesDiv.appendChild(b);
+            };
+
+            switch(id) {
+                case 'multimidia': 
+                    criarBtn("Comando: Retrolavagem (Backwash)", () => { state.multimidia.dp = 0.1; }, 'destaque');
+                    criarBtn("Enxágue Pós-Retrolavagem", () => { state.multimidia.dp = Math.max(0.08, state.multimidia.dp - 0.05); addLog("Filtro de areia em enxágue para descarte.", "info"); });
+                    criarBtn("Inspeção do Coletor Superior", () => { addLog("Inspeção mecânica do coletor/crepinas registrada.", "info"); });
+                    break;
+                case 'abrandador': 
+                    criarBtn("Repor Salmoura (NaCl)", () => { state.abrandador.sal = 100; });
+                    criarBtn("Comando: Forçar Regeneração", () => { if(state.abrandador.sal > 10) state.abrandador.dureza = 1.0; else addLog("Falta sal para regenerar.", "warn"); }, 'destaque'); break;
+                case 'carvao': criarBtn("Substituir Leito Filtrante", () => { state.carvao.sat = 0; state.carvao.cloro = 0.01; }, 'destaque'); break;
+                case 'microfiltro': criarBtn("Substituir Elemento Filtrante", () => { state.microfiltro.dp = 0.15; }, 'destaque'); break;
+                case 'bomba': 
+                    if(!state.running) criarBtn("Reset de Segurança / Rearmar Painel", rearmar, 'success');
+                    else { const btn = document.createElement('button'); btn.className='btn-acao'; btn.innerText="Status: Em Controle Automático (PID)"; btn.disabled=true; acoesDiv.appendChild(btn); }
+                    break;
+                case 'osmose': 
+                    criarBtn("Executar CIP (Limpeza Química)", () => { state.osmose.integridade = Math.min(100, state.osmose.integridade + 10); });
+                    criarBtn("Substituição de Membranas", () => { state.osmose.integridade = 100; state.osmose.cond = 1.5; }, 'destaque'); break;
+                case 'uv': criarBtn("Substituir Lâmpada e Limpar Quartzo", () => { state.uv.vida = 8500; state.uv.queimada = false; state.uv.intensidade = 100; }, 'destaque'); break;
+                case 'loop': 
+                    criarBtn("Adicionar +5 Máquinas", () => { state.loop.maquinas = Math.min(40, state.loop.maquinas + 5); addLog("Demanda aumentada no salão.", "info"); }, 'destaque');
+                    criarBtn("Remover -5 Máquinas", () => { state.loop.maquinas = Math.max(0, state.loop.maquinas - 5); addLog("Demanda reduzida no salão.", "info"); });
+                    criarBtn("Inspecionar Retorno do Loop", () => { addLog("Inspeção do retorno do loop executada.", "info"); });
+                    criarBtn("Executar Sanitização do Loop", () => { addLog("Sanitização programada do loop registrada no sistema.", "info"); }, 'destaque');
+                    break;
+            }
+        }
+
+        function iniciarAcaoModal(id, acaoNome, acaoFn) {
+            const info = biblioteca[id];
+            modalTitulo.innerText = "🛠️ Confirmar Procedimento";
+            
+            let exp = "Você está alterando um parâmetro físico da simulação.";
+            if(info.acoes && info.acoes[acaoNome]) exp = info.acoes[acaoNome];
+
+            modalCorpo.innerHTML = `<p style="font-size: 1.1rem; color: #fff;">Ação selecionada: <strong>${acaoNome}</strong></p><p>${exp}</p>`;
+            
+            modalBotoes.innerHTML = `
+                <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+                <button class="btn-confirmar" id="btn-exec-modal">Executar Ação</button>
+            `;
+            
+            document.getElementById('btn-exec-modal').onclick = () => {
+                fecharModal();
+                acaoFn();
+                addLog(`Operador executou procedimento: ${acaoNome}`, "info");
+                if(lastSelectedId) montarPainelOp(lastSelectedId);
+            };
+            modalBase.style.display = 'flex';
+        }
+
+        function rearmar() {
+            let p_sucao_esperada = state.p_rede - state.multimidia.dp - state.microfiltro.dp;
+            if (p_sucao_esperada < 0.6) return addLog(`REARME BLOQUEADO (Efeito Cascata): A pressão antes da bomba está em ${p_sucao_esperada.toFixed(1)}B. Os filtros atrás dela devem estar entupidos!`, "err");
+            if (state.uv.queimada) return addLog("REARME BLOQUEADO: Esterilizador UV Inoperante (A norma RDC-11 proíbe operar sem UV).", "err");
+            if (state.osmose.cond > 10.0) return addLog("REARME BLOQUEADO: A Condutividade está péssima. Troque as membranas.", "err");
+            
+            state.running = true;
+            document.querySelectorAll('.tubo-container, .diag-top-line, .diag-return-line').forEach(t => t.classList.remove('parado'));
+            addLog("Sistema Rearmado. Iniciando rampa do inversor da Bomba...", "info");
+            
+            pararAlarmeETimer(); // Desliga o som e o cronômetro
+            montarPainelOp('bomba');
+        }
+
+        function injetarFalha(tipo) {
+            const msgs = {
+                'colmata_areia': () => { state.multimidia.dp += 0.8; return "Turbidez extrema na rede pública colmatou a areia subitamente."; },
+                'falta_sal': () => { state.abrandador.sal = 0; return "O tanque de sal esvaziou e ninguém viu."; },
+                'entope_micro': () => { state.microfiltro.dp += 0.6; return "Entupimento grave no microfiltro polidor."; },
+                'rompe_osmose': () => { state.osmose.integridade -= 15; return "Ruptura crítica inserida nas membranas de Osmose Reversa."; },
+                'queima_uv': () => { state.uv.vida = 0; state.uv.queimada = true; return "Curto-circuito ou fim da vida útil no reator UV-C."; }
+            };
+            if(msgs[tipo]) addLog(`[PROFESSOR/SISTEMA] EVENTO FÍSICO INJETADO: ${msgs[tipo]()}`, "warn");
+        }
+    </script>
+</body>
+</html>
