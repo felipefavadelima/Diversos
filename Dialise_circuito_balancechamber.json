@@ -20,7 +20,7 @@
       "rot": 0,
       "phase": 0,
       "isOpen": false,
-      "vol": 50,
+      "vol": 0,
       "fluidL": "spent",
       "fluidR": "spent"
     },
