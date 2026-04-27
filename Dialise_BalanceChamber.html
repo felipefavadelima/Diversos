@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sandbox Hemodiálise: Continuidade & Junções Mágicas</title>
+<title>Sandbox Hemodiálise: Circuito Hidráulico</title>
 <style>
   :root {
     --bg: #1a1a24; --panel: #252530; --border: #3b3b4d; --text: #f8f8f2;
@@ -92,6 +92,11 @@
   
   .instrucoes { background: rgba(0, 212, 255, 0.05); border-left: 4px solid var(--fresh); padding: 16px; margin: 20px; font-size: 13px; line-height: 1.6; color: #ccc; border-radius: 0 8px 8px 0; }
   .instrucoes b { color: var(--fresh); }
+  .metric-panel { background: rgba(0,0,0,0.22); border: 1px solid var(--border); border-radius: 10px; margin: 10px 20px 16px; padding: 12px; font-size: 12px; color: #d6d6e2; }
+  .metric-line { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .metric-line:last-child { border-bottom: none; }
+  .metric-value { color: #fff; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .node small { display: block; font-size: 10px; line-height: 1.1; opacity: 0.78; font-weight: 700; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -118,7 +123,8 @@
     <b>Junções Automáticas:</b><br>
     - Clique em um cano existente para puxar uma ramificação.<br>
     - Arraste um cano e solte sobre outro para uní-los.<br>
-    - Apague uma via e a junção some sozinha!
+    - Apague uma via e a junção some sozinha!<br><br>
+    <b>Controle:</b> fonte e dreno são referência de 0 atm. Dê duplo clique na bomba para ajustar a pressão. Clique em um componente e use Delete para apagar; Ctrl+Z e Ctrl+Y desfazem/refazem.
   </div>
 </div>
 
@@ -135,7 +141,16 @@
       <button id="btn-p1" class="phase-btn active">Fase 1</button>
       <button id="btn-p2" class="phase-btn">Fase 2</button>
     </div>
+    <button id="btn-auto" class="phase-btn">Auto: desligado</button>
     <button class="invert-btn" onclick="invertChambers()">🔄 Inverter Câmaras</button>
+  </div>
+
+  <div class="dz-title">Indicadores do circuito</div>
+  <div class="metric-panel">
+    <div class="metric-line"><span>Fonte → circuito</span><span class="metric-value"><span id="source-total-ml">0</span> mL</span></div>
+    <div class="metric-line"><span>Circuito → dreno</span><span class="metric-value"><span id="drain-total-ml">0</span> mL</span></div>
+    <div class="metric-line"><span>Referência</span><span class="metric-value">Fonte/Dreno = 0 atm</span></div>
+    <button class="action-btn" style="width:100%; margin-top:8px;" onclick="resetVolumeCounters()">Zerar volumes</button>
   </div>
   
   <div class="dz-title">Válvulas Fase 1</div>
@@ -150,12 +165,18 @@
 
 <script>
 let nodes = {}; let links = {}; let activePhase = 1; let vCount = 1;
-let pressurePipes = {}; let flowPipes = {};     
+let pressurePipes = {}; let flowPipes = {}; let pipePressureValues = {}; let pipeFlowRates = {};
+let totalSourceMl = 0; let totalDrainMl = 0; let lastPhysicsTime = performance.now();
+const DEFAULT_CHAMBER_VOLUME_ML = 50; const NOMINAL_FLOW_AT_120_ML_MIN = 300;     
+const ALLOWED_NODE_TYPES = new Set(['source', 'drain', 'pump', 'valve', 'dialyzer', 'chamber', 'joint']);
 const GRID = 20; const snap = (v) => Math.round(v / GRID) * GRID;
 
 let scale = 1, panX = 0, panY = 0;
 let isPanning = false, startPanX = 0, startPanY = 0;
 let draggingNode = null;
+let selectedNodeId = null, selectedLinkId = null;
+let historyStack = [], redoStack = [];
+let isRestoringHistory = false, historyReady = false;
 
 const container = document.getElementById('canvas-container');
 const workspace = document.getElementById('workspace');
@@ -166,6 +187,164 @@ function updateWorkspace() {
   container.style.backgroundPosition = `${panX}px ${panY}px`;
   container.style.backgroundSize = `${GRID * scale}px ${GRID * scale}px`;
 }
+
+
+function selectNode(id) {
+  selectedNodeId = id;
+  selectedLinkId = null;
+}
+
+function selectLink(id) {
+  selectedLinkId = id;
+  selectedNodeId = null;
+}
+
+function getValvePhaseForSave(n) {
+  if (!n || n.type !== 'valve') return 0;
+  const pill = document.getElementById(`pill-${n.id}`);
+  if (!pill || !pill.parentElement) return 0;
+  if (pill.parentElement.id === 'dz-1') return 1;
+  if (pill.parentElement.id === 'dz-2') return 2;
+  return 0;
+}
+
+function serializeCircuitState() {
+  return {
+    activePhase,
+    vCount,
+    totalSourceMl,
+    totalDrainMl,
+    nodes: Object.values(nodes).map(n => ({
+      id: n.id,
+      type: n.type,
+      x: n.x,
+      y: n.y,
+      rot: n.rot,
+      isOpen: !!n.isOpen,
+      vol: Number.isFinite(n.vol) ? n.vol : 50,
+      capacityMl: Number.isFinite(n.capacityMl) ? n.capacityMl : DEFAULT_CHAMBER_VOLUME_ML,
+      fluidL: n.fluidL || 'none',
+      fluidR: n.fluidR || 'none',
+      pressure: Number.isFinite(n.pressure) ? n.pressure : 0,
+      phase: getValvePhaseForSave(n)
+    })).sort((a, b) => a.id.localeCompare(b.id)),
+    links: Object.values(links).map(l => ({
+      n1: l.n1,
+      p1: l.p1,
+      n2: l.n2,
+      p2: l.p2,
+      points: cleanPointList(l.points)
+    })).sort((a, b) => `${a.n1}:${a.p1}:${a.n2}:${a.p2}`.localeCompare(`${b.n1}:${b.p1}:${b.n2}:${b.p2}`))
+  };
+}
+
+function clearCircuitDom() {
+  Object.keys(links).forEach(id => deleteLinkElement(id));
+  links = {};
+  Object.values(nodes).forEach(n => {
+    document.getElementById(`pill-${n.id}`)?.remove();
+    n.el?.remove();
+  });
+  nodes = {};
+  pressurePipes = {}; flowPipes = {}; pipePressureValues = {}; pipeFlowRates = {};
+  selectedNodeId = null; selectedLinkId = null;
+}
+
+function restoreCircuitState(state) {
+  isRestoringHistory = true;
+  cancelWiring();
+  clearCircuitDom();
+
+  activePhase = state.activePhase || 1;
+  vCount = state.vCount || 1;
+  totalSourceMl = Number.isFinite(state.totalSourceMl) ? state.totalSourceMl : 0;
+  totalDrainMl = Number.isFinite(state.totalDrainMl) ? state.totalDrainMl : 0;
+
+  (state.nodes || []).forEach(n => {
+    const node = new Node(n.id, n.type, n.x, n.y, n.rot || 0);
+    node.isOpen = !!n.isOpen;
+    node.vol = Number.isFinite(n.vol) ? n.vol : 50;
+    node.capacityMl = Number.isFinite(n.capacityMl) ? Math.max(1, n.capacityMl) : DEFAULT_CHAMBER_VOLUME_ML;
+    node.fluidL = n.fluidL || 'none';
+    node.fluidR = n.fluidR || 'none';
+    node.pressure = Number.isFinite(n.pressure) ? Math.max(0, n.pressure) : (n.type === 'pump' ? 120 : 0);
+    updateNodeReadout(node);
+    if (n.type === 'valve') {
+      const pill = document.getElementById(`pill-${n.id}`);
+      const dz = document.getElementById(`dz-${n.phase || 0}`);
+      if (pill && dz) dz.appendChild(pill);
+      const num = parseInt(String(n.id).replace('V',''));
+      if (!isNaN(num) && num >= vCount) vCount = num + 1;
+    }
+  });
+
+  (state.links || []).forEach(l => createLinkBetween(l.n1, l.p1, l.n2, l.p2, l.points));
+
+  document.getElementById('btn-p1').classList.toggle('active', activePhase === 1);
+  document.getElementById('btn-p2').classList.toggle('active', activePhase === 2);
+  applyPhaseLogic();
+  updateAllVisuals();
+  updateVolumeCounters();
+  drawPipes();
+  isRestoringHistory = false;
+}
+
+function commitHistory() {
+  if (!historyReady || isRestoringHistory) return;
+  const snap = JSON.stringify(serializeCircuitState());
+  if (historyStack[historyStack.length - 1] === snap) return;
+  historyStack.push(snap);
+  if (historyStack.length > 100) historyStack.shift();
+  redoStack = [];
+}
+
+function undoCircuit() {
+  if (historyStack.length <= 1) return;
+  const current = historyStack.pop();
+  redoStack.push(current);
+  restoreCircuitState(JSON.parse(historyStack[historyStack.length - 1]));
+}
+
+function redoCircuit() {
+  if (!redoStack.length) return;
+  const snap = redoStack.pop();
+  historyStack.push(snap);
+  restoreCircuitState(JSON.parse(snap));
+}
+
+function deleteSelectedElement() {
+  if (selectedNodeId && nodes[selectedNodeId]) {
+    deleteNode(selectedNodeId);
+    selectedNodeId = null;
+    commitHistory();
+    return;
+  }
+  if (selectedLinkId && links[selectedLinkId]) {
+    deleteLink(selectedLinkId);
+    selectedLinkId = null;
+    commitHistory();
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && key === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) redoCircuit(); else undoCircuit();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && key === 'y') {
+    e.preventDefault();
+    redoCircuit();
+    return;
+  }
+  if (key === 'delete' || key === 'backspace') {
+    if (!isWiring) {
+      e.preventDefault();
+      deleteSelectedElement();
+    }
+  }
+});
 
 container.addEventListener('wheel', (e) => {
   e.preventDefault();
@@ -223,8 +402,13 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', (e) => {
-  isPanning = false; container.classList.remove('panning'); draggingNode = null;
-  
+  isPanning = false; container.classList.remove('panning');
+  const finishedDragNode = draggingNode;
+  if (finishedDragNode && (finishedDragNode.x !== finishedDragNode.dragStartX || finishedDragNode.y !== finishedDragNode.dragStartY)) commitHistory();
+  draggingNode = null;
+
+  if (ignoreNextMouseup) { ignoreNextMouseup = false; return; }
+
   // FINALIZAR AUTO-JUNÇÃO SOLTANDO NO CANO
   if (isWiring && e.target.classList.contains('pipe-hitbox')) {
     let linkId = e.target.id.replace('hit_', '');
@@ -238,6 +422,7 @@ window.addEventListener('mouseup', (e) => {
     
     createLinkBetween(wiringStart.n, wiringStart.p, jId, getFreePort(jId), [...wirePoints]);
     cancelWiring();
+    commitHistory();
   }
 });
 
@@ -335,22 +520,71 @@ function splitPipeAt(linkId, x, y) {
   return jId;
 }
 
+
+function isPumpType(type) { return type === 'pump'; }
+function signedNumber(v, digits = 0) {
+  let n = Number(v) || 0;
+  return `${n >= 0 ? '+' : ''}${n.toFixed(digits)}`;
+}
+function pumpFlowRateMlMin(pump) {
+  let dp = Math.abs(Number(pump.pressure) || 0);
+  if (dp < 1) return 0;
+  return Math.max(10, Math.min(1200, NOMINAL_FLOW_AT_120_ML_MIN * dp / 120));
+}
+function setPumpPressure(node) {
+  if (!node || !isPumpType(node.type)) return;
+  const current = Number.isFinite(node.pressure) ? node.pressure : 120;
+  const txt = prompt("Defina a pressão da bomba em mmHg acima da referência 0 atm.\nUse valores entre 0 e 500.", current);
+  if (txt === null) return;
+  const value = Number(String(txt).replace(',', '.'));
+  if (!Number.isFinite(value)) { alert("Valor inválido."); return; }
+  node.pressure = Math.max(0, Math.min(500, value));
+  updateNodeReadout(node);
+  commitHistory();
+}
+
+function chamberCapacityMl(node) {
+  return Math.max(1, Number.isFinite(node?.capacityMl) ? node.capacityMl : DEFAULT_CHAMBER_VOLUME_ML);
+}
+
+function chamberStepPct(node, stepMl) {
+  return Math.max(0.02, Math.min(8, 100 * Math.max(0, stepMl || 0) / chamberCapacityMl(node)));
+}
+
+function setChamberVolume(node) {
+  if (!node || node.type !== 'chamber') return;
+  const current = chamberCapacityMl(node);
+  const txt = prompt("Defina o volume total da câmara em mL.\nSugestão didática inicial: 50 mL.", current);
+  if (txt === null) return;
+  const value = Number(String(txt).replace(',', '.'));
+  if (!Number.isFinite(value) || value <= 0) { alert("Valor inválido."); return; }
+  node.capacityMl = Math.max(1, Math.min(5000, value));
+  updateNodeReadout(node);
+  commitHistory();
+}
+
+function isChamberAtLimit(node) {
+  return node && node.type === 'chamber' && (node.vol <= 0.2 || node.vol >= 99.8);
+}
+
 class Node {
   constructor(id, type, x, y, rot = 0) {
     this.id = id; this.type = type; this.x = snap(x); this.y = snap(y); this.rot = 0; 
-    this.ports = []; this.isOpen = false; this.vol = 50; this.fluidL = 'none'; this.fluidR = 'none';
+    this.ports = []; this.isOpen = false; this.vol = 50; this.capacityMl = DEFAULT_CHAMBER_VOLUME_ML; this.fluidL = 'none'; this.fluidR = 'none';
+    this.pressure = type === 'pump' ? 120 : 0;
     this.el = document.createElement('div'); this.buildDOM(); workspace.appendChild(this.el); nodes[id] = this;
     while(this.rot !== rot) this.rotate();
+    updateNodeReadout(this);
   }
 
   buildDOM() {
     this.el.className = `node ${this.type}`; this.el.id = this.id;
     this.el.style.left = `${this.x}px`; this.el.style.top = `${this.y}px`;
     let html = '', innerText = '';
-    
+
     if (this.type === 'chamber') {
       html = `<div class="inner-content">
-                <div>${this.id === 'chamA' ? 'Câmara A' : 'Câmara B'}</div>
+                <div id="title-${this.id}">${this.id === 'chamA' ? 'Câmara A' : 'Câmara B'} · ${this.capacityMl.toFixed(0)} mL</div>
                 <div class="chamber-visual">
                   <div class="vol-l fill-${this.fluidL}" id="l-${this.id}" style="width:${this.vol}%"></div>
                   <div class="vol-r fill-${this.fluidR}" id="r-${this.id}" style="width:${100-this.vol}%"></div>
@@ -359,12 +593,33 @@ class Node {
               </div>`;
       this.ports = ['L', 'R']; 
     } else {
-      if (this.type === 'valve') { innerText = `🔴 ${this.id}`; this.ports = ['IN', 'OUT']; this.el.onclick = (e) => { if(!e.target.classList.contains('port') && !isWiring){ this.isOpen = !this.isOpen; updateAllVisuals(); }}; createPill(this.id); } 
-      else if (this.type === 'pump') { innerText = `⚙️ Bomba`; this.ports = ['IN', 'OUT']; } 
-      else if (this.type === 'dialyzer') { innerText = `🩸 Dialisador`; this.ports = ['IN', 'OUT']; } 
-      else if (this.type === 'source') { innerText = `💧 Fonte`; this.ports = ['OUT']; } 
-      else if (this.type === 'drain') { innerText = `🗑️ Dreno`; this.ports = ['IN']; } 
-      else if (this.type === 'joint') { innerText = ``; this.ports = ['P1', 'P2', 'P3', 'P4']; }
+      if (this.type === 'valve') {
+        innerText = `🔴 ${this.id}`;
+        this.ports = ['IN', 'OUT'];
+        this.el.onclick = (e) => {
+          if(!e.target.classList.contains('port') && !isWiring){
+            this.isOpen = !this.isOpen;
+            updateAllVisuals();
+            commitHistory();
+          }
+        };
+        createPill(this.id);
+      } else if (this.type === 'pump') {
+        innerText = `⚙️ Bomba<br><small>ΔP ${signedNumber(this.pressure)} mmHg</small>`;
+        this.ports = ['IN', 'OUT'];
+      } else if (this.type === 'dialyzer') {
+        innerText = `🩸 Dialisador`;
+        this.ports = ['IN', 'OUT'];
+      } else if (this.type === 'source') {
+        innerText = `💧 Fonte<br><small>0 atm</small>`;
+        this.ports = ['OUT'];
+      } else if (this.type === 'drain') {
+        innerText = `🗑️ Dreno<br><small>0 atm</small>`;
+        this.ports = ['IN'];
+      } else if (this.type === 'joint') {
+        innerText = ``;
+        this.ports = ['P1', 'P2', 'P3', 'P4'];
+      }
       html = `<div class="inner-content" id="inner-${this.id}">${innerText}</div>`;
     }
 
@@ -379,12 +634,26 @@ class Node {
     if (this.type !== 'joint') {
       this.el.onmousedown = (e) => { 
         if(!e.target.classList.contains('port') && e.button === 0 && !e.altKey && !isWiring) {
+          selectNode(this.id);
           draggingNode = this; let wp = getWorkspacePos(e.clientX, e.clientY);
+          this.dragStartX = this.x; this.dragStartY = this.y;
           this.dragOffsetX = wp.x - this.x; this.dragOffsetY = wp.y - this.y;
         }
       };
-      this.el.ondblclick = () => { if(!isWiring) deleteNode(this.id); };
-      this.el.oncontextmenu = (e) => { if(!isWiring && this.type !== 'chamber') { e.preventDefault(); this.rotate(); }};
+      this.el.ondblclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isWiring) return;
+        if (this.type === 'chamber' && !(e.ctrlKey || e.metaKey || e.shiftKey)) {
+          setChamberVolume(this);
+        } else if (isPumpType(this.type) && !(e.ctrlKey || e.metaKey || e.shiftKey)) {
+          setPumpPressure(this);
+        } else {
+          deleteNode(this.id);
+          commitHistory();
+        }
+      };
+      this.el.oncontextmenu = (e) => { if(!isWiring && this.type !== 'chamber') { e.preventDefault(); this.rotate(); commitHistory(); }};
     } else if (this.type === 'joint') {
       // Joint invisivel, não tem interação de mouse. Destruida automaticamente
     }
@@ -394,6 +663,20 @@ class Node {
     let inner = document.getElementById(`inner-${this.id}`); if(inner) inner.style.transform = `rotate(-${this.rot}deg)`;
     requestAnimationFrame(() => drawPipes());
   }
+}
+
+function updateNodeReadout(n) {
+  if (!n) return;
+  const inner = document.getElementById(`inner-${n.id}`);
+  if (n.type === 'chamber') {
+    const title = document.getElementById(`title-${n.id}`);
+    if (title) title.textContent = `${n.id === 'chamA' ? 'Câmara A' : 'Câmara B'} · ${chamberCapacityMl(n).toFixed(0)} mL`;
+    return;
+  }
+  if (!inner) return;
+  if (n.type === 'pump') inner.innerHTML = `⚙️ Bomba<br><small>ΔP ${signedNumber(n.pressure)} mmHg</small>`;
+  if (n.type === 'source') inner.innerHTML = `💧 Fonte<br><small>0 atm</small>`;
+  if (n.type === 'drain') inner.innerHTML = `🗑️ Dreno<br><small>0 atm</small>`;
 }
 
 let isWiring = false, wiringStart = null, wirePoints = [];
@@ -414,7 +697,7 @@ function startWire(e, n, p) {
     if (Math.abs(pB.x - last.x) > 5 && Math.abs(pB.y - last.y) > 5) {
       if (Math.abs(pB.x - last.x) > Math.abs(pB.y - last.y)) wirePoints.push({x: pB.x, y: last.y}); else wirePoints.push({x: last.x, y: pB.y});
     }
-    wirePoints.push(pB); createLinkBetween(wiringStart.n, wiringStart.p, n, p, [...wirePoints]); cancelWiring();
+    wirePoints.push(pB); createLinkBetween(wiringStart.n, wiringStart.p, n, p, [...wirePoints]); cancelWiring(); commitHistory();
   }
 }
 
@@ -437,7 +720,7 @@ function createLinkBetween(n1, p1, n2, p2, points) {
   let id = `L_${Date.now()}_${Math.floor(Math.random()*1000)}`; links[id] = { id: id, n1: n1, p1: p1, n2: n2, p2: p2, points: points };
   
   let hit = document.createElementNS('http://www.w3.org/2000/svg', 'path'); hit.setAttribute('id', `hit_${id}`); hit.setAttribute('class', 'pipe-hitbox'); hit.setAttribute('fill', 'none'); 
-  hit.oncontextmenu = (ev) => { ev.preventDefault(); deleteLink(id); }; hit.ondblclick = () => deleteLink(id); 
+  hit.onmousedown = () => selectLink(id); hit.oncontextmenu = (ev) => { ev.preventDefault(); deleteLink(id); commitHistory(); }; hit.ondblclick = () => { deleteLink(id); commitHistory(); }; 
   let bg = document.createElementNS('http://www.w3.org/2000/svg', 'path'); bg.setAttribute('id', `bg_${id}`); bg.setAttribute('class', 'pipe-bg'); bg.setAttribute('fill', 'none');
   let fg = document.createElementNS('http://www.w3.org/2000/svg', 'path'); fg.setAttribute('id', `fg_${id}`); fg.setAttribute('class', 'pipe-flow'); fg.setAttribute('fill', 'none');
   
@@ -463,18 +746,27 @@ function drawPipes() {
 document.querySelectorAll('.drag-item').forEach(i => { i.ondragstart = e => e.dataTransfer.setData('type', i.dataset.type); });
 container.ondragover = e => e.preventDefault();
 container.ondrop = e => {
-  let type = e.dataTransfer.getData('type'); if(!type) return;
+  let type = e.dataTransfer.getData('type'); if(!type || !ALLOWED_NODE_TYPES.has(type)) return;
   let wp = getWorkspacePos(e.clientX, e.clientY);
   let id = type === 'valve' ? `V${vCount++}` : `${type}_${Date.now().toString().slice(-4)}`;
   new Node(id, type, snap(wp.x - 60), snap(wp.y - 20));
+  commitHistory();
 };
 
-function deleteNode(id) { Object.keys(links).forEach(k => { if(links[k].n1 === id || links[k].n2 === id) deleteLink(k) }); if(document.getElementById(`pill-${id}`)) document.getElementById(`pill-${id}`).remove(); nodes[id].el.remove(); delete nodes[id]; }
+function deleteNode(id) {
+  if (!nodes[id]) return;
+  Object.keys(links).forEach(k => { if(links[k].n1 === id || links[k].n2 === id) deleteLink(k) });
+  document.getElementById(`pill-${id}`)?.remove();
+  nodes[id].el.remove();
+  delete nodes[id];
+  if (selectedNodeId === id) selectedNodeId = null;
+}
 function deleteLink(id) { 
   if(document.getElementById(`hit_${id}`)) document.getElementById(`hit_${id}`).remove(); 
   if(document.getElementById(`bg_${id}`)) document.getElementById(`bg_${id}`).remove(); 
   if(document.getElementById(`fg_${id}`)) document.getElementById(`fg_${id}`).remove(); 
-  delete links[id]; 
+  delete links[id];
+  if (selectedLinkId === id) selectedLinkId = null;
   cleanupJoints(); // AUTO-LIMPEZA DAS JUNÇÕES
 }
 
@@ -531,7 +823,7 @@ function saveCircuit() {
     nodes: Object.values(nodes).map(n => {
       let phase = 0;
       if(n.type === 'valve') { const p = document.getElementById(`pill-${n.id}`); if(p && p.parentElement.id === 'dz-1') phase = 1; if(p && p.parentElement.id === 'dz-2') phase = 2; }
-      return { id: n.id, type: n.type, x: n.x, y: n.y, rot: n.rot, phase: phase };
+      return { id: n.id, type: n.type, x: n.x, y: n.y, rot: n.rot, phase: phase, pressure: Math.max(0, Number(n.pressure) || 0), vol: Number.isFinite(n.vol) ? n.vol : 50, capacityMl: Number.isFinite(n.capacityMl) ? n.capacityMl : DEFAULT_CHAMBER_VOLUME_ML, fluidL: n.fluidL || 'none', fluidR: n.fluidR || 'none' };
     }),
     links: Object.values(links).map(l => ({ n1: l.n1, p1: l.p1, n2: l.n2, p2: l.p2, points: l.points }))
   };
@@ -543,23 +835,90 @@ function loadCircuit(event) {
     try {
       const data = JSON.parse(e.target.result); Object.keys(nodes).forEach(id => deleteNode(id)); vCount = 1;
       data.nodes.forEach(n => {
+        if (!ALLOWED_NODE_TYPES.has(n.type)) return;
         let node = new Node(n.id, n.type, n.x, n.y, n.rot);
+        if (Number.isFinite(n.pressure)) { node.pressure = Math.max(0, n.pressure); }
+        if (Number.isFinite(n.vol)) node.vol = Math.max(0, Math.min(100, n.vol));
+        if (Number.isFinite(n.capacityMl)) node.capacityMl = Math.max(1, n.capacityMl);
+        if (n.fluidL) node.fluidL = n.fluidL;
+        if (n.fluidR) node.fluidR = n.fluidR;
+        updateNodeReadout(node);
         if (n.type === 'valve') { let pill = document.getElementById(`pill-${n.id}`); if (pill) document.getElementById(`dz-${n.phase}`).appendChild(pill); let num = parseInt(n.id.replace('V','')); if (!isNaN(num) && num >= vCount) vCount = num + 1; }
       });
-      data.links.forEach(l => createLinkBetween(l.n1, l.p1, l.n2, l.p2, l.points));
-      applyPhaseLogic(); scale = 1; panX = 0; panY = 0; updateWorkspace();
+      data.links.forEach(l => { if (nodes[l.n1] && nodes[l.n2]) createLinkBetween(l.n1, l.p1, l.n2, l.p2, l.points); });
+      applyPhaseLogic(); scale = 1; panX = 0; panY = 0; updateWorkspace(); commitHistory();
     } catch(err) { alert("Arquivo inválido."); }
   }; reader.readAsText(file); event.target.value = ''; 
 }
 
 let draggedPill = null;
 function createPill(id) { let pill = document.createElement('div'); pill.id = `pill-${id}`; pill.className = 'v-pill'; pill.draggable = true; pill.textContent = id; pill.ondragstart = () => draggedPill = pill; document.getElementById('dz-0').appendChild(pill); }
-document.querySelectorAll('.dropzone').forEach(dz => { dz.ondragover = e => e.preventDefault(); dz.ondrop = e => { e.preventDefault(); if(draggedPill) dz.appendChild(draggedPill); applyPhaseLogic(); }; });
-document.getElementById('btn-p1').onclick = () => { activePhase = 1; document.getElementById('btn-p1').classList.add('active'); document.getElementById('btn-p2').classList.remove('active'); applyPhaseLogic(); }
-document.getElementById('btn-p2').onclick = () => { activePhase = 2; document.getElementById('btn-p2').classList.add('active'); document.getElementById('btn-p1').classList.remove('active'); applyPhaseLogic(); }
-function invertChambers() { Object.values(nodes).forEach(n => { if (n.type === 'chamber') n.vol = 100 - n.vol; }); }
+document.querySelectorAll('.dropzone').forEach(dz => { dz.ondragover = e => e.preventDefault(); dz.ondrop = e => { e.preventDefault(); if(draggedPill) { dz.appendChild(draggedPill); applyPhaseLogic(); commitHistory(); } }; });
+let autoMode = false;
+let autoPhaseStartVolumes = {};
+let autoLastSwitchTime = 0;
+function captureAutoPhaseStart() {
+  autoPhaseStartVolumes = {};
+  Object.values(nodes).filter(n => n.type === 'chamber').forEach(n => { autoPhaseStartVolumes[n.id] = n.vol; });
+}
+function setActivePhase(phase, shouldCommit = false) {
+  activePhase = phase;
+  document.getElementById('btn-p1').classList.toggle('active', activePhase === 1);
+  document.getElementById('btn-p2').classList.toggle('active', activePhase === 2);
+  applyPhaseLogic();
+  captureAutoPhaseStart();
+  if (shouldCommit) commitHistory();
+}
+document.getElementById('btn-p1').onclick = () => setActivePhase(1, true);
+document.getElementById('btn-p2').onclick = () => setActivePhase(2, true);
+document.getElementById('btn-auto').onclick = () => {
+  const btn = document.getElementById('btn-auto');
+  autoMode = !autoMode;
+  if (autoMode) {
+    btn.textContent = 'Auto: ligado';
+    btn.classList.add('active');
+    captureAutoPhaseStart();
+    autoLastSwitchTime = performance.now();
+  } else {
+    btn.textContent = 'Auto: desligado';
+    btn.classList.remove('active');
+  }
+};
+
+function shouldAutoAdvancePhase(now, hadFlow) {
+  if (!autoMode || !hadFlow) return false;
+  if (now - autoLastSwitchTime < 500) return false;
+  return Object.values(nodes).some(n => {
+    if (n.type !== 'chamber' || !isChamberAtLimit(n)) return false;
+    const start = Number.isFinite(autoPhaseStartVolumes[n.id]) ? autoPhaseStartVolumes[n.id] : n.vol;
+    return Math.abs(n.vol - start) > 2;
+  });
+}
+function resetVolumeCounters() {
+  totalSourceMl = 0;
+  totalDrainMl = 0;
+  updateVolumeCounters();
+  commitHistory();
+}
+function updateVolumeCounters() {
+  const sEl = document.getElementById('source-total-ml');
+  const dEl = document.getElementById('drain-total-ml');
+  if (sEl) sEl.textContent = totalSourceMl.toFixed(0);
+  if (dEl) dEl.textContent = totalDrainMl.toFixed(0);
+}
+function invertChambers() { Object.values(nodes).forEach(n => { if (n.type === 'chamber') n.vol = 100 - n.vol; }); captureAutoPhaseStart(); commitHistory(); }
 function applyPhaseLogic() { Object.values(nodes).filter(n => n.type === 'valve').forEach(v => { let pill = document.getElementById(`pill-${v.id}`); if (pill && pill.parentElement.id === `dz-${activePhase}`) v.isOpen = true; else if (pill && pill.parentElement.id !== 'dz-0') v.isOpen = false; }); updateAllVisuals(); }
-function updateAllVisuals() { Object.values(nodes).forEach(n => { if(n.type === 'valve') { n.el.classList.toggle('is-open', n.isOpen); let inner = document.getElementById(`inner-${n.id}`); if(inner) inner.innerHTML = `${n.isOpen ? '🟢' : '🔴'} ${n.id}`; }}); }
+function updateAllVisuals() {
+  Object.values(nodes).forEach(n => {
+    if(n.type === 'valve') {
+      n.el.classList.toggle('is-open', n.isOpen);
+      let inner = document.getElementById(`inner-${n.id}`);
+      if(inner) inner.innerHTML = `${n.isOpen ? '🟢' : '🔴'} ${n.id}`;
+    } else {
+      updateNodeReadout(n);
+    }
+  });
+}
 
 // ================= FÍSICA AVANÇADA (Continuidade OBRIGATÓRIA) =================
 
@@ -573,70 +932,103 @@ function getConnections(nodeId, portId = null) {
   return res;
 }
 
-// VALIDAÇÃO DE CONTINUIDADE (Retorna TRUE se chegar numa Fonte ou num Dreno)
+function nextPortsFor(node, pId) {
+  if (node.type === 'joint') return node.ports.filter(p => p !== pId);
+  if (node.ports.includes('IN') && node.ports.includes('OUT')) return [(pId === 'IN') ? 'OUT' : 'IN'];
+  return [];
+}
+
+function markPressure(linkId, fluid, pressure = 0) {
+  if (!linkId || !fluid || fluid === 'none') return;
+  pressurePipes[linkId] = fluid;
+  pipePressureValues[linkId] = Number.isFinite(pressure) ? pressure : 0;
+}
+
+function markFlow(linkId, fluid, dir, flowMlMin, pressure = 0) {
+  if (!linkId || !fluid || fluid === 'none') return;
+  flowPipes[linkId] = { fluid, dir };
+  pipeFlowRates[linkId] = Math.abs(flowMlMin || 0);
+  markPressure(linkId, fluid, pressure);
+}
+
+// VALIDAÇÃO DE CONTINUIDADE (Retorna TRUE se chega a uma origem para puxar ou a um destino para empurrar)
 function checkContinuity(nId, pId, dir, visited) {
-  let state = nId + ':' + pId; if(visited.has(state)) return false; visited.add(state);
+  let state = nId + ':' + pId + ':' + dir; if(visited.has(state)) return false; visited.add(state);
   let node = nodes[nId]; if(!node) return false;
-  
-  if(dir === 'backward') { if(node.type === 'source' || (node.type === 'dialyzer' && pId === 'OUT')) return true; } 
-  else {
+
+  if(dir === 'backward') {
+    if(node.type === 'source' || (node.type === 'dialyzer' && pId === 'OUT')) return true;
+  } else {
     if(node.type === 'drain') return true;
     if(node.type === 'dialyzer' && pId === 'IN') {
       return getConnections(nId, 'OUT').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
     }
   }
-  
+
   if (node.type === 'chamber') {
       if(dir === 'backward') {
-          if(pId === 'L' && node.vol > 0) return getConnections(nId, 'R').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
-          if(pId === 'R' && node.vol < 100) return getConnections(nId, 'L').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+          if(pId === 'L' && node.vol > 0.2) return getConnections(nId, 'R').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+          if(pId === 'R' && node.vol < 99.8) return getConnections(nId, 'L').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
       } else {
-          if(pId === 'L' && node.vol < 100) return getConnections(nId, 'R').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
-          if(pId === 'R' && node.vol > 0) return getConnections(nId, 'L').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+          if(pId === 'L' && node.vol < 99.8) return getConnections(nId, 'R').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
+          if(pId === 'R' && node.vol > 0.2) return getConnections(nId, 'L').some(c => checkContinuity(c.n, c.p, dir, new Set(visited)));
       }
       return false;
   }
-  
+
   if (node.type === 'valve' && !node.isOpen) return false;
-  if (node.type === 'pump') return false;
-  
-  let nextPorts = (node.type === 'joint') ? node.ports.filter(p => p !== pId) : [(pId === 'IN') ? 'OUT' : 'IN'];
-  return nextPorts.some(np => getConnections(nId, np).some(c => checkContinuity(c.n, c.p, dir, new Set(visited))));
+  if (isPumpType(node.type)) return false;
+
+  return nextPortsFor(node, pId).some(np => getConnections(nId, np).some(c => checkContinuity(c.n, c.p, dir, new Set(visited))));
 }
 
-function spreadPressure(nId, pId, fluid, visited) {
-  let state = nId + ":" + pId; if(visited.has(state)) return; visited.add(state);
+function spreadPressure(nId, pId, fluid, pressure, visited) {
+  let state = nId + ":" + pId + ":" + fluid; if(visited.has(state)) return; visited.add(state);
   let node = nodes[nId]; if(!node) return;
 
   if (node.type === 'chamber') { if (pId === 'L') node.fluidL = fluid; if (pId === 'R') node.fluidR = fluid; return; }
   if (node.type === 'valve' && !node.isOpen) return;
-  if (node.type === 'pump') return;
+  if (isPumpType(node.type)) return;
 
-  let nextPorts = (node.type === 'joint') ? node.ports.filter(p => p !== pId) : [(pId === 'IN') ? 'OUT' : 'IN'];
-  nextPorts.forEach(np => { getConnections(nId, np).forEach(c => { pressurePipes[c.link] = fluid; spreadPressure(c.n, c.p, fluid, visited); }); });
+  nextPortsFor(node, pId).forEach(np => {
+    getConnections(nId, np).forEach(c => {
+      markPressure(c.link, fluid, pressure);
+      spreadPressure(c.n, c.p, fluid, pressure, visited);
+    });
+  });
 }
 
-function executePull(nId, pId, visited, flowAcc) {
-  let state = nId + ":" + pId; if(visited.has(state)) return null; visited.add(state);
+function executePull(nId, pId, visited, flowAcc, stepMl) {
+  let state = nId + ":" + pId + ":pull"; if(visited.has(state)) return null; visited.add(state);
   let node = nodes[nId]; if(!node) return null;
 
   if (node.type === 'source') return 'fresh';
   if (node.type === 'dialyzer' && pId === 'OUT') return 'spent';
 
   if (node.type === 'chamber') {
-    if (pId === 'L' && node.vol > 0) {
+    if (pId === 'L' && node.vol > 0.2) {
       let found = null;
       getConnections(nId, 'R').forEach(c => {
-        let res = executePull(c.n, c.p, new Set(visited), flowAcc);
-        if (res && !found) { found = node.fluidL || 'none'; node.fluidR = res; node.vol -= 0.8; flowAcc.push({l: c.link, d: -c.dir, f: res}); }
+        let res = executePull(c.n, c.p, new Set(visited), flowAcc, stepMl);
+        if (res && !found) {
+          found = node.fluidL || 'none';
+          node.fluidR = res;
+          node.vol = Math.max(0, node.vol - chamberStepPct(node, stepMl));
+          flowAcc.push({l: c.link, d: -c.dir, f: res});
+        }
       });
       return found;
     }
-    if (pId === 'R' && node.vol < 100) {
+    if (pId === 'R' && node.vol < 99.8) {
       let found = null;
       getConnections(nId, 'L').forEach(c => {
-        let res = executePull(c.n, c.p, new Set(visited), flowAcc);
-        if (res && !found) { found = node.fluidR || 'none'; node.fluidL = res; node.vol += 0.8; flowAcc.push({l: c.link, d: -c.dir, f: res}); }
+        let res = executePull(c.n, c.p, new Set(visited), flowAcc, stepMl);
+        if (res && !found) {
+          found = node.fluidR || 'none';
+          node.fluidL = res;
+          node.vol = Math.min(100, node.vol + chamberStepPct(node, stepMl));
+          flowAcc.push({l: c.link, d: -c.dir, f: res});
+        }
       });
       return found;
     }
@@ -644,32 +1036,30 @@ function executePull(nId, pId, visited, flowAcc) {
   }
 
   if (node.type === 'valve' && !node.isOpen) return null;
-  if (node.type === 'pump') return null;
+  if (isPumpType(node.type)) return null;
 
-  let nextPorts = (node.type === 'joint') ? node.ports.filter(p => p !== pId) : [(pId === 'IN') ? 'OUT' : 'IN'];
   let found = null;
-  nextPorts.forEach(np => {
+  nextPortsFor(node, pId).forEach(np => {
     getConnections(nId, np).forEach(c => {
-      let res = executePull(c.n, c.p, new Set(visited), flowAcc);
+      let res = executePull(c.n, c.p, new Set(visited), flowAcc, stepMl);
       if (res && !found) { found = res; flowAcc.push({l: c.link, d: -c.dir, f: res}); }
     });
   });
   return found;
 }
 
-function executePush(nId, pId, fluid, visited, flowAcc) {
-  let state = nId + ":" + pId; if(visited.has(state)) return false; visited.add(state);
+function executePush(nId, pId, fluid, visited, flowAcc, stepMl) {
+  let state = nId + ":" + pId + ":push"; if(visited.has(state)) return false; visited.add(state);
   let node = nodes[nId]; if(!node) return false;
 
   if (node.type === 'drain') return true;
 
   // Dialisador: o líquido que entra em IN sai por OUT como líquido usado (laranja).
-  // Isso corrige a ausência de animação no ramo de saída do dialisador.
   if (node.type === 'dialyzer') {
     if (pId !== 'IN') return false;
     let success = false;
     getConnections(nId, 'OUT').forEach(c => {
-      if (executePush(c.n, c.p, 'spent', new Set(visited), flowAcc)) {
+      if (executePush(c.n, c.p, 'spent', new Set(visited), flowAcc, stepMl)) {
         success = true;
         flowAcc.push({l: c.link, d: c.dir, f: 'spent'});
       }
@@ -678,17 +1068,25 @@ function executePush(nId, pId, fluid, visited, flowAcc) {
   }
 
   if (node.type === 'chamber') {
-    if (pId === 'L' && node.vol < 100) {
+    if (pId === 'L' && node.vol < 99.8) {
       let outFluid = node.fluidR || 'none'; node.fluidL = fluid; let success = false;
       getConnections(nId, 'R').forEach(c => {
-        if (executePush(c.n, c.p, outFluid, new Set(visited), flowAcc)) { success = true; node.vol += 0.8; flowAcc.push({l: c.link, d: c.dir, f: outFluid}); }
+        if (executePush(c.n, c.p, outFluid, new Set(visited), flowAcc, stepMl)) {
+          success = true;
+          node.vol = Math.min(100, node.vol + chamberStepPct(node, stepMl));
+          flowAcc.push({l: c.link, d: c.dir, f: outFluid});
+        }
       });
       return success;
     }
-    if (pId === 'R' && node.vol > 0) {
+    if (pId === 'R' && node.vol > 0.2) {
       let outFluid = node.fluidL || 'none'; node.fluidR = fluid; let success = false;
       getConnections(nId, 'L').forEach(c => {
-        if (executePush(c.n, c.p, outFluid, new Set(visited), flowAcc)) { success = true; node.vol -= 0.8; flowAcc.push({l: c.link, d: c.dir, f: outFluid}); }
+        if (executePush(c.n, c.p, outFluid, new Set(visited), flowAcc, stepMl)) {
+          success = true;
+          node.vol = Math.max(0, node.vol - chamberStepPct(node, stepMl));
+          flowAcc.push({l: c.link, d: c.dir, f: outFluid});
+        }
       });
       return success;
     }
@@ -696,44 +1094,65 @@ function executePush(nId, pId, fluid, visited, flowAcc) {
   }
 
   if (node.type === 'valve' && !node.isOpen) return false;
-  if (node.type === 'pump') return false;
+  if (isPumpType(node.type)) return false;
 
-  let nextPorts = (node.type === 'joint') ? node.ports.filter(p => p !== pId) : [(pId === 'IN') ? 'OUT' : 'IN'];
   let success = false;
-  nextPorts.forEach(np => {
+  nextPortsFor(node, pId).forEach(np => {
     getConnections(nId, np).forEach(c => {
-      if (executePush(c.n, c.p, fluid, new Set(visited), flowAcc)) { success = true; flowAcc.push({l: c.link, d: c.dir, f: fluid}); }
+      if (executePush(c.n, c.p, fluid, new Set(visited), flowAcc, stepMl)) {
+        success = true;
+        flowAcc.push({l: c.link, d: c.dir, f: fluid});
+      }
     });
   });
   return success;
 }
 
-function runPhysics() {
-  pressurePipes = {}; flowPipes = {};
+function updateDynamicNodeReadouts() {
+  Object.values(nodes).forEach(n => {
+    if (isPumpType(n.type) || n.type === 'source' || n.type === 'drain') updateNodeReadout(n);
+  });
+}
+
+function runPhysics(t = performance.now()) {
+  let dt = Math.min(0.05, Math.max(0.001, (t - lastPhysicsTime) / 1000));
+  lastPhysicsTime = t;
+
+  pressurePipes = {}; flowPipes = {}; pipePressureValues = {}; pipeFlowRates = {};
 
   Object.values(nodes).forEach(n => {
-    if(n.type === 'source') getConnections(n.id, 'OUT').forEach(c => { pressurePipes[c.link] = 'fresh'; spreadPressure(c.n, c.p, 'fresh', new Set()); });
-    if(n.type === 'dialyzer') getConnections(n.id, 'OUT').forEach(c => { pressurePipes[c.link] = 'spent'; spreadPressure(c.n, c.p, 'spent', new Set()); });
+    if(n.type === 'source') getConnections(n.id, 'OUT').forEach(c => { markPressure(c.link, 'fresh', 0); spreadPressure(c.n, c.p, 'fresh', 0, new Set()); });
+    if(n.type === 'dialyzer') getConnections(n.id, 'OUT').forEach(c => { markPressure(c.link, 'spent', 0); spreadPressure(c.n, c.p, 'spent', 0, new Set()); });
   });
 
-  Object.values(nodes).filter(n => n.type === 'pump').forEach(pump => {
+  Object.values(nodes).filter(n => isPumpType(n.type)).forEach(pump => {
+    let rateMlMin = pumpFlowRateMlMin(pump);
+    if (rateMlMin <= 0) return;
+    let stepMl = rateMlMin * dt / 60;
     let inConns = getConnections(pump.id, 'IN');
     let outConns = getConnections(pump.id, 'OUT');
-    
+    let suctionPressure = 0;
+    let dischargePressure = Number(pump.pressure) || 0;
+
     inConns.forEach(inC => {
       outConns.forEach(outC => {
-        // Validação de Circuito Totalmente Fechado!
         let canPull = checkContinuity(inC.n, inC.p, 'backward', new Set());
         let canPush = checkContinuity(outC.n, outC.p, 'forward', new Set());
-        
+
         if (canPull && canPush) {
-          let pullFlows = []; let pulledFluid = executePull(inC.n, inC.p, new Set(), pullFlows);
+          let pullFlows = [];
+          let pulledFluid = executePull(inC.n, inC.p, new Set(), pullFlows, stepMl);
           if (pulledFluid) {
-             let pushFlows = []; executePush(outC.n, outC.p, pulledFluid, new Set(), pushFlows);
-             pullFlows.forEach(x => { flowPipes[x.l] = { fluid: x.f, dir: x.d }; pressurePipes[x.l] = x.f; });
-             pushFlows.forEach(x => { flowPipes[x.l] = { fluid: x.f, dir: x.d }; pressurePipes[x.l] = x.f; });
-             flowPipes[inC.link] = { fluid: pulledFluid, dir: -inC.dir }; pressurePipes[inC.link] = pulledFluid;
-             flowPipes[outC.link] = { fluid: pulledFluid, dir: outC.dir }; pressurePipes[outC.link] = pulledFluid;
+             let pushFlows = [];
+             let pushedToDrain = executePush(outC.n, outC.p, pulledFluid, new Set(), pushFlows, stepMl);
+             if (pushedToDrain) {
+               pullFlows.forEach(x => markFlow(x.l, x.f, x.d, rateMlMin, suctionPressure));
+               pushFlows.forEach(x => markFlow(x.l, x.f, x.d, rateMlMin, dischargePressure));
+               markFlow(inC.link, pulledFluid, -inC.dir, rateMlMin, suctionPressure);
+               markFlow(outC.link, pulledFluid, outC.dir, rateMlMin, dischargePressure);
+               if (pulledFluid === 'fresh') totalSourceMl += stepMl;
+               totalDrainMl += stepMl;
+             }
           }
         }
       });
@@ -742,13 +1161,21 @@ function runPhysics() {
 
   Object.values(nodes).filter(n => n.type === 'chamber').forEach(n => {
     let lEl = document.getElementById(`l-${n.id}`); let rEl = document.getElementById(`r-${n.id}`);
+    if (!lEl || !rEl) return;
     lEl.style.width = `${n.vol}%`; lEl.className = `vol-l fill-${n.fluidL}`;
     rEl.style.width = `${100-n.vol}%`; rEl.className = `vol-r fill-${n.fluidR}`;
     document.getElementById(`m-${n.id}`).style.left = `${n.vol}%`;
     let pL = document.querySelector(`.port[data-n="${n.id}"][data-p="L"]`); if(pL) pL.className = `port L port-fill-${n.fluidL}`;
     let pR = document.querySelector(`.port[data-n="${n.id}"][data-p="R"]`); if(pR) pR.className = `port R port-fill-${n.fluidR}`;
   });
-  
+
+  updateDynamicNodeReadouts();
+  updateVolumeCounters();
+  const hadFlowThisFrame = Object.keys(flowPipes).length > 0;
+  if (shouldAutoAdvancePhase(t, hadFlowThisFrame)) {
+    autoLastSwitchTime = t;
+    setActivePhase(activePhase === 1 ? 2 : 1, false);
+  }
   drawPipes(); 
   requestAnimationFrame(runPhysics);
 }
@@ -756,6 +1183,9 @@ function runPhysics() {
 new Node('chamA', 'chamber', 340, 160);
 new Node('chamB', 'chamber', 340, 420);
 updateWorkspace();
+captureAutoPhaseStart();
+historyReady = true;
+commitHistory();
 requestAnimationFrame(runPhysics);
 
 container.oncontextmenu = (e) => e.preventDefault();
