@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Motor de Passo (4 e 5 Fios)</title>
+    <style>
+        :root {
+            --bg: #1a1a24;
+            --panel-bg: #252533;
+            --vcc: #ff3333;
+            --gnd: #3388ff;
+            --coil-active: #ffaa00;
+            --wire-dim: #444;
+            --text: #e0e0e0;
+            --pole-n: #ff4444;
+            --pole-s: #4444ff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 { margin-top: 0; margin-bottom: 5px; text-align: center; }
+        .description { text-align: center; max-width: 800px; color: #aaa; margin-bottom: 20px; height: 40px; }
+
+        /* SELETOR DE ARQUITETURA */
+        .arch-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            background: #111;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .btn-arch {
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            background-color: #333;
+            color: white;
+            border: 2px solid #555;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-arch.active {
+            background-color: var(--coil-active);
+            color: #111;
+            border-color: var(--coil-active);
+            box-shadow: 0 0 15px rgba(255, 170, 0, 0.5);
+        }
+
+        .app-container {
+            display: flex;
+            gap: 30px;
+            background-color: var(--panel-bg);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .panel-title { text-align: center; margin-top: 0; color: #fff; border-bottom: 2px solid #444; padding-bottom: 10px; margin-bottom: 20px; }
+
+        /* --- DIAGRAMA ELÉTRICO --- */
+        .circuit-panel { width: 450px; display: flex; flex-direction: column; min-height: 300px; }
+        .circuit-mode { display: none; flex-direction: column; height: 100%; }
+        .circuit-mode.active { display: flex; }
+
+        /* Barras VCC/GND (Unipolares) */
+        .vcc-bar { height: 6px; background-color: var(--vcc); border-radius: 3px; position: relative; box-shadow: 0 0 10px var(--vcc); margin-bottom: 20px; }
+        .vcc-label { position: absolute; top: -22px; left: 5px; color: var(--vcc); font-size: 12px; font-weight: bold; }
+        
+        .gnd-bar { height: 6px; background-color: var(--gnd); border-radius: 3px; position: relative; margin-top: 20px; }
+        .gnd-label { position: absolute; bottom: -22px; right: 5px; color: var(--gnd); font-size: 12px; font-weight: bold; }
+
+        /* Branches Unipolares */
+        .branches { display: flex; justify-content: space-around; flex: 1; }
+        .branch { display: flex; flex-direction: column; align-items: center; width: 50px; }
+        .wire-top, .wire-mid, .wire-bot { width: 4px; background-color: var(--wire-dim); transition: 0.2s; }
+        .wire-top { height: 30px; background-color: var(--vcc); }
+        .wire-mid { height: 20px; }
+        .wire-bot { height: 30px; }
+
+        .inductor-symbol {
+            width: 30px; height: 50px; border: 3px solid var(--wire-dim); border-radius: 8px;
+            display: flex; justify-content: center; align-items: center; font-weight: bold; transition: 0.3s;
+            background: repeating-linear-gradient(0deg, transparent, transparent 5px, var(--wire-dim) 5px, var(--wire-dim) 8px);
+        }
+
+        .switch-container { width: 40px; height: 40px; position: relative; cursor: pointer; margin: 5px 0; }
+        .switch-contact { width: 8px; height: 8px; background-color: #888; border-radius: 50%; position: absolute; left: 16px; }
+        .contact-top { top: 0; } .contact-bot { bottom: 0; }
+        .switch-arm {
+            position: absolute; top: 4px; left: 18px; width: 4px; height: 32px; background-color: #bbb;
+            transform-origin: top center; transform: rotate(-45deg); transition: 0.2s ease-in-out; border-radius: 2px;
+        }
+
+        /* Ativação Unipolar */
+        .branch.active .inductor-symbol { border-color: var(--coil-active); color: #fff; text-shadow: 0 0 5px #fff; box-shadow: 0 0 15px var(--coil-active); background: repeating-linear-gradient(0deg, transparent, transparent 5px, var(--coil-active) 5px, var(--coil-active) 8px); }
+        .branch.active .wire-mid, .branch.active .wire-bot { background-color: var(--gnd); box-shadow: 0 0 8px var(--gnd); }
+        .branch.active .switch-arm { transform: rotate(0deg); background-color: var(--gnd); }
+
+        /* Circuito Bipolar (4 Fios) */
+        .bipolar-container { display: flex; justify-content: space-around; align-items: center; height: 100%; padding: 20px 0; }
+        .bipolar-coil { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 120px; }
+        .bipolar-wire { width: 40px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 12px; border-radius: 5px; background-color: var(--wire-dim); color: #fff; transition: 0.3s; border: 2px solid #222; cursor: pointer;}
+        .bipolar-inductor {
+            width: 40px; height: 80px; border: 3px solid var(--wire-dim); border-radius: 8px;
+            display: flex; justify-content: center; align-items: center; font-weight: bold; transition: 0.3s;
+            background: repeating-linear-gradient(0deg, transparent, transparent 6px, var(--wire-dim) 6px, var(--wire-dim) 10px);
+        }
+        
+        /* Cores de Polaridade Bipolar */
+        .wire-vcc { background-color: var(--vcc); box-shadow: 0 0 10px var(--vcc); }
+        .wire-gnd { background-color: var(--gnd); box-shadow: 0 0 10px var(--gnd); }
+        .bip-active-pos .bipolar-inductor { border-color: var(--pole-n); box-shadow: 0 0 15px var(--pole-n); background: repeating-linear-gradient(0deg, transparent, transparent 6px, var(--pole-n) 6px, var(--pole-n) 10px); }
+        .bip-active-neg .bipolar-inductor { border-color: var(--pole-s); box-shadow: 0 0 15px var(--pole-s); background: repeating-linear-gradient(0deg, transparent, transparent 6px, var(--pole-s) 6px, var(--pole-s) 10px); }
+
+        /* --- VISÃO MECÂNICA --- */
+        .mechanical-panel { width: 350px; display: flex; flex-direction: column; align-items: center; position: relative; }
+        .motor-stator { position: relative; width: 250px; height: 250px; border: 2px dashed #555; border-radius: 50%; margin-top: 30px; }
+        
+        .mech-coil {
+            position: absolute; width: 50px; height: 50px; background-color: #444; border-radius: 10px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; font-weight: bold; color: #aaa; transition: 0.3s;
+        }
+        .mech-label { font-size: 1.2rem; }
+        .mech-pol { font-size: 0.7rem; opacity: 0; transition: 0.3s;}
+
+        /* Ativação Mecânica Unipolar */
+        .mech-coil.active-uni { background-color: var(--coil-active); color: #fff; box-shadow: 0 0 20px var(--coil-active); transform: scale(1.1); }
+        .mech-coil.active-uni .mech-pol { opacity: 1; color: var(--pole-n); } 
+
+        /* Ativação Mecânica Bipolar */
+        .mech-coil.bip-n { background-color: var(--pole-n); color: #fff; box-shadow: 0 0 20px var(--pole-n); transform: scale(1.1); }
+        .mech-coil.bip-n .mech-pol { opacity: 1; content: "N"; }
+        .mech-coil.bip-s { background-color: var(--pole-s); color: #fff; box-shadow: 0 0 20px var(--pole-s); transform: scale(1.1); }
+        .mech-coil.bip-s .mech-pol { opacity: 1; content: "S"; }
+
+        .pos-top { top: -25px; left: 100px; }
+        .pos-right { top: 100px; right: -25px; }
+        .pos-bot { bottom: -25px; left: 100px; }
+        .pos-left { top: 100px; left: -25px; }
+
+        .rotor-container {
+            position: absolute; top: 50px; left: 50px; width: 150px; height: 150px;
+            display: flex; justify-content: center; align-items: center; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .rotor { width: 120px; height: 40px; display: flex; border-radius: 20px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .pole { flex: 1; display: flex; justify-content: center; align-items: center; font-weight: bold; color: white; }
+        .pole-s { background-color: var(--pole-s); } 
+        .pole-n { background-color: var(--pole-n); }
+        .rotor-center { position: absolute; width: 16px; height: 16px; background-color: #ddd; border-radius: 50%; border: 4px solid #222; }
+
+        /* --- CONTROLES GERAIS --- */
+        .controls { margin-top: 30px; display: flex; gap: 15px; }
+        .btn-auto {
+            padding: 15px 30px; font-size: 1.2rem; font-weight: bold; background-color: #28a745;
+            color: white; border: none; border-radius: 8px; cursor: pointer; text-transform: uppercase; transition: 0.3s;
+        }
+        .btn-auto:hover { background-color: #218838; }
+        .btn-auto.stop { background-color: #dc3545; }
+        .btn-auto.stop:hover { background-color: #c82333; }
+        .btn-step { padding: 15px 20px; font-size: 1rem; font-weight: bold; background-color: #555; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .btn-step:hover { background-color: #666; }
+
+    </style>
+</head>
+<body>
+
+    <h1>Motor de Passo: Bipolar vs Unipolar</h1>
+    <p class="description" id="desc-text"></p>
+
+    <div class="arch-selector">
+        <button class="btn-arch" onclick="setMode('5wire')" id="btn-5wire">Unipolar (5 Fios)</button>
+        <button class="btn-arch" onclick="setMode('4wire')" id="btn-4wire">Bipolar (4 Fios)</button>
+    </div>
+
+    <div class="app-container">
+        
+        <!-- PAINEL ELÉTRICO -->
+        <div class="circuit-panel">
+            <h2 class="panel-title">Diagrama Elétrico</h2>
+            
+            <!-- Modo 5 Fios Unipolar -->
+            <div id="circ-5wire" class="circuit-mode">
+                <div class="vcc-bar"><span class="vcc-label">1 Fio VCC Comum (+5V/+12V)</span></div>
+                <div class="branches" id="branches-5">
+                    <!-- Gerado via JS -->
+                </div>
+                <div class="gnd-bar"><span class="gnd-label">4 Fios de Controle para GND</span></div>
+            </div>
+
+            <!-- Modo 4 Fios Bipolar -->
+            <div id="circ-4wire" class="circuit-mode">
+                <p style="text-align: center; color: #aaa; margin: 0; font-size: 0.9em; padding-bottom: 20px;">
+                    A Ponte H inverte quem recebe VCC (+) e quem recebe GND (-) para mudar a polaridade magnética.
+                </p>
+                <div class="bipolar-container">
+                    <div class="bipolar-coil" id="bip-coil-1" onclick="manualStep()">
+                        <div class="bipolar-wire" id="wire-1a">Fio 1A</div>
+                        <div class="bipolar-inductor">Bob. 1</div>
+                        <div class="bipolar-wire" id="wire-1b">Fio 1B</div>
+                    </div>
+                    <div class="bipolar-coil" id="bip-coil-2" onclick="manualStep()">
+                        <div class="bipolar-wire" id="wire-2a">Fio 2A</div>
+                        <div class="bipolar-inductor">Bob. 2</div>
+                        <div class="bipolar-wire" id="wire-2b">Fio 2B</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- PAINEL MECÂNICO -->
+        <div class="mechanical-panel">
+            <h2 class="panel-title">Visão Mecânica</h2>
+            
+            <div class="motor-stator">
+                <div id="mech-0" class="mech-coil pos-top"><span class="mech-label">A</span><span class="mech-pol" id="pol-0">Norte</span></div>
+                <div id="mech-1" class="mech-coil pos-right"><span class="mech-label">B</span><span class="mech-pol" id="pol-1">Norte</span></div>
+                <div id="mech-2" class="mech-coil pos-bot"><span class="mech-label">C</span><span class="mech-pol" id="pol-2">Norte</span></div>
+                <div id="mech-3" class="mech-coil pos-left"><span class="mech-label">D</span><span class="mech-pol" id="pol-3">Norte</span></div>
+
+                <div class="rotor-container" id="rotor">
+                    <div class="rotor">
+                        <div class="pole pole-s">S</div>
+                        <div class="pole pole-n">N</div>
+                    </div>
+                    <div class="rotor-center"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="controls">
+        <button class="btn-step" onclick="manualStep()">Avançar 1 Passo</button>
+        <button class="btn-auto" id="btn-auto" onclick="toggleAuto()">Modo Automático</button>
+    </div>
+
+    <script>
+        // Lógica Global
+        let currentMode = '5wire';
+        let currentStep = -1;
+        let currentAngle = -90; // Começa apontando para cima
+        let autoTimer = null;
+        let isAuto = false;
+
+        // Textos descritivos
+        const descriptions = {
+            '5wire': "Unipolar: Modelo didático clássico. As 4 bobinas compartilham o mesmo fio VCC. O giro ocorre ligando uma chave ao GND por vez.",
+            '4wire': "Bipolar: Modelo de maior torque. Possui apenas 2 bobinas independentes. O circuito precisa inverter a polaridade da corrente dentro delas!"
+        };
+
+        // Geração de HTML para as chaves unipolares
+        function generateBranches(containerId, prefix) {
+            const container = document.getElementById(containerId);
+            const labels = ['A', 'B', 'C', 'D'];
+            let html = '';
+            for(let i=0; i<4; i++) {
+                html += `
+                <div class="branch" id="branch-${prefix}-${i}">
+                    <div class="wire-top"></div>
+                    <div class="inductor-symbol">${labels[i]}</div>
+                    <div class="wire-mid"></div>
+                    <div class="switch-container" onclick="manualStep()">
+                        <div class="switch-contact contact-top"></div>
+                        <div class="switch-arm"></div>
+                        <div class="switch-contact contact-bot"></div>
+                    </div>
+                    <div class="wire-bot"></div>
+                </div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        generateBranches('branches-5', '5w');
+
+        function setMode(mode) {
+            if(isAuto) toggleAuto(); // Para animação se estiver rodando
+            
+            currentMode = mode;
+            currentStep = -1;
+            
+            // UI Buttons
+            document.querySelectorAll('.btn-arch').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${mode}`).classList.add('active');
+            
+            // Description
+            document.getElementById('desc-text').textContent = descriptions[mode];
+
+            // Circuit Panels
+            document.querySelectorAll('.circuit-mode').forEach(p => p.classList.remove('active'));
+            document.getElementById(`circ-${mode}`).classList.add('active');
+
+            // Reset Mechanic labels
+            if(mode === '4wire') {
+                document.getElementById('mech-0').querySelector('.mech-label').textContent = 'Bob. 1';
+                document.getElementById('mech-2').querySelector('.mech-label').textContent = 'Bob. 1';
+                document.getElementById('mech-1').querySelector('.mech-label').textContent = 'Bob. 2';
+                document.getElementById('mech-3').querySelector('.mech-label').textContent = 'Bob. 2';
+            } else {
+                document.getElementById('mech-0').querySelector('.mech-label').textContent = 'A';
+                document.getElementById('mech-1').querySelector('.mech-label').textContent = 'B';
+                document.getElementById('mech-2').querySelector('.mech-label').textContent = 'C';
+                document.getElementById('mech-3').querySelector('.mech-label').textContent = 'D';
+            }
+
+            clearAllStates();
+        }
+
+        function clearAllStates() {
+            // Unipolar reset
+            for(let i=0; i<4; i++) {
+                let b5 = document.getElementById(`branch-5w-${i}`);
+                if(b5) b5.classList.remove('active');
+                
+                let mech = document.getElementById(`mech-${i}`);
+                mech.classList.remove('active-uni', 'bip-n', 'bip-s');
+                document.getElementById(`pol-${i}`).textContent = "Norte";
+            }
+            // Bipolar reset
+            document.getElementById('bip-coil-1').className = 'bipolar-coil';
+            document.getElementById('bip-coil-2').className = 'bipolar-coil';
+            document.querySelectorAll('.bipolar-wire').forEach(w => w.className = 'bipolar-wire');
+        }
+
+        function executeStep(step) {
+            clearAllStates();
+            
+            if(currentMode === '5wire') {
+                // Lógica Unipolar (Wave Drive simples)
+                document.getElementById(`branch-5w-${step}`).classList.add('active');
+                document.getElementById(`mech-${step}`).classList.add('active-uni');
+                rotateRotor(step);
+
+            } else if (currentMode === '4wire') {
+                // Lógica Bipolar (Wave Drive)
+                const c1 = document.getElementById('bip-coil-1');
+                const c2 = document.getElementById('bip-coil-2');
+                const w1a = document.getElementById('wire-1a'), w1b = document.getElementById('wire-1b');
+                const w2a = document.getElementById('wire-2a'), w2b = document.getElementById('wire-2b');
+                
+                const mechTop = document.getElementById('mech-0'), mechBot = document.getElementById('mech-2');
+                const mechRig = document.getElementById('mech-1'), mechLef = document.getElementById('mech-3');
+
+                if(step === 0) {
+                    c1.classList.add('bip-active-pos');
+                    w1a.classList.add('wire-vcc'); w1b.classList.add('wire-gnd');
+                    mechTop.classList.add('bip-n'); mechBot.classList.add('bip-s');
+                    document.getElementById('pol-0').textContent = "Norte"; document.getElementById('pol-2').textContent = "Sul";
+                } else if(step === 1) {
+                    c2.classList.add('bip-active-pos');
+                    w2a.classList.add('wire-vcc'); w2b.classList.add('wire-gnd');
+                    mechRig.classList.add('bip-n'); mechLef.classList.add('bip-s');
+                    document.getElementById('pol-1').textContent = "Norte"; document.getElementById('pol-3').textContent = "Sul";
+                } else if(step === 2) {
+                    c1.classList.add('bip-active-neg');
+                    w1a.classList.add('wire-gnd'); w1b.classList.add('wire-vcc');
+                    mechTop.classList.add('bip-s'); mechBot.classList.add('bip-n');
+                    document.getElementById('pol-0').textContent = "Sul"; document.getElementById('pol-2').textContent = "Norte";
+                } else if(step === 3) {
+                    c2.classList.add('bip-active-neg');
+                    w2a.classList.add('wire-gnd'); w2b.classList.add('wire-vcc');
+                    mechRig.classList.add('bip-s'); mechLef.classList.add('bip-n');
+                    document.getElementById('pol-1').textContent = "Sul"; document.getElementById('pol-3').textContent = "Norte";
+                }
+
+                rotateRotor(step);
+            }
+        }
+
+        function rotateRotor(stepIndex) {
+            const targetAngles = [-90, 0, 90, 180];
+            let target = targetAngles[stepIndex];
+            
+            let diff = target - (currentAngle % 360);
+            if (diff < -180) diff += 360;
+            if (diff > 180) diff -= 360;
+
+            currentAngle += diff;
+            document.getElementById('rotor').style.transform = `rotate(${currentAngle}deg)`;
+        }
+
+        function manualStep() {
+            if (isAuto) toggleAuto();
+            currentStep = (currentStep + 1) % 4;
+            executeStep(currentStep);
+        }
+
+        function toggleAuto() {
+            const btn = document.getElementById('btn-auto');
+            if (isAuto) {
+                clearInterval(autoTimer);
+                isAuto = false;
+                btn.textContent = "Modo Automático";
+                btn.classList.remove('stop');
+                clearAllStates();
+            } else {
+                isAuto = true;
+                btn.textContent = "Parar Motor";
+                btn.classList.add('stop');
+                
+                if(currentStep === -1) currentStep = 0;
+                executeStep(currentStep);
+                
+                autoTimer = setInterval(() => {
+                    currentStep = (currentStep + 1) % 4;
+                    executeStep(currentStep);
+                }, 1000); 
+            }
+        }
+
+        // Inicializa
+        setMode('5wire');
+        document.getElementById('rotor').style.transform = `rotate(${currentAngle}deg)`;
+
+    </script>
+</body>
+</html>
