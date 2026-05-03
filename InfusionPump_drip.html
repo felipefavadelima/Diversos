@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador IV Avançado - Preparo e Gotejamento</title>
+    <style>
+        :root {
+            --bg-color: #0a0a0b;
+            --panel-bg: #161618;
+            --text-main: #e4e4e7;
+            --accent: #06b6d4;
+            --alert: #ef4444;
+            --warning: #f59e0b;
+            --good: #10b981;
+            --chart-bg: #1f1f23;
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0; padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .container { display: flex; flex-wrap: wrap; gap: 15px; max-width: 1200px; width: 100%; justify-content: center; }
+        .panel { background: var(--panel-bg); padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #27272a; }
+        
+        /* Tela de Preparo */
+        #setup-screen { max-width: 600px; margin-top: 20px; }
+        .info-box { background: #1f1f23; padding: 15px; border-left: 4px solid var(--accent); border-radius: 4px; margin-bottom: 20px; font-size: 0.9em; line-height: 1.5; color: #a1a1aa; }
+        .info-box strong { color: var(--text-main); }
+        .input-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #000; padding: 10px 15px; border-radius: 8px; border: 1px solid #27272a; }
+        .input-group input { background: #27272a; border: 1px solid #3f3f46; color: white; padding: 8px; border-radius: 4px; width: 80px; text-align: right; font-size: 1.1em; }
+        .btn-start { width: 100%; background: var(--accent); color: #000; font-weight: bold; font-size: 1.2em; padding: 15px; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+        .btn-start:hover { background: #0891b2; color: white; }
+
+        /* Controles de Velocidade */
+        .speed-bar { display: flex; gap: 5px; margin-bottom: 15px; width: 100%; }
+        .speed-btn { flex: 1; background: #27272a; border: none; color: white; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.8em; transition: 0.2s; }
+        .speed-btn.active { background: var(--accent); font-weight: bold; color: black; }
+
+        /* Monitor */
+        .monitor { background: #000; padding: 15px; border-radius: 8px; border: 2px solid #27272a; }
+        .monitor-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .val-lg { font-size: 2.8em; font-weight: 800; font-family: monospace; }
+        
+        /* Gráficos */
+        .chart-container { margin-top: 15px; background: var(--chart-bg); border-radius: 6px; padding: 10px; position: relative; }
+        canvas { width: 100%; height: 100px; display: block; }
+        .chart-label { font-size: 0.75em; color: #a1a1aa; margin-bottom: 4px; display: flex; justify-content: space-between; }
+
+        /* IV UI */
+        .iv-visual { display: flex; flex-direction: column; align-items: center; padding: 10px; }
+        .bag { width: 80px; height: 110px; border: 2px solid #3f3f46; border-radius: 5px 5px 25px 25px; position: relative; overflow: hidden; background: #18181b; }
+        .liquid { position: absolute; bottom: 0; width: 100%; background: #0ea5e9; opacity: 0.6; transition: height 0.3s; }
+        .chamber { width: 24px; height: 50px; border: 2px solid #3f3f46; border-top: none; margin: 4px 0; position: relative; }
+        .drop { width: 6px; height: 9px; background: #0ea5e9; border-radius: 50%; position: absolute; left: 50%; transform: translateX(-50%); top: -10px; }
+        
+        input[type=range] { width: 100%; margin: 15px 0; accent-color: var(--accent); cursor: pointer; }
+        .status-tag { padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2 style="margin-bottom: 5px; text-align: center;">Simulador de Gotejamento: Noradrenalina IV</h2>
+
+    <!-- TELA DE PREPARO -->
+    <div id="setup-screen" class="panel">
+        <h3 style="margin-top: 0; color: var(--accent);">Fase 1: Preparo da Solução</h3>
+        
+        <div class="info-box">
+            <strong>Cenário Clínico:</strong> Paciente de 80 kg em Choque Séptico (PAM basal ~50 mmHg).<br><br>
+            <strong>Recomendação de Dose:</strong> A dose inicial recomendada de Noradrenalina é de <strong>0.05 a 0.1 mcg/kg/min</strong>.<br>
+            Para este paciente (80kg a 0.1 mcg/kg/min), o alvo inicial é aproximadamente <strong>8 mcg/min (480 mcg/hora)</strong>.<br><br>
+            <strong>Física do Equipo (Macro-gotas):</strong> 
+            Lembre-se que em um equipo padrão, <strong>1 mL = 20 gotas</strong>. <br>
+            A concentração que você preparar definirá quantos mL/hora (e consequentemente, quantas gotas por minuto) serão necessários.
+        </div>
+
+        <div class="input-group">
+            <div>
+                <strong>Soro Fisiológico 0.9%</strong><br>
+                <small style="color: #a1a1aa;">Volume base do diluente</small>
+            </div>
+            <div>
+                <input type="number" id="setup-sf" value="250" min="50" max="1000"> mL
+            </div>
+        </div>
+
+        <div class="input-group">
+            <div>
+                <strong>Noradrenalina (Ampolas)</strong><br>
+                <small style="color: #a1a1aa;">1 ampola = 4 mg / 4 mL</small>
+            </div>
+            <div>
+                <input type="number" id="setup-nora" value="4" min="1" max="20" step="1"> mg
+            </div>
+        </div>
+
+        <button class="btn-start" onclick="iniciarSimulacao()">Preparar Solução e Iniciar Infusão</button>
+    </div>
+
+    <!-- TELA DO SIMULADOR -->
+    <div id="simulator-screen" class="container" style="display: none;">
+        
+        <!-- Coluna Esquerda: IV e Controles -->
+        <div class="panel" style="max-width: 350px; flex: 1;">
+            <div class="speed-bar">
+                <button class="speed-btn" onclick="setSpeed(1, this)">1x (Real)</button>
+                <button class="speed-btn active" onclick="setSpeed(10, this)">10x</button>
+                <button class="speed-btn" onclick="setSpeed(100, this)">100x</button>
+                <button class="speed-btn" onclick="setSpeed(1000, this)">1000x</button>
+            </div>
+
+            <div class="iv-visual">
+                <div class="bag">
+                    <div style="position: absolute; top: 10px; width: 100%; text-align: center; font-size: 0.6em; z-index: 2; text-shadow: 1px 1px 2px black;">
+                        NORA <span id="lbl-nora-mg">4</span>mg<br>em <span id="lbl-sf-ml">250</span>mL
+                    </div>
+                    <div class="liquid" id="liquid-level"></div>
+                </div>
+                <div class="chamber" id="chamber"></div>
+                <div style="font-size: 0.8em; margin-top: 5px;"><span id="vol-txt">250</span> mL restantes</div>
+            </div>
+
+            <label style="font-size: 0.9em; margin-top: 15px; display: block;">Abertura da Pinça Roleta: <b id="clamp-val">0</b>%</label>
+            <input type="range" id="clamp" min="0" max="100" value="0" step="0.5">
+            
+            <div style="background: #27272a; padding: 12px; border-radius: 8px; text-align: center;">
+                <div style="color: var(--accent); font-size: 0.75em; text-transform: uppercase;">Fluxo Medido (Físico)</div>
+                <div style="font-size: 1.5em; font-weight: bold;"><span id="flow-txt">0.0</span> <small style="font-size: 0.5em; font-weight: normal;">mL/h</small></div>
+                <div style="font-size: 0.8em; color: #a1a1aa; margin-top: 5px;">Aprox. <span id="gotas-txt">0</span> gotas/min</div>
+            </div>
+            
+            <div style="font-size: 0.8em; color: #71717a; margin-top: 15px; text-align: justify;">
+                *O fluxo cai à medida que a bolsa esvazia (perda de pressão hidrostática) e varia com micro-alterações na resistência venosa do paciente.
+            </div>
+        </div>
+
+        <!-- Coluna Direita: Monitor e Gráficos -->
+        <div class="panel" style="flex: 2; min-width: 400px;">
+            <div class="monitor">
+                <div class="monitor-row">
+                    <span style="color: #a1a1aa;">Pressão Arterial Média (Alvo: 65-75)</span>
+                    <span id="status-tag" class="status-tag" style="background: #ef4444;">CHOQUE</span>
+                </div>
+                <div class="monitor-row" style="justify-content: center; gap: 10px;">
+                    <span class="val-lg" id="pam-txt">50</span> <span style="font-size: 1.2em; color: #71717a;">mmHg</span>
+                </div>
+                <div class="monitor-row" style="font-size: 0.85em; border-top: 1px solid #27272a; padding-top: 10px; margin-top: 10px;">
+                    <span>Noradrenalina Sérica: <b id="conc-txt">0.00</b> <small>mcg/L</small></span>
+                    <span>Tempo de Infusão: <b id="time-txt">00:00:00</b></span>
+                </div>
+            </div>
+
+            <!-- Gráficos -->
+            <div class="chart-container">
+                <div class="chart-label"><span>Curva de PAM (mmHg) - Janela 60min</span><span id="pam-val-now" style="color: #10b981; font-weight: bold;">50</span></div>
+                <canvas id="chartPAM"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-label"><span>Fluxo IV Real (mL/h)</span><span id="flow-val-now" style="color: #06b6d4; font-weight: bold;">0.0</span></div>
+                <canvas id="chartFlow"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-label"><span>Concentração Sérica (mcg/L)</span><span id="conc-val-now" style="color: #f59e0b; font-weight: bold;">0.00</span></div>
+                <canvas id="chartNora"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================================
+        // NÚCLEO MATEMÁTICO / FISIOLÓGICO DO SIMULADOR
+        // A interface gráfica foi preservada. As alterações abaixo ficam
+        // restritas à física do equipo, farmacocinética, farmacodinâmica
+        // e variabilidade fisiológica.
+        // =============================================================
+
+        // Configurações do Motor
+        let SIM_SPEED = 10;
+        const TICK_RATE = 60; // fps
+        const MS_PER_TICK = 1000 / TICK_RATE;
+        let simuladorAtivo = false;
+        let loopInterval;
+        let dropAccumulator = 0;
+
+        // Variáveis da Solução Preparada
+        let volBolsaInicial = 0; // mL
+        let volBolsaAtual = 0;   // mL
+        let concSolucao = 0;     // mcg/mL
+
+        // Estado Fisiológico do Paciente
+        let noraCorpo = 0.0;     // mcg no compartimento central
+        let noraEfeito = 0.0;    // concentração efetiva no compartimento de efeito (mcg/L)
+        let pamReal = 50.0;      // PAM fisiológica subjacente
+        let pam = 50.0;          // PAM medida exibida no monitor
+        let tempoSimuladoSeg = 0;
+        let historico = [];      // array de {pam, fluxo, conc}
+
+        // -------------------------------------------------------------
+        // Parâmetros do cenário clínico
+        // -------------------------------------------------------------
+        const PESO_PACIENTE_KG = 80.0;
+        const PAM_BASAL_CHOQUE = 50.0;      // mmHg: choque séptico hipotensivo sem vasopressor
+        const PAM_ALVO_MIN = 65.0;
+        const PAM_ALVO_MAX = 75.0;
+
+        // -------------------------------------------------------------
+        // Preparo da solução
+        // Ampola didática: 4 mg/4 mL = 1 mg/mL. Assim, entrada em mg
+        // adiciona volume igual em mL, como já sugerido pela tela.
+        // -------------------------------------------------------------
+        const CONC_AMPOLA_NORA_MG_ML = 1.0;
+
+        // -------------------------------------------------------------
+        // Equipo por gravidade e gotejamento
+        // Modelo: Q = condutância_total(abertura) * ΔP.
+        // ΔP depende de coluna hidrostática menos pressão venosa.
+        // A pinça roleta tem resposta altamente não linear, aproximada
+        // por lei de potência, pois pequena mudança no raio efetivo do
+        // tubo altera muito a resistência hidráulica.
+        // -------------------------------------------------------------
+        const DRIP_FACTOR_GTT_ML = 20.0;       // macrogotas: 20 gotas/mL
+        const FLUXO_MAX_EQUIPO = 300.0;        // mL/h com pinça totalmente aberta no ΔP de referência
+        const RHO_SORO_KG_M3 = 1000.0;
+        const GRAVIDADE = 9.80665;
+        const PA_POR_MMHG = 133.322;
+        const ALTURA_BASE_TUBO_M = 0.75;       // desnível médio bolsa/acesso venoso
+        const ALTURA_LIQUIDO_BOLSA_M = 0.15;   // contribuição máxima do nível da solução na bolsa
+        const PRESSAO_VENOSA_MEDIA_MMHG = 8.0;
+        const AMP_RESP_PRESSAO_VENOSA_MMHG = 2.0;
+        const PERIODO_RESPIRATORIO_S = 4.5;
+
+        // -------------------------------------------------------------
+        // Farmacocinética da noradrenalina IV
+        // Modelo de 1 compartimento central, com eliminação de primeira
+        // ordem e atualização analítica por exponencial.
+        // -------------------------------------------------------------
+        const VD_NORA_L = 8.8;                 // volume de distribuição aproximado
+        const CLEARANCE_NORA_L_MIN = 3.1;      // clearance metabólico aproximado
+        const K_ELIM = (CLEARANCE_NORA_L_MIN / 60.0) / VD_NORA_L; // s^-1
+
+        // Compartimento de efeito: representa atraso entre concentração
+        // plasmática e resposta vasoconstritora efetiva.
+        const TAU_COMPARTIMENTO_EFEITO_S = 40.0;
+
+        // -------------------------------------------------------------
+        // Farmacodinâmica hemodinâmica
+        // Modelo Emax com Hill. Foi calibrado para que, no paciente de
+        // 80 kg, uma dose próxima de 0,1 mcg/kg/min produza elevação de
+        // PAM da ordem de 15-25 mmHg, compatível com o objetivo didático.
+        // -------------------------------------------------------------
+        const EMAX_DELTA_PAM_MMHG = 45.0;
+        const EC50_NORA_MCG_L = 3.1;
+        const HILL_NORA = 1.25;
+        const TAU_RESPOSTA_PAM_S = 25.0;
+
+        // Variabilidade fisiológica e mecânica
+        let desvioSepticoLento = 0.0;
+        let fatorAcessoVenoso = 1.0;
+        let fatorCreepOclusor = 1.0;
+        let ruidoMonitorPAM = 0.0;
+
+        // Função de Inicialização (Transição de Telas)
+        function iniciarSimulacao() {
+            // Ler inputs
+            let sf_ml = parseFloat(document.getElementById('setup-sf').value);
+            let nora_mg = parseFloat(document.getElementById('setup-nora').value);
+
+            if (!Number.isFinite(sf_ml) || sf_ml <= 0) sf_ml = 250;
+            if (!Number.isFinite(nora_mg) || nora_mg <= 0) nora_mg = 4;
+
+            // Volume real adicionado pela ampola: 1 mg/mL no cenário didático.
+            const volumeNora_mL = nora_mg / CONC_AMPOLA_NORA_MG_ML;
+            volBolsaInicial = sf_ml + volumeNora_mL;
+            volBolsaAtual = volBolsaInicial;
+
+            // Concentração final da solução preparada.
+            concSolucao = (nora_mg * 1000.0) / volBolsaInicial; // mcg/mL
+
+            // Reset fisiológico
+            noraCorpo = 0.0;
+            noraEfeito = 0.0;
+            pamReal = PAM_BASAL_CHOQUE;
+            pam = PAM_BASAL_CHOQUE;
+            tempoSimuladoSeg = 0.0;
+            historico = [];
+            ultimoLogTempo = -60;
+            dropAccumulator = 0.0;
+            desvioSepticoLento = 0.0;
+            fatorAcessoVenoso = 1.0;
+            fatorCreepOclusor = 1.0;
+            ruidoMonitorPAM = 0.0;
+
+            // Atualizar UI Visual da Bolsa
+            document.getElementById('lbl-nora-mg').innerText = nora_mg;
+            document.getElementById('lbl-sf-ml').innerText = sf_ml;
+
+            // Trocar telas
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('simulator-screen').style.display = 'flex';
+
+            // Ajustar Canvas para tamanho correto da div container
+            dimensionarCanvas();
+            window.addEventListener('resize', dimensionarCanvas);
+
+            // Iniciar Motor
+            simuladorAtivo = true;
+            loopInterval = setInterval(updateSim, MS_PER_TICK);
+        }
+
+        function setSpeed(s, btn) {
+            SIM_SPEED = s;
+            document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        // Lógica Principal de Simulação
+        let ultimoLogTempo = -60;
+
+        function updateSim() {
+            if (!simuladorAtivo) return;
+
+            const dt_total = (MS_PER_TICK / 1000.0) * SIM_SPEED;
+            const steps = Math.max(1, Math.ceil(dt_total / 0.25)); // dt <= 250 ms simulados
+            const dt = dt_total / steps;
+
+            let fluxo_mLh_atual = 0.0;
+            let concentracaoPlasma = 0.0;
+
+            for (let i = 0; i < steps; i++) {
+                atualizarVariabilidade(dt);
+
+                const abertura = parseFloat(document.getElementById('clamp').value);
+                fluxo_mLh_atual = calcularFluxoEquipo(abertura);
+
+                // Volume efetivamente infundido no subpasso.
+                let volumeInfundido_mL = 0.0;
+                if (volBolsaAtual > 0 && fluxo_mLh_atual > 0) {
+                    const volumeSolicitado_mL = (fluxo_mLh_atual / 3600.0) * dt;
+                    volumeInfundido_mL = Math.min(volBolsaAtual, volumeSolicitado_mL);
+                    volBolsaAtual -= volumeInfundido_mL;
+                } else {
+                    fluxo_mLh_atual = 0.0;
+                }
+
+                // Taxa média de entrada de noradrenalina no subpasso.
+                const entradaNora_mcg_s = (dt > 0) ? (volumeInfundido_mL * concSolucao) / dt : 0.0;
+
+                // Farmacocinética: solução analítica de dA/dt = Rin - k*A.
+                const eElim = Math.exp(-K_ELIM * dt);
+                if (K_ELIM > 0) {
+                    noraCorpo = noraCorpo * eElim + (entradaNora_mcg_s / K_ELIM) * (1.0 - eElim);
+                } else {
+                    noraCorpo += entradaNora_mcg_s * dt;
+                }
+                if (noraCorpo < 0) noraCorpo = 0;
+
+                concentracaoPlasma = noraCorpo / VD_NORA_L; // mcg/L
+
+                // Atraso farmacodinâmico: compartimento de efeito.
+                const aEfeito = 1.0 - Math.exp(-dt / TAU_COMPARTIMENTO_EFEITO_S);
+                noraEfeito += (concentracaoPlasma - noraEfeito) * aEfeito;
+
+                // Relação concentração-efeito: Emax-Hill.
+                const cHill = Math.pow(Math.max(0, noraEfeito), HILL_NORA);
+                const ec50Hill = Math.pow(EC50_NORA_MCG_L, HILL_NORA);
+                const deltaPAM = (cHill > 0) ? (EMAX_DELTA_PAM_MMHG * cHill) / (ec50Hill + cHill) : 0.0;
+
+                // PAM fisiológica não muda instantaneamente; aproxima-se do alvo hemodinâmico.
+                const pamAlvo = PAM_BASAL_CHOQUE + desvioSepticoLento + deltaPAM;
+                const aPAM = 1.0 - Math.exp(-dt / TAU_RESPOSTA_PAM_S);
+                pamReal += (pamAlvo - pamReal) * aPAM;
+
+                tempoSimuladoSeg += dt;
+            }
+
+            // PAM medida pelo monitor: fisiologia + respiração + ruído de baixa amplitude.
+            const componenteRespPAM = 0.45 * Math.sin(2.0 * Math.PI * tempoSimuladoSeg / PERIODO_RESPIRATORIO_S);
+            pam = pamReal + componenteRespPAM + ruidoMonitorPAM;
+
+            // Salvar Histórico: 1 ponto por minuto simulado para o gráfico.
+            if (tempoSimuladoSeg - ultimoLogTempo >= 60) {
+                historico.push({ pam: pam, fluxo: fluxo_mLh_atual, conc: concentracaoPlasma });
+                if (historico.length > 60) historico.shift();
+                ultimoLogTempo = tempoSimuladoSeg;
+                renderizarGraficos();
+            }
+
+            atualizarUI(fluxo_mLh_atual, concentracaoPlasma, dt_total);
+        }
+
+        function calcularFluxoEquipo(aberturaPercentual) {
+            if (volBolsaAtual <= 0 || volBolsaInicial <= 0) return 0.0;
+
+            const abertura = limitar(aberturaPercentual / 100.0, 0.0, 1.0);
+            if (abertura < 0.005) return 0.0;
+
+            // Resposta não linear da pinça: abertura geométrica pequena reduz muito a vazão.
+            const fatorOclusor = Math.pow(abertura, 3.0) * (0.85 + 0.15 * abertura);
+
+            // Coluna hidrostática: não vai a zero quando a bolsa esvazia, pois o desnível
+            // bolsa-paciente permanece. Apenas a fração correspondente ao nível da bolsa cai.
+            const fracaoVolume = limitar(volBolsaAtual / volBolsaInicial, 0.0, 1.0);
+            const alturaHidrostatica_m = ALTURA_BASE_TUBO_M + ALTURA_LIQUIDO_BOLSA_M * fracaoVolume;
+            const pressaoHidrostatica_mmHg = (RHO_SORO_KG_M3 * GRAVIDADE * alturaHidrostatica_m) / PA_POR_MMHG;
+
+            // Pressão venosa oscila com respiração e variações do acesso.
+            const pressaoVenosa_mmHg = PRESSAO_VENOSA_MEDIA_MMHG +
+                AMP_RESP_PRESSAO_VENOSA_MMHG * Math.sin(2.0 * Math.PI * tempoSimuladoSeg / PERIODO_RESPIRATORIO_S);
+
+            const pressaoRef_mmHg = ((RHO_SORO_KG_M3 * GRAVIDADE * (ALTURA_BASE_TUBO_M + ALTURA_LIQUIDO_BOLSA_M)) / PA_POR_MMHG) - PRESSAO_VENOSA_MEDIA_MMHG;
+            const deltaP_mmHg = Math.max(0.0, pressaoHidrostatica_mmHg - pressaoVenosa_mmHg);
+            const fatorPressao = (pressaoRef_mmHg > 0) ? (deltaP_mmHg / pressaoRef_mmHg) : 0.0;
+
+            let fluxo = FLUXO_MAX_EQUIPO * fatorOclusor * fatorPressao * fatorAcessoVenoso * fatorCreepOclusor;
+            if (!Number.isFinite(fluxo) || fluxo < 0) fluxo = 0.0;
+            return fluxo;
+        }
+
+        function atualizarVariabilidade(dt) {
+            // Flutuação lenta da vasoplegia séptica: muda pouco, mas impede trajetória artificialmente perfeita.
+            desvioSepticoLento += (0.0 - desvioSepticoLento) * (dt / 900.0) + 0.08 * Math.sqrt(dt) * normalRandom();
+            desvioSepticoLento = limitar(desvioSepticoLento, -5.0, 4.0);
+
+            // Pequenas alterações do acesso venoso: dobra do equipo, posição do braço, resistência local.
+            fatorAcessoVenoso += (1.0 - fatorAcessoVenoso) * (dt / 60.0) + 0.004 * Math.sqrt(dt) * normalRandom();
+            fatorAcessoVenoso = limitar(fatorAcessoVenoso, 0.90, 1.10);
+
+            // Creep mecânico da pinça roleta: a compressão do tubo pode relaxar discretamente ao longo do tempo.
+            fatorCreepOclusor += (1.0 - fatorCreepOclusor) * (dt / 180.0) + 0.003 * Math.sqrt(dt) * normalRandom();
+            fatorCreepOclusor = limitar(fatorCreepOclusor, 0.92, 1.08);
+
+            // Ruído de baixa amplitude do valor de PAM exibido pelo monitor.
+            ruidoMonitorPAM += (0.0 - ruidoMonitorPAM) * (dt / 8.0) + 0.10 * Math.sqrt(dt) * normalRandom();
+            ruidoMonitorPAM = limitar(ruidoMonitorPAM, -2.0, 2.0);
+        }
+
+        function atualizarUI(fluxoH, concPlasma, dt_total) {
+            // UI Bolsa
+            document.getElementById('vol-txt').innerText = Math.max(0, volBolsaAtual).toFixed(1);
+            document.getElementById('liquid-level').style.height = (volBolsaAtual / volBolsaInicial * 100) + "%";
+
+            // Valores Painel
+            document.getElementById('pam-txt').innerText = Math.round(pam);
+            document.getElementById('conc-txt').innerText = concPlasma.toFixed(2);
+            document.getElementById('clamp-val').innerText = document.getElementById('clamp').value;
+            document.getElementById('flow-txt').innerText = fluxoH.toFixed(1);
+
+            // Cálculo de gotas/min: gtt/min = mL/h * fator_gotas / 60.
+            const gotasMin = (fluxoH * DRIP_FACTOR_GTT_ML) / 60.0;
+            document.getElementById('gotas-txt').innerText = Math.round(gotasMin);
+
+            // Relógio formatado
+            let h = Math.floor(tempoSimuladoSeg / 3600);
+            let m = Math.floor((tempoSimuladoSeg % 3600) / 60);
+            let s = Math.floor(tempoSimuladoSeg % 60);
+            document.getElementById('time-txt').innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+
+            // Cores de Status
+            let tag = document.getElementById('status-tag');
+            if(pam < PAM_ALVO_MIN) {
+                tag.innerText = "CHOQUE"; tag.style.background = "var(--alert)"; document.getElementById('pam-txt').style.color = "var(--alert)";
+            } else if(pam > PAM_ALVO_MAX) {
+                tag.innerText = "HIPERTENSÃO (Risco)"; tag.style.background = "var(--warning)"; document.getElementById('pam-txt').style.color = "var(--warning)";
+            } else {
+                tag.innerText = "ALVO ATINGIDO"; tag.style.background = "var(--good)"; document.getElementById('pam-txt').style.color = "var(--good)";
+            }
+
+            // Gotejador visual: usa o número físico de gotas acumuladas no tempo simulado.
+            dropAccumulator += Math.max(0, fluxoH) * DRIP_FACTOR_GTT_ML / 3600.0 * dt_total;
+            let gotasParaMostrar = Math.min(3, Math.floor(dropAccumulator));
+            dropAccumulator -= gotasParaMostrar;
+            if (dropAccumulator > 10) dropAccumulator = dropAccumulator % 1.0; // evita fila visual em velocidades altas
+            for (let i = 0; i < gotasParaMostrar; i++) criarGotaVisual();
+        }
+
+        function criarGotaVisual() {
+            const d = document.createElement('div');
+            d.className = 'drop';
+            document.getElementById('chamber').appendChild(d);
+            let y = -10; let v = 0;
+            function anim() {
+                v += 0.5; y += v;
+                d.style.top = y + "px";
+                if(y < 45) requestAnimationFrame(anim); else d.remove();
+            }
+            requestAnimationFrame(anim);
+        }
+
+        function limitar(x, min, max) {
+            return Math.max(min, Math.min(max, x));
+        }
+
+        function normalRandom() {
+            // Box-Muller. Retorna N(0,1).
+            let u = 0, v = 0;
+            while (u === 0) u = Math.random();
+            while (v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        }
+
+        // --- SISTEMA DE GRÁFICOS EM CANVAS ---
+
+        function dimensionarCanvas() {
+            document.querySelectorAll('canvas').forEach(c => {
+                c.width = c.parentElement.clientWidth - 20; // -20 para padding
+                c.height = 120; // Altura fixa confortável
+            });
+            renderizarGraficos();
+        }
+
+        function renderizarGraficos() {
+            // Eixos configurados: ID, Dados, MinY, MaxY, Cor principal
+            desenharGrafico('chartPAM', historico.map(d => d.pam), 30, 110, '#10b981');
+            desenharGrafico('chartFlow', historico.map(d => d.fluxo), 0, FLUXO_MAX_EQUIPO, '#06b6d4');
+            desenharGrafico('chartNora', historico.map(d => d.conc), 0, 12, '#f59e0b');
+
+            // Atualizar labels atuais em cima do gráfico
+            if(historico.length > 0) {
+                let last = historico[historico.length-1];
+                document.getElementById('pam-val-now').innerText = Math.round(last.pam);
+                document.getElementById('flow-val-now').innerText = last.fluxo.toFixed(1);
+                document.getElementById('conc-val-now').innerText = last.conc.toFixed(2);
+            }
+        }
+
+        function desenharGrafico(id, dados, minY, maxY, corLinha) {
+            const canvas = document.getElementById(id);
+            if (!canvas.getContext) return;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const paddingEsq = 30; // Espaço para os números do eixo Y
+            const paddingDir = 5;
+            const paddingSupInf = 10;
+            const largGrafico = canvas.width - paddingEsq - paddingDir;
+            const altGrafico = canvas.height - (paddingSupInf * 2);
+
+            // 1. Desenhar Escala Numérica (Eixo Y) e Linhas de Grade
+            ctx.fillStyle = '#71717a';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+
+            const numLinhas = 4;
+            for(let i = 0; i <= numLinhas; i++) {
+                let valor = minY + (maxY - minY) * (i / numLinhas);
+                let propY = 1 - (i / numLinhas); // 0 é topo, 1 é base
+                let y = paddingSupInf + (propY * altGrafico);
+
+                // Texto do Eixo Y
+                ctx.fillText(Math.round(valor), paddingEsq - 5, y);
+
+                // Linha de Grade Horizontal
+                ctx.beginPath();
+                ctx.strokeStyle = '#27272a';
+                ctx.lineWidth = 1;
+                ctx.moveTo(paddingEsq, y);
+                ctx.lineTo(canvas.width - paddingDir, y);
+                ctx.stroke();
+            }
+
+            if(dados.length < 2) return;
+
+            // 2. Desenhar Curva de Dados
+            ctx.beginPath();
+            ctx.strokeStyle = corLinha;
+            ctx.lineWidth = 2.5;
+            ctx.lineJoin = 'round';
+
+            for(let i = 0; i < dados.length; i++) {
+                // O eixo X representa os 60 minutos (0 a 59)
+                let x = paddingEsq + (i / 59) * largGrafico;
+
+                // Clamping dos dados para não vazar do gráfico visualmente
+                let val = Math.max(minY, Math.min(maxY, dados[i]));
+                let propY = 1 - ((val - minY) / (maxY - minY));
+                let y = paddingSupInf + (propY * altGrafico);
+
+                if(i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // 3. Preenchimento de Gradiente (Área sob a curva)
+            ctx.lineTo(paddingEsq + ((dados.length - 1) / 59) * largGrafico, canvas.height - paddingSupInf);
+            ctx.lineTo(paddingEsq, canvas.height - paddingSupInf);
+
+            let gradiente = ctx.createLinearGradient(0, paddingSupInf, 0, canvas.height - paddingSupInf);
+            gradiente.addColorStop(0, corLinha + '40'); // 40 = hex alpha (25% opaco)
+            gradiente.addColorStop(1, corLinha + '00'); // 00 = transparente
+
+            ctx.fillStyle = gradiente;
+            ctx.fill();
+        }
+    </script>
+</body>
+</html>
