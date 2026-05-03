@@ -255,7 +255,7 @@
         // Lógica Global
         let currentMode = '5wire';
         let currentStep = -1;
-        let currentAngle = -90; // Começa apontando para cima
+        let currentAngle = 90; // INÍCIO CORRIGIDO: O rotor começa com o polo S (esquerda) apontando para cima (90 graus)
         let autoTimer = null;
         let isAuto = false;
 
@@ -384,11 +384,19 @@
         }
 
         function rotateRotor(stepIndex) {
-            const targetAngles = [-90, 0, 90, 180];
+            // ÂNGULOS ALVO CORRIGIDOS:
+            // Posicionamos o rotor para que o polo Sul (S) aponte para a bobina ativa (Norte)
+            // Passo 0 (A ativa no Topo) -> S aponta pro Topo (90deg)
+            // Passo 1 (B ativa na Dir) -> S aponta pra Dir (180deg)
+            // Passo 2 (C ativa no Bot) -> S aponta pro Bot (270deg)
+            // Passo 3 (D ativa na Esq) -> S aponta pra Esq (0deg ou 360deg)
+            const targetAngles = [90, 180, 270, 0];
             let target = targetAngles[stepIndex];
             
             let diff = target - (currentAngle % 360);
-            if (diff < -180) diff += 360;
+            
+            // Corrige a diferença para sempre encontrar o caminho mais curto na rotação
+            if (diff <= -180) diff += 360;
             if (diff > 180) diff -= 360;
 
             currentAngle += diff;
