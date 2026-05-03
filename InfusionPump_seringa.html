@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomba de Infusão - Telemetria Completa</title>
+    <style>
+        :root {
+            --bg-device: #e2e8f0;
+            --panel-dark: #0f172a;
+            --screen-bg: #020617;
+            --text-cyan: #00f6ff;
+            --text-green: #10b981;
+            --text-red: #ef4444;
+            --text-yellow: #f59e0b;
+            --fluid-color: #0ea5e9;
+            --fluid-glow: rgba(14, 165, 233, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+            background-color: #64748b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+            background-image: radial-gradient(circle at center, #94a3b8 0%, #475569 100%);
+        }
+
+        /* Chassi Principal */
+        .pump-machine {
+            background: linear-gradient(135deg, #f8fafc, #cbd5e1);
+            border-radius: 16px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.9);
+            width: 1020px;
+            height: 580px;
+            display: flex;
+            border: 1px solid #94a3b8;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Área do Mecanismo (Esquerda) */
+        .mechanism-area {
+            width: 650px;
+            padding: 0;
+            background: #f1f5f9;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: inset -10px 0 20px rgba(0,0,0,0.05);
+        }
+
+        .infusion-assembly {
+            display: flex;
+            align-items: center;
+            padding-left: 210px; 
+            width: 100%;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* --- Bloco do Motor e Fuso --- */
+        .motor-block {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 55px;
+            height: 85px;
+            background: linear-gradient(180deg, #475569, #1e293b);
+            border-radius: 8px;
+            border: 2px solid #0f172a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 5px;
+            color: #94a3b8;
+            font-size: 10px;
+            font-weight: bold;
+            z-index: 5;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.2), inset 0 2px 2px rgba(255,255,255,0.1);
+        }
+
+        /* LED de Status do Motor */
+        .motor-led {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #475569;
+            margin-bottom: 5px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
+        }
+        .motor-led.running { background: var(--text-green); box-shadow: 0 0 8px var(--text-green); }
+        .motor-led.stall { background: var(--text-red); box-shadow: 0 0 8px var(--text-red); }
+
+        .motor-gear {
+            width: 28px;
+            height: 28px;
+            border: 4px dashed #64748b;
+            border-radius: 50%;
+            margin-top: 5px;
+            transition: border-color 0.2s;
+        }
+        .motor-gear.spinning {
+            animation: spin 0.8s linear infinite;
+            border-color: var(--text-cyan);
+        }
+
+        /* --- Seringa Realista --- */
+        .syringe-system {
+            display: flex;
+            align-items: center;
+            height: 100px;
+            position: relative;
+        }
+
+        /* Sensor de Diâmetro da Seringa */
+        .diameter-sensor {
+            position: absolute;
+            left: 30px;
+            top: 18px; 
+            height: 40px;
+            width: 25px;
+            border-top: 5px solid #1e293b;
+            border-bottom: none;
+            border-left: 5px solid #1e293b;
+            border-radius: 6px 0 0 0;
+            z-index: 4;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            transition: top 0.4s cubic-bezier(0.4, 0, 0.2, 1), height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: -3px -3px 5px rgba(0,0,0,0.1);
+        }
+        .diameter-sensor::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            right: -10px;
+            width: 20px;
+            height: 5px;
+            background: #ef4444; 
+            border-radius: 2px;
+        }
+        .diameter-sensor span {
+            font-size: 8px;
+            color: var(--text-cyan);
+            background: #0f172a;
+            padding: 2px 4px;
+            transform: translateY(-18px);
+            font-weight: bold;
+            border-radius: 3px;
+            white-space: nowrap;
+            border: 1px solid #334155;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .barrel {
+            width: 170px;
+            height: 44px; 
+            border: 2px solid #94a3b8;
+            border-radius: 4px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.3) 40%, rgba(255,255,255,0.7) 100%);
+            position: relative;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+            z-index: 2;
+            transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .barrel::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 5%; right: 5%; height: 10px;
+            background: repeating-linear-gradient(to right, transparent, transparent calc(10% - 2px), #64748b calc(10% - 2px), #64748b 10%);
+            opacity: 0.6;
+        }
+
+        .barrel-flange {
+            position: absolute;
+            left: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 130%;
+            background: #cbd5e1;
+            border: 2px solid #94a3b8;
+            border-radius: 3px;
+        }
+
+        .syringe-tip {
+            width: 16px;
+            height: 12px;
+            background: #cbd5e1;
+            border: 2px solid #94a3b8;
+            border-left: none;
+            border-radius: 0 4px 4px 0;
+            z-index: 1;
+        }
+
+        .fluid {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 100%; 
+            background: var(--fluid-color);
+            box-shadow: inset 0 -5px 15px var(--fluid-glow);
+            transition: width 0.1s linear;
+        }
+
+        .piston {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 14px;
+            background: #1e293b;
+            transform: translateX(-100%);
+            border-radius: 2px;
+            box-shadow: inset -2px 0 5px rgba(255,255,255,0.3);
+            border-left: 2px solid #475569;
+        }
+
+        .plunger-rod {
+            position: absolute;
+            left: -14px;
+            top: 50%;
+            transform: translate(-100%, -50%);
+            height: 18px;
+            width: 180px;
+            background: repeating-linear-gradient(90deg, #e2e8f0, #e2e8f0 10px, #cbd5e1 10px, #cbd5e1 12px);
+            border: 1px solid #94a3b8;
+            border-radius: 2px;
+        }
+
+        .pusher-block {
+            position: absolute;
+            left: -180px; 
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 40px;
+            background: linear-gradient(180deg, #64748b, #334155);
+            border: 2px solid #1e293b;
+            border-radius: 6px;
+            z-index: 3;
+            transition: background 0.3s;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+        }
+        .pusher-block.locked {
+            background: linear-gradient(180deg, #ef4444, #991b1b);
+            border-color: #450a0a;
+        }
+
+        /* --- SENSOR DE FIM DE CURSO --- */
+        .limit-switch-module {
+            position: absolute;
+            left: -18px; 
+            top: 75px; 
+            width: 20px;
+            height: 15px;
+            background: #1e293b;
+            border-radius: 3px;
+            z-index: 4;
+            display: flex;
+            align-items: center;
+        }
+        .limit-lever {
+            position: absolute;
+            left: -12px;
+            top: -5px;
+            width: 16px;
+            height: 2px;
+            background: #cbd5e1;
+            transform-origin: right center;
+            transform: rotate(-15deg);
+            transition: transform 0.1s;
+        }
+        .limit-lever.pressed {
+            transform: rotate(0deg);
+            background: #ef4444;
+        }
+        .limit-led {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #475569;
+            margin-left: 12px;
+        }
+        .limit-led.active { background: #ef4444; box-shadow: 0 0 5px #ef4444; }
+
+
+        /* --- SENSOR DE DESLOCAMENTO LINEAR (Óptico) --- */
+        .linear-label {
+            position: absolute;
+            left: -180px;
+            top: 70px;
+            font-size: 9px;
+            font-weight: bold;
+            color: #64748b;
+        }
+        
+        .linear-sensor-track {
+            position: absolute;
+            left: -180px; 
+            top: 82px;
+            width: 180px;
+            height: 12px;
+            background: #0f172a;
+            border-radius: 3px;
+            z-index: 1;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Marcações da Régua (Scale) */
+        .linear-scale {
+            width: 100%;
+            height: 4px;
+            background: repeating-linear-gradient(to right, #475569, #475569 1px, transparent 1px, transparent 10px);
+            opacity: 0.5;
+        }
+
+        /* Cabeçote de Leitura Móvel */
+        .linear-readhead {
+            position: absolute;
+            top: -4px;
+            left: 170px; /* Começa na ponta direita (cheio) */
+            width: 12px;
+            height: 18px;
+            background: #1e293b;
+            border: 1px solid var(--text-cyan);
+            border-radius: 3px;
+            z-index: 5;
+            transition: left 0.1s linear;
+            box-shadow: 0 0 8px rgba(0, 246, 255, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* Feixe "laser" de leitura do cabeçote */
+        .linear-readhead::after {
+            content: '';
+            width: 2px;
+            height: 12px;
+            background: #ef4444;
+            box-shadow: 0 0 4px #ef4444;
+        }
+
+        /* Valor numérico flutuante em cima do cabeçote */
+        .readhead-val {
+            position: absolute;
+            top: 22px;
+            color: var(--text-cyan);
+            font-size: 9px;
+            font-family: 'Courier New', Courier, monospace;
+            background: #0f172a;
+            padding: 1px 3px;
+            border-radius: 2px;
+            border: 1px solid #334155;
+            pointer-events: none;
+        }
+
+
+        /* --- Equipo e Sensores de Tubo --- */
+        .tubing-system {
+            width: 200px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .tube {
+            width: 100%;
+            height: 8px;
+            background: var(--fluid-color);
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.5);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        .compliance-segment {
+            position: absolute;
+            left: 50px;
+            top: -2px;
+            width: 35px;
+            height: 12px;
+            background: var(--fluid-color);
+            border-radius: 10px;
+            z-index: 2;
+            transition: transform 0.1s linear;
+            transform-origin: center;
+            border: 1px solid rgba(255,255,255,0.6);
+        }
+
+        .sensor-block {
+            position: absolute;
+            top: -18px;
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(180deg, #334155, #1e293b);
+            border-radius: 8px;
+            z-index: 4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 5px;
+            color: white;
+            font-size: 9px;
+            font-weight: bold;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.3);
+            border: 2px solid #0f172a;
+        }
+
+        .sensor-block.pressure { left: 45px; }
+
+        .led {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #475569;
+            margin-top: 6px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .led.active-red { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+        .led.active-green { background: #10b981; box-shadow: 0 0 10px #10b981; }
+
+        .clamp {
+            position: absolute;
+            left: 120px;
+            top: -20px;
+            width: 14px;
+            height: 50px;
+            background: linear-gradient(90deg, #64748b, #475569);
+            border-radius: 4px;
+            z-index: 5;
+            transition: top 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            border: 1px solid #1e293b;
+        }
+        .clamp.occluded { top: -5px; background: linear-gradient(90deg, #ef4444, #dc2626); }
+
+
+        /* --- Painel Eletrônico Premium --- */
+        .control-panel {
+            width: 370px;
+            background: var(--panel-dark);
+            padding: 25px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            border-left: 2px solid #000;
+            color: white;
+            z-index: 10;
+            box-shadow: -10px 0 20px rgba(0,0,0,0.3);
+        }
+
+        .display-screen {
+            background: var(--screen-bg);
+            height: 250px; /* Aumentado para caber 4 linhas de telemetria */
+            border-radius: 8px;
+            border: 3px solid #334155;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: inset 0 0 30px rgba(0, 246, 255, 0.05);
+            font-family: 'Courier New', Courier, monospace;
+            position: relative;
+            overflow: hidden;
+        }
+        .display-screen::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        .header-status {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #94a3b8;
+            border-bottom: 1px dashed #1e293b;
+            padding-bottom: 5px;
+            position: relative; z-index: 3;
+        }
+
+        .status-text { font-weight: bold; }
+        .status-text.infusing { color: var(--text-green); text-shadow: 0 0 8px var(--text-green); }
+        .status-text.stopped { color: var(--text-yellow); }
+        .status-text.alarm { color: var(--text-red); animation: blink 0.5s infinite; text-shadow: 0 0 8px var(--text-red);}
+
+        .main-rate {
+            text-align: center;
+            font-size: 44px;
+            color: var(--text-cyan);
+            text-shadow: 0 0 15px rgba(0, 246, 255, 0.4);
+            font-weight: bold;
+            margin: 5px 0;
+            position: relative; z-index: 3;
+        }
+
+        .volume-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: var(--text-cyan);
+            position: relative; z-index: 3;
+        }
+
+        .alarm-msg {
+            text-align: center;
+            background: var(--text-red);
+            color: white;
+            font-weight: bold;
+            font-size: 13px;
+            padding: 4px;
+            border-radius: 3px;
+            display: none;
+            margin-bottom: 5px;
+            position: relative; z-index: 3;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+
+        /* Telemetria de Engenharia c/ 4 Linhas */
+        .telemetry-box {
+            border-top: 1px solid #1e293b;
+            padding-top: 8px;
+            margin-top: 5px;
+            font-size: 11px;
+            color: #64748b;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            position: relative; z-index: 3;
+        }
+        .tel-row {
+            display: flex;
+            justify-content: space-between;
+        }
+        .tel-val { color: var(--text-cyan); font-weight: bold;}
+        .tel-val.alert { color: var(--text-red); }
+
+        .pressure-bar-container {
+            width: 100%;
+            height: 6px;
+            background: #1e293b;
+            border-radius: 3px;
+            margin-top: 6px;
+            overflow: hidden;
+            position: relative; z-index: 3;
+        }
+        .pressure-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--text-green);
+            transition: width 0.1s linear, background 0.1s linear;
+        }
+
+        /* Controles de Input */
+        .controls-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .input-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e293b;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .input-row select, .input-row input {
+            width: 90px;
+            background: #0f172a;
+            border: 1px solid #475569;
+            color: var(--text-cyan);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 15px;
+            text-align: right;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-row select:focus, .input-row input:focus { border-color: var(--text-cyan); }
+        .input-row select { text-align: center; cursor: pointer; }
+
+        /* Teclado de Botões */
+        .keypad {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        button {
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 12px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.2);
+            transition: transform 0.1s, box-shadow 0.1s, filter 0.2s;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            letter-spacing: 0.5px;
+        }
+        button:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 rgba(0,0,0,0.3);
+        }
+        button:hover { filter: brightness(1.1); }
+
+        .btn-start { background: linear-gradient(180deg, #10b981, #059669); color: white; }
+        .btn-stop { background: linear-gradient(180deg, #f59e0b, #d97706); color: white; }
+        .btn-lock { background: linear-gradient(180deg, #475569, #334155); color: white; }
+        .btn-lock.locked { background: linear-gradient(180deg, #ef4444, #b91c1c); }
+        .btn-occlude { background: linear-gradient(180deg, #3b82f6, #2563eb); color: white; }
+        .btn-clear { background: linear-gradient(180deg, #ef4444, #dc2626); color: white; grid-column: span 2; }
+
+        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Alarme Físico no Topo */
+        .physical-alarm {
+            position: absolute;
+            top: -12px;
+            left: 325px;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 12px;
+            background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+            border-radius: 10px 10px 0 0;
+            border: 1px solid #64748b;
+            border-bottom: none;
+        }
+        .physical-alarm.active {
+            background: var(--text-red);
+            box-shadow: 0 -15px 40px var(--text-red);
+            border-color: #fca5a5;
+            animation: blink 0.5s infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="pump-machine">
+        <div class="physical-alarm" id="topAlarmLight"></div>
+        
+        <!-- Mecânica -->
+        <div class="mechanism-area">
+            <div class="infusion-assembly">
+                
+                <div class="motor-block">
+                    <div class="motor-led" id="mMotorLed"></div>
+                    MOT
+                    <div class="motor-gear" id="mGear"></div>
+                </div>
+
+                <div class="syringe-system">
+                    <!-- Sensor de Diâmetro -->
+                    <div class="diameter-sensor" id="sDiameter">
+                        <span id="sDiamRead">29.0mm</span>
+                    </div>
+                    
+                    <div class="barrel" id="sBarrel">
+                        <div class="barrel-flange"></div>
+                        <div class="fluid" id="sFluid" style="width: 100%;">
+                            <div class="piston"></div>
+                            <div class="plunger-rod">
+                                <div class="pusher-block" id="sPusher"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="syringe-tip"></div>
+
+                    <!-- Fim de Curso (Limit Switch) -->
+                    <div class="limit-switch-module">
+                        <div class="limit-lever" id="swLever"></div>
+                        <div class="limit-led" id="swLed"></div>
+                    </div>
+
+                    <!-- Sensor Linear Óptico -->
+                    <div class="linear-label">TRILHO LINEAR ÓPTICO</div>
+                    <div class="linear-sensor-track">
+                        <div class="linear-scale"></div>
+                        <!-- Cabeçote móvel com display de leitura -->
+                        <div class="linear-readhead" id="sLinearHead">
+                            <span class="readhead-val" id="sLinearVal">100.0mm</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tubing-system">
+                    <div class="tube">
+                        <div class="compliance-segment" id="tCompliance"></div>
+                    </div>
+                    <div class="sensor-block pressure">
+                        PRESS
+                        <div class="led active-green" id="ledPress"></div>
+                    </div>
+                    <div class="clamp" id="tClamp"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel Eletrônico -->
+        <div class="control-panel">
+            <div class="display-screen">
+                <div class="header-status">
+                    <span>BOMBA SYNERGY-X</span>
+                    <span class="status-text stopped" id="lcdStatus">PARADO</span>
+                </div>
+                
+                <div class="main-rate" id="lcdRate">100.0 <span style="font-size: 16px;">mL/h</span></div>
+                <div class="alarm-msg" id="lcdAlarm"></div>
+
+                <div>
+                    <div class="volume-info">
+                        <span>VOL: <span id="lcdVol">50.0</span> mL</span>
+                        <span>INF: <span id="lcdInf">0.0</span> mL</span>
+                    </div>
+                    <div class="pressure-bar-container">
+                        <div class="pressure-bar" id="lcdPressBar"></div>
+                    </div>
+                </div>
+
+                <!-- Telemetria Expandida (4 Linhas) -->
+                <div class="telemetry-box">
+                    <div class="tel-row">
+                        <span>Ø DETECTADO:</span>
+                        <span class="tel-val" id="telDiam">29.0 mm</span>
+                    </div>
+                    <div class="tel-row">
+                        <span>ENC. MOTOR:</span>
+                        <span class="tel-val" id="telMot">0.0 RPM</span>
+                    </div>
+                    <div class="tel-row">
+                        <span>POS. LINEAR:</span>
+                        <span class="tel-val" id="telLin">100.0 mm</span>
+                    </div>
+                    <div class="tel-row">
+                        <span>FIM DE CURSO:</span>
+                        <span class="tel-val" id="telLim">ABERTO</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls-wrapper">
+                <div class="input-row">
+                    <label style="font-size: 13px; font-weight: bold; color: #94a3b8;">Seringa:</label>
+                    <select id="inpSyringe">
+                        <option value="50">50 mL</option>
+                        <option value="20">20 mL</option>
+                        <option value="10">10 mL</option>
+                    </select>
+                </div>
+
+                <div class="input-row">
+                    <label style="font-size: 13px; font-weight: bold; color: #94a3b8;">Fluxo (mL/h):</label>
+                    <input type="number" id="inpFlow" value="100" min="1" max="1200" step="1">
+                </div>
+            </div>
+
+            <div class="keypad">
+                <button class="btn-start" onclick="pump.start()">Start</button>
+                <button class="btn-stop" onclick="pump.stop()">Stop</button>
+                <button class="btn-lock" id="btnLock" onclick="pump.togglePlungerLock()">Travar Motor</button>
+                <button class="btn-occlude" id="btnClamp" onclick="pump.toggleClamp()">Ocluir Linha</button>
+                <button class="btn-clear" onclick="pump.clearAlarmAndRefill()">Reset / Refil</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class SmartPump {
+            constructor() {
+                // Tabela de Configuração de Seringas
+                this.syringeConfig = {
+                    '50': { vol: 50.0, diamMm: 29.0, pxHeight: 44, topOffset: 18, travelMm: 100.0 },
+                    '20': { vol: 20.0, diamMm: 19.0, pxHeight: 32, topOffset: 24, travelMm: 75.0 },
+                    '10': { vol: 10.0, diamMm: 14.5, pxHeight: 22, topOffset: 29, travelMm: 50.0 }
+                };
+
+                this.currentType = '50';
+                this.maxVol = 50.0;
+                this.currentVol = 50.0;
+                this.infusedVol = 0.0;
+                this.flowRate = 100.0;
+                
+                this.state = 'STOPPED'; 
+                
+                this.pressure = 0; 
+                this.isOccluded = false;
+                this.isPlungerLocked = false;
+                this.isLimitHit = false;
+                
+                this.timeScale = 60;
+                this.lastTick = performance.now();
+
+                this.dom = {
+                    barrel: document.getElementById('sBarrel'),
+                    diameter: document.getElementById('sDiameter'),
+                    diamRead: document.getElementById('sDiamRead'),
+                    fluid: document.getElementById('sFluid'),
+                    pusher: document.getElementById('sPusher'),
+                    
+                    // Elementos do novo Sensor Linear
+                    linearHead: document.getElementById('sLinearHead'),
+                    linearVal: document.getElementById('sLinearVal'),
+                    
+                    mGear: document.getElementById('mGear'),
+                    mMotorLed: document.getElementById('mMotorLed'),
+                    compliance: document.getElementById('tCompliance'),
+                    clamp: document.getElementById('tClamp'),
+                    ledPress: document.getElementById('ledPress'),
+                    lcdStatus: document.getElementById('lcdStatus'),
+                    lcdRate: document.getElementById('lcdRate'),
+                    lcdVol: document.getElementById('lcdVol'),
+                    lcdInf: document.getElementById('lcdInf'),
+                    lcdAlarm: document.getElementById('lcdAlarm'),
+                    lcdPressBar: document.getElementById('lcdPressBar'),
+                    topAlarm: document.getElementById('topAlarmLight'),
+                    inpFlow: document.getElementById('inpFlow'),
+                    inpSyringe: document.getElementById('inpSyringe'),
+                    btnClamp: document.getElementById('btnClamp'),
+                    btnLock: document.getElementById('btnLock'),
+                    
+                    // Telemetria OLED
+                    telMot: document.getElementById('telMot'),
+                    telDiam: document.getElementById('telDiam'),
+                    telLim: document.getElementById('telLim'),
+                    telLin: document.getElementById('telLin'),
+                    
+                    swLever: document.getElementById('swLever'),
+                    swLed: document.getElementById('swLed')
+                };
+
+                this.dom.inpFlow.addEventListener('change', (e) => {
+                    let val = parseFloat(e.target.value);
+                    if (val < 1) val = 1;
+                    if (val > 1200) val = 1200;
+                    this.flowRate = val;
+                    e.target.value = val;
+                    this.updateUI();
+                });
+
+                this.dom.inpSyringe.addEventListener('change', (e) => {
+                    this.changeSyringe(e.target.value);
+                });
+
+                this.updateUI();
+                requestAnimationFrame((t) => this.loop(t));
+            }
+
+            changeSyringe(type) {
+                if (this.state === 'INFUSING') this.stop();
+                
+                this.currentType = type;
+                const config = this.syringeConfig[type];
+                
+                this.maxVol = config.vol;
+                this.currentVol = config.vol;
+                this.infusedVol = 0.0;
+                
+                this.dom.barrel.style.height = `${config.pxHeight}px`;
+                this.dom.diameter.style.top = `${config.topOffset}px`;
+                
+                const diamText = `${config.diamMm.toFixed(1)}mm`;
+                this.dom.sDiamRead = diamText;
+                this.dom.diamRead.innerText = diamText;
+                this.dom.telDiam.innerText = diamText;
+
+                this.clearAlarmAndRefill(true); 
+            }
+
+            start() {
+                if (this.state === 'ALARM' || this.currentVol <= 0.1 || this.isLimitHit) return;
+                this.flowRate = parseFloat(this.dom.inpFlow.value) || 100;
+                this.state = 'INFUSING';
+                this.lastTick = performance.now();
+                this.updateUI();
+            }
+
+            stop() {
+                if (this.state === 'ALARM') return;
+                this.state = 'STOPPED';
+                this.updateUI();
+            }
+
+            triggerAlarm(msg) {
+                this.state = 'ALARM';
+                this.dom.lcdAlarm.innerText = msg;
+                this.dom.lcdAlarm.style.display = 'block';
+                this.dom.topAlarm.classList.add('active');
+                
+                this.dom.lcdStatus.className = 'status-text alarm';
+                this.dom.lcdStatus.innerText = 'FALHA';
+                
+                if (msg.includes('PRESSÃO')) {
+                    this.dom.ledPress.className = 'led active-red';
+                }
+                
+                this.dom.mGear.classList.remove('spinning');
+                this.dom.mMotorLed.className = 'motor-led stall';
+            }
+
+            clearAlarmAndRefill(skipRefill = false) {
+                this.state = 'STOPPED';
+                this.dom.lcdAlarm.style.display = 'none';
+                this.dom.topAlarm.classList.remove('active');
+                this.dom.ledPress.className = 'led active-green';
+                this.dom.mMotorLed.className = 'motor-led';
+                
+                if (!skipRefill && (this.currentVol <= 0.1 || this.isLimitHit)) {
+                    this.currentVol = this.maxVol;
+                    this.infusedVol = 0;
+                }
+
+                this.pressure = 0;
+                this.isLimitHit = false;
+                
+                this.dom.swLever.classList.remove('pressed');
+                this.dom.swLed.classList.remove('active');
+                
+                this.updateUI();
+            }
+
+            toggleClamp() {
+                this.isOccluded = !this.isOccluded;
+                if (this.isOccluded) {
+                    this.dom.clamp.classList.add('occluded');
+                    this.dom.btnClamp.style.background = 'linear-gradient(180deg, #ef4444, #b91c1c)';
+                    this.dom.btnClamp.innerText = 'Liberar Linha';
+                } else {
+                    this.dom.clamp.classList.remove('occluded');
+                    this.dom.btnClamp.style.background = 'linear-gradient(180deg, #3b82f6, #2563eb)';
+                    this.dom.btnClamp.innerText = 'Ocluir Linha';
+                    this.pressure = 0; 
+                }
+            }
+
+            togglePlungerLock() {
+                this.isPlungerLocked = !this.isPlungerLocked;
+                if (this.isPlungerLocked) {
+                    this.dom.btnLock.classList.add('locked');
+                    this.dom.pusher.classList.add('locked');
+                } else {
+                    this.dom.btnLock.classList.remove('locked');
+                    this.dom.pusher.classList.remove('locked');
+                }
+            }
+
+            updateUI() {
+                if (this.state !== 'ALARM') {
+                    this.dom.lcdStatus.className = `status-text ${this.state === 'INFUSING' ? 'infusing' : 'stopped'}`;
+                    this.dom.lcdStatus.innerText = this.state === 'INFUSING' ? 'INFUNDINDO...' : 'PARADO';
+                }
+                
+                this.dom.lcdRate.innerHTML = `${this.flowRate.toFixed(1)} <span style="font-size: 16px;">mL/h</span>`;
+                this.dom.lcdVol.innerText = this.currentVol.toFixed(1);
+                this.dom.lcdInf.innerText = this.infusedVol.toFixed(1);
+
+                const pct = (this.currentVol / this.maxVol);
+                this.dom.fluid.style.width = `${pct * 100}%`;
+
+                // --- ATUALIZAÇÃO DO SENSOR LINEAR ÓPTICO ---
+                const config = this.syringeConfig[this.currentType];
+                // Posição em mm para a telemetria
+                const currentMm = pct * config.travelMm;
+                const mmStr = `${currentMm.toFixed(1)}mm`;
+                
+                // O trilho físico tem 180px. O cabeçote vai da dir (168px) pra esq (-2px).
+                const maxPx = 168;
+                const minPx = -2;
+                const posPx = minPx + (pct * (maxPx - minPx));
+                
+                this.dom.linearHead.style.left = `${posPx}px`;
+                this.dom.linearVal.innerText = mmStr;
+                this.dom.telLin.innerText = mmStr;
+
+                // Fim de Curso
+                if (pct <= 0.01 && !this.isLimitHit) {
+                    this.isLimitHit = true;
+                    this.dom.swLever.classList.add('pressed');
+                    this.dom.swLed.classList.add('active');
+                }
+                this.dom.telLim.innerText = this.isLimitHit ? 'ACIONADO' : 'ABERTO';
+                this.dom.telLim.className = `tel-val ${this.isLimitHit ? 'alert' : ''}`;
+
+                // Rotação visual e RPM
+                if (this.state === 'INFUSING' && !this.isPlungerLocked && !this.isLimitHit) {
+                    this.dom.mGear.classList.add('spinning');
+                    this.dom.mMotorLed.className = 'motor-led running';
+                    const rpm = (this.flowRate / 60) * 3.2; 
+                    this.dom.telMot.innerText = `${rpm.toFixed(1)} RPM`;
+                    this.dom.telMot.className = 'tel-val';
+                } else if (this.state === 'INFUSING' && this.isPlungerLocked) {
+                    this.dom.mGear.classList.remove('spinning');
+                    this.dom.mMotorLed.className = 'motor-led stall';
+                    this.dom.telMot.innerText = `0.0 RPM (STALL)`;
+                    this.dom.telMot.className = 'tel-val alert';
+                } else if (this.state !== 'ALARM') {
+                    this.dom.mGear.classList.remove('spinning');
+                    this.dom.mMotorLed.className = 'motor-led';
+                    this.dom.telMot.innerText = `0.0 RPM`;
+                    this.dom.telMot.className = 'tel-val';
+                }
+
+                // Pressão
+                const scale = 1 + (this.pressure / 100) * 1.5;
+                this.dom.compliance.style.transform = `scaleY(${scale})`;
+                this.dom.lcdPressBar.style.width = `${this.pressure}%`;
+                
+                if (this.pressure < 50) this.dom.lcdPressBar.style.background = 'var(--text-green)';
+                else if (this.pressure < 80) this.dom.lcdPressBar.style.background = 'var(--text-yellow)';
+                else this.dom.lcdPressBar.style.background = 'var(--text-red)';
+            }
+
+            loop(timestamp) {
+                const dt = (timestamp - this.lastTick) / 1000;
+                this.lastTick = timestamp;
+
+                if (this.state === 'INFUSING') {
+                    const simulatedFlow = (this.flowRate / 3600) * this.timeScale;
+                    const volumeDelta = simulatedFlow * dt;
+
+                    if (this.isPlungerLocked) {
+                        this.triggerAlarm("FALHA MOTOR / EIXO TRAVADO");
+                    } 
+                    else if (this.isOccluded) {
+                        this.pressure += (simulatedFlow * 150) * dt; 
+                        if (this.pressure >= 100) {
+                            this.pressure = 100;
+                            this.triggerAlarm("ALTA PRESSÃO / OCLUSÃO");
+                        }
+                    } 
+                    else {
+                        this.pressure = Math.max(0, this.pressure - 60 * dt); 
+                        this.currentVol -= volumeDelta;
+                        this.infusedVol += volumeDelta;
+
+                        if (this.currentVol <= 0.05) {
+                            this.currentVol = 0;
+                            this.isLimitHit = true;
+                            this.triggerAlarm("FIM DE CURSO / SERINGA VAZIA");
+                        }
+                    }
+                    this.updateUI();
+                } else if (this.state === 'STOPPED') {
+                    if (!this.isOccluded && this.pressure > 0) {
+                        this.pressure = Math.max(0, this.pressure - 40 * dt);
+                        this.updateUI();
+                    }
+                }
+
+                requestAnimationFrame((t) => this.loop(t));
+            }
+        }
+
+        const pump = new SmartPump();
+    </script>
+</body>
+</html>
