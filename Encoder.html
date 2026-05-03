@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Encoders Rotativos: Absoluto e Incremental</title>
+    <style>
+        :root {
+            --bg: #1e1e2f;
+            --panel: #2a2a40;
+            --text: #f0f0f0;
+            --accent: #ffaa00;
+            --ch-a: #ff4444;
+            --ch-b: #4444ff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 { margin-bottom: 5px; text-align: center; }
+        p.desc { color: #aaa; text-align: center; max-width: 800px; margin-bottom: 30px; }
+
+        .dashboard {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .panel {
+            background-color: var(--panel);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 380px;
+        }
+
+        .panel h2 {
+            margin-top: 0;
+            font-size: 1.3rem;
+            color: var(--accent);
+            border-bottom: 2px solid #444;
+            padding-bottom: 10px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* --- ENCODERS ROTATIVOS (BASE) --- */
+        .rotary-container {
+            position: relative;
+            width: 240px;
+            height: 240px;
+            margin: 20px 0;
+            border-radius: 50%;
+            background-color: #fff;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        .digital-readout {
+            font-family: monospace;
+            font-size: 1.5rem;
+            background: #111;
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: #0f0;
+            border: 2px solid #333;
+        }
+        .digital-readout span { color: #aaa; font-size: 1rem; margin-left: 10px;}
+
+        /* Sensor de Leitura do Absoluto */
+        .read-line {
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            width: 4px;
+            height: 115px;
+            background-color: red;
+            transform: translateX(-50%);
+            z-index: 10;
+            box-shadow: 0 0 5px red;
+        }
+
+        /* Sensores do Incremental */
+        .sensor-mark {
+            position: absolute;
+            width: 12px;
+            height: 20px;
+            top: -2px; /* Ligeiramente para fora do disco */
+            left: calc(50% - 6px);
+            transform-origin: 6px 122px; /* Eixo de rotação centralizado */
+            border-radius: 4px;
+            z-index: 10;
+            transition: background-color 0.1s, box-shadow 0.1s;
+        }
+        
+        /* Posicionamento Físico e Estados */
+        .sensor-mark-a { transform: rotate(0deg); background-color: #551111; border: 2px solid #222; }
+        .sensor-mark-b { transform: rotate(39.375deg); background-color: #111155; border: 2px solid #222;}
+        
+        .sensor-mark-a.active { background-color: var(--ch-a); box-shadow: 0 0 12px var(--ch-a); border-color: #fff; }
+        .sensor-mark-b.active { background-color: var(--ch-b); box-shadow: 0 0 12px var(--ch-b); border-color: #fff; }
+
+        .sensor-label {
+            position: absolute;
+            top: -25px;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        /* --- GRÁFICO (OSCILOSCÓPIO ESPACIAL) --- */
+        .chart-container {
+            position: relative;
+            width: 340px;
+            height: 120px;
+            background-color: #111;
+            border-radius: 8px;
+            border: 2px solid #333;
+            margin-top: 15px;
+        }
+
+        .chart-labels {
+            position: absolute;
+            top: 0; left: -25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            height: 100%;
+            font-weight: bold;
+        }
+
+        .lbl-a { color: var(--ch-a); }
+        .lbl-b { color: var(--ch-b); }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .logic-readout {
+            margin-top: 15px;
+            font-weight: bold;
+            color: #ddd;
+        }
+
+        /* --- CONTROLES (SLIDER MANUAL) --- */
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: var(--panel);
+            padding: 20px 40px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            width: 80%;
+            max-width: 600px;
+        }
+
+        .slider-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        input[type=range] {
+            flex: 1;
+            appearance: none;
+            height: 10px;
+            border-radius: 5px;
+            background: #444;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        .deg-display {
+            font-family: monospace;
+            font-size: 1.2rem;
+            color: var(--accent);
+            width: 80px;
+            text-align: right;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Simulador Didático: Encoders Rotativos</h1>
+    <p class="desc">
+        Arraste o controle deslizante abaixo para girar manualmente os encoders. <br>
+        O <b>Absoluto</b> usa 4 anéis concêntricos para ler o ângulo exato. O <b>Incremental</b> usa um único anel de 16 pulsos (marcas pretas) e <b>dois sensores (A e B) deslocados fisicamente</b> para contar pulsos e inferir a direção de rotação usando a lógica de Quadratura.
+    </p>
+
+    <div class="dashboard">
+        
+        <!-- ENCODER ABSOLUTO -->
+        <div class="panel">
+            <h2>Encoder Absoluto (4-Bits)</h2>
+            <div class="rotary-container">
+                <div class="read-line"></div>
+                <svg id="abs-disc" width="240" height="240"></svg>
+            </div>
+            <div class="digital-readout" id="abs-out">0000 <span>(Dec: 0)</span></div>
+        </div>
+
+        <!-- ENCODER INCREMENTAL ROTATIVO -->
+        <div class="panel">
+            <h2>Encoder Incremental (16 Pulsos)</h2>
+            <div class="rotary-container">
+                <svg id="inc-disc" width="240" height="240"></svg>
+                
+                <!-- Sensores de Leitura A e B -->
+                <div class="sensor-mark sensor-mark-a" id="sens-a">
+                    <span class="sensor-label" style="left: -2px;">A</span>
+                </div>
+                <div class="sensor-mark sensor-mark-b" id="sens-b">
+                    <span class="sensor-label" style="left: -2px;">B</span>
+                </div>
+            </div>
+            
+            <div style="position: relative; margin-left: 20px;">
+                <div class="chart-labels">
+                    <div class="lbl-a">A</div>
+                    <div class="lbl-b">B</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="wave-canvas" width="340" height="120"></canvas>
+                </div>
+            </div>
+            <div class="logic-readout" id="logic-dir">Direção Detectada: Parado</div>
+        </div>
+
+    </div>
+
+    <!-- CONTROLES -->
+    <div class="controls">
+        <h3 style="margin: 0 0 15px 0; color: #fff;">Controle Manual de Rotação</h3>
+        <div class="slider-container">
+            <span>◀ CCW</span>
+            <!-- Um slider generoso de 4 voltas (-720 a 720 graus) -->
+            <input type="range" id="angle-slider" min="-720" max="720" value="0" step="0.5">
+            <span>CW ▶</span>
+            <div class="deg-display" id="deg-text">0.0°</div>
+        </div>
+    </div>
+
+    <script>
+        // Variáveis Globais
+        let currentAngle = 0;
+        let lastA = null;
+        let lastB = null;
+        const canvasWidth = 340;
+        
+        // Matemática: O encoder incremental terá 16 setores pretos (pulsos)
+        const INC_SECTORS = 16;
+        const CYCLE_DEG = 360 / INC_SECTORS; // 22.5 graus por ciclo (11.25 preto, 11.25 branco)
+        
+        // O sensor B precisa estar a 90 graus elétricos do A.
+        // 90 graus elétricos = 1/4 do ciclo = 22.5 / 4 = 5.625 graus mecânicos.
+        // Para ficar visualmente mais afastado, adicionei offset de mais 1.5 ciclos (33.75 graus) = 39.375 graus.
+        const OFFSET_B_DEG = 39.375; 
+
+        // Função Modulo que suporta números negativos (essencial para JavaScript)
+        function mod(n, m) {
+            return ((n % m) + m) % m;
+        }
+
+        // --- GERAÇÃO DE GRÁFICOS SVG ---
+        function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+            const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+            return {
+                x: centerX + (radius * Math.cos(angleInRadians)),
+                y: centerY + (radius * Math.sin(angleInRadians))
+            };
+        }
+
+        function describeArc(x, y, innerRadius, outerRadius, startAngle, endAngle) {
+            const startOuter = polarToCartesian(x, y, outerRadius, endAngle);
+            const endOuter = polarToCartesian(x, y, outerRadius, startAngle);
+            const startInner = polarToCartesian(x, y, innerRadius, endAngle);
+            const endInner = polarToCartesian(x, y, innerRadius, startAngle);
+            const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+            return [
+                "M", startOuter.x, startOuter.y,
+                "A", outerRadius, outerRadius, 0, largeArcFlag, 0, endOuter.x, endOuter.y,
+                "L", endInner.x, endInner.y,
+                "A", innerRadius, innerRadius, 0, largeArcFlag, 1, startInner.x, startInner.y,
+                "Z"
+            ].join(" ");
+        }
+
+        function initDiscs() {
+            // 1. Absoluto (4 Anéis)
+            const absSvg = document.getElementById('abs-disc');
+            const absRings = [
+                { rMin: 35, rMax: 55, sectors: 2 },   // MSB
+                { rMin: 55, rMax: 75, sectors: 4 },
+                { rMin: 75, rMax: 95, sectors: 8 },
+                { rMin: 95, rMax: 115, sectors: 16 }  // LSB
+            ];
+            const gAbs = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            gAbs.setAttribute("id", "disc-group-abs");
+            
+            const bgAbs = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            bgAbs.setAttribute("cx", 120); bgAbs.setAttribute("cy", 120); bgAbs.setAttribute("r", 115);
+            bgAbs.setAttribute("fill", "#ddd");
+            gAbs.appendChild(bgAbs);
+
+            absRings.forEach((ring) => {
+                const angleStep = 360 / ring.sectors;
+                for (let i = 1; i < ring.sectors; i += 2) {
+                    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    p.setAttribute("d", describeArc(120, 120, ring.rMin, ring.rMax, i * angleStep, (i + 1) * angleStep));
+                    p.setAttribute("fill", "#222");
+                    gAbs.appendChild(p);
+                }
+            });
+            absSvg.appendChild(gAbs);
+
+            // 2. Incremental (1 Anel de Leitura)
+            const incSvg = document.getElementById('inc-disc');
+            const gInc = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            gInc.setAttribute("id", "disc-group-inc");
+
+            const bgInc = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            bgInc.setAttribute("cx", 120); bgInc.setAttribute("cy", 120); bgInc.setAttribute("r", 115);
+            bgInc.setAttribute("fill", "#ddd");
+            gInc.appendChild(bgInc);
+
+            for (let i = 0; i < INC_SECTORS; i++) {
+                // Preenche apenas a metade do passo com cor preta (pulso alto)
+                const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                p.setAttribute("d", describeArc(120, 120, 75, 115, i * CYCLE_DEG, i * CYCLE_DEG + (CYCLE_DEG / 2)));
+                p.setAttribute("fill", "#222");
+                gInc.appendChild(p);
+            }
+            // Anel decorativo interno
+            const decor = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            decor.setAttribute("cx", 120); decor.setAttribute("cy", 120); decor.setAttribute("r", 74);
+            decor.setAttribute("fill", "none"); decor.setAttribute("stroke", "#999"); decor.setAttribute("stroke-width", "2");
+            gInc.appendChild(decor);
+
+            incSvg.appendChild(gInc);
+        }
+
+        // --- LÓGICA PRINCIPAL ---
+        function updateSystem(angle) {
+            currentAngle = angle;
+            document.getElementById('deg-text').innerText = angle.toFixed(1) + "°";
+
+            // 1. GIRAR ENCODER ABSOLUTO
+            document.getElementById('disc-group-abs').style.transform = `rotate(${-angle}deg)`;
+            document.getElementById('disc-group-abs').style.transformOrigin = "center";
+            
+            let readAngle = mod(angle, 360);
+            let absValue = Math.floor(readAngle / 22.5); 
+            let binaryStr = absValue.toString(2).padStart(4, '0');
+            document.getElementById('abs-out').innerHTML = `${binaryStr} <span>(Dec: ${absValue})</span>`;
+
+            // 2. GIRAR ENCODER INCREMENTAL
+            document.getElementById('disc-group-inc').style.transform = `rotate(${-angle}deg)`;
+            document.getElementById('disc-group-inc').style.transformOrigin = "center";
+
+            // Ler sensores físicos (Preto [0 a 11.25 graus] = 1, Branco = 0)
+            let stateA = mod(angle, CYCLE_DEG) < (CYCLE_DEG / 2) ? 1 : 0;
+            let stateB = mod(angle + OFFSET_B_DEG, CYCLE_DEG) < (CYCLE_DEG / 2) ? 1 : 0;
+
+            // Iluminar sensores
+            const sensA = document.getElementById('sens-a');
+            const sensB = document.getElementById('sens-b');
+            stateA ? sensA.classList.add('active') : sensA.classList.remove('active');
+            stateB ? sensB.classList.add('active') : sensB.classList.remove('active');
+
+            // 3. DETECTOR DE DIREÇÃO (QUADRATURA)
+            // Avalia apenas se houve mudança de estado para imitar uma interrupção real no microcontrolador
+            if (lastA !== null && lastB !== null) {
+                const dirLabel = document.getElementById('logic-dir');
+                if (stateA !== lastA) {
+                    if (stateA === 1) { // Borda de subida de A
+                        dirLabel.innerHTML = stateB === 0 ? 
+                            'Direção Detectada: <span style="color:#28a745">Direita / CW ▶</span>' : 
+                            'Direção Detectada: <span style="color:#17a2b8">◀ Esquerda / CCW</span>';
+                    }
+                }
+            }
+            lastA = stateA;
+            lastB = stateB;
+
+            // 4. ATUALIZAR GRÁFICO (MAPEAMENTO ESPACIAL)
+            drawChart();
+        }
+
+        function drawChart() {
+            const canvas = document.getElementById('wave-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvasWidth, 120);
+
+            // Linha Tracejada Amarela (Ponto exato onde os sensores estão lendo AGORA)
+            ctx.strokeStyle = 'rgba(255, 170, 0, 0.5)';
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(170, 0); // Centro da tela
+            ctx.lineTo(170, 120);
+            ctx.stroke();
+            ctx.setLineDash([]); 
+
+            // Vamos desenhar os traços de -170px até +170px do centro atual
+            // Fator de escala: 40px para cada ciclo (igual ao slider linear antigo para manter a visualização agradável)
+            const pxPerDegree = 40 / CYCLE_DEG; 
+
+            // Traço do Canal A
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let x = 0; x <= canvasWidth; x++) {
+                // Calcula qual ângulo está "naquele pixel" da tela
+                let pxAngle = currentAngle + (x - 170) / pxPerDegree;
+                let isHigh = mod(pxAngle, CYCLE_DEG) < (CYCLE_DEG / 2);
+                let y = isHigh ? 20 : 50; 
+                if(x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Traço do Canal B
+            ctx.strokeStyle = '#4444ff';
+            ctx.beginPath();
+            for(let x = 0; x <= canvasWidth; x++) {
+                let pxAngle = currentAngle + (x - 170) / pxPerDegree;
+                let isHigh = mod(pxAngle + OFFSET_B_DEG, CYCLE_DEG) < (CYCLE_DEG / 2);
+                let y = isHigh ? 70 : 100;
+                if(x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        // Inicializar Sistema
+        initDiscs();
+        updateSystem(0);
+
+        // Listener do Slider
+        document.getElementById('angle-slider').addEventListener('input', function(e) {
+            updateSystem(parseFloat(e.target.value));
+        });
+
+    </script>
+</body>
+</html>
