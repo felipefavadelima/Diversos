@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomba Peristáltica Pro - Transparente</title>
+    <style>
+        :root {
+            --bg-device: #e2e8f0;
+            --panel-dark: #0f172a;
+            --screen-bg: #020617;
+            --text-cyan: #00f6ff;
+            --text-green: #10b981;
+            --text-red: #ef4444;
+            --text-yellow: #f59e0b;
+            --fluid-color: #0ea5e9;
+            --fluid-glow: rgba(14, 165, 233, 0.6);
+            --tube-color: rgba(255, 255, 255, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+            background-color: #64748b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+            background-image: radial-gradient(circle at center, #94a3b8 0%, #1e293b 100%);
+        }
+
+        /* Chassi Principal */
+        .pump-machine {
+            background: linear-gradient(135deg, #f8fafc, #cbd5e1);
+            border-radius: 16px;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.6), inset 0 2px 5px rgba(255,255,255,0.9);
+            width: 1080px;
+            height: 640px;
+            display: flex;
+            border: 1px solid #94a3b8;
+            position: relative;
+        }
+
+        /* --- Área Mecânica (Esquerda) --- */
+        .mechanism-area {
+            width: 680px;
+            padding: 20px;
+            background: #f1f5f9;
+            position: relative;
+            box-shadow: inset -10px 0 20px rgba(0,0,0,0.05);
+            border-radius: 16px 0 0 16px;
+            overflow: hidden;
+        }
+
+        /* --- BOLSA DE SORO (IV Bag) --- */
+        .iv-bag-container {
+            position: absolute;
+            left: 30px;
+            top: -20px; /* Simula vir de cima da máquina */
+            width: 60px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.4);
+            border: 2px solid #cbd5e1;
+            border-radius: 5px 5px 30px 30px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1), inset 0 0 10px rgba(255,255,255,0.8);
+            z-index: 6;
+            display: flex;
+            align-items: flex-end;
+            overflow: hidden;
+            padding: 2px;
+        }
+        .iv-bag-fluid {
+            width: 100%;
+            height: 100%; /* JS controla % */
+            background: var(--fluid-color);
+            border-radius: 2px 2px 25px 25px;
+            box-shadow: inset 0 5px 10px rgba(255,255,255,0.4);
+            transition: height 0.5s linear;
+        }
+
+        /* --- Câmara Gotejadora (Drip Chamber) --- */
+        .drip-chamber {
+            position: absolute;
+            left: 42px;
+            top: 105px;
+            width: 36px;
+            height: 80px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.3) 100%);
+            border: 2px solid #94a3b8;
+            border-radius: 18px;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2), 0 5px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+            z-index: 5;
+            display: flex;
+            justify-content: center;
+        }
+        .drip-fluid-bottom {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 25px;
+            background: var(--fluid-color);
+            opacity: 0.9;
+            box-shadow: 0 -2px 5px var(--fluid-glow);
+        }
+        
+        /* Gota Física (Animada via JS) */
+        .drop {
+            position: absolute;
+            top: -15px;
+            width: 10px;
+            height: 14px;
+            background: var(--fluid-color);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; /* Formato de gota */
+            box-shadow: inset -2px -2px 4px rgba(0,0,0,0.2), 0 0 8px var(--fluid-glow);
+            animation: dropFall 0.4s cubic-bezier(0.5, 0, 1, 1) forwards;
+        }
+
+        @keyframes dropFall {
+            0% { transform: translateY(0) scale(0); opacity: 0; }
+            20% { transform: translateY(10px) scale(1); opacity: 1; }
+            80% { transform: translateY(45px) scale(1.1) scaleY(1.2); opacity: 1; }
+            100% { transform: translateY(60px) scale(1.5) scaleY(0.5); opacity: 0; }
+        }
+
+        /* --- TUBULAÇÃO --- */
+        .tube-vertical {
+            position: absolute; left: 56px; top: 185px; width: 8px; height: 115px;
+            background: var(--fluid-color); border-left: 2px solid var(--tube-color); border-right: 2px solid var(--tube-color); z-index: 1;
+        }
+        .tube-curve {
+            position: absolute; left: 56px; top: 300px; width: 40px; height: 40px;
+            border: 8px solid var(--fluid-color); border-top: none; border-right: none; border-radius: 0 0 0 20px; z-index: 1;
+            box-shadow: inset 2px -2px 0 var(--tube-color), -2px 2px 0 var(--tube-color);
+        }
+        .tube-horizontal {
+            position: absolute; left: 88px; top: 332px; width: 550px; height: 8px;
+            background: var(--fluid-color); border-top: 2px solid var(--tube-color); border-bottom: 2px solid var(--tube-color); z-index: 1;
+        }
+
+        /* Complacências (Balões de pressão para visualização) */
+        .comp-up {
+            position: absolute; left: 140px; top: 330px; width: 25px; height: 12px;
+            background: var(--fluid-color); border-radius: 10px; z-index: 2; transition: transform 0.2s; border: 1px solid rgba(255,255,255,0.4);
+        }
+        .comp-down {
+            position: absolute; left: 530px; top: 330px; width: 25px; height: 12px;
+            background: var(--fluid-color); border-radius: 10px; z-index: 2; transition: transform 0.2s; border: 1px solid rgba(255,255,255,0.4);
+        }
+
+        /* Bolha de Ar */
+        .bubble {
+            position: absolute; top: 333px; left: 0; width: 15px; height: 6px;
+            background: rgba(255, 255, 255, 0.95); border-radius: 3px; display: none; z-index: 3;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.3); border: 1px solid #94a3b8;
+        }
+
+        /* --- SENSORES FÍSICOS --- */
+        .sensor-block {
+            position: absolute;
+            background: linear-gradient(180deg, #334155, #0f172a);
+            border-radius: 6px;
+            border: 2px solid #1e293b;
+            color: #94a3b8;
+            font-size: 9px;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 5px;
+            z-index: 4;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.4), inset 0 2px 2px rgba(255,255,255,0.1);
+        }
+        .sensor-up { left: 130px; top: 305px; width: 45px; height: 50px; }
+        .sensor-ail { left: 450px; top: 310px; width: 40px; height: 40px; }
+        .sensor-down { left: 520px; top: 305px; width: 45px; height: 50px; }
+        
+        .led { width: 8px; height: 8px; border-radius: 50%; background: #475569; margin-top: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);}
+        .led.green { background: #10b981; box-shadow: 0 0 10px #10b981; }
+        .led.red { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+
+        /* Grampos (Clamp) */
+        .clamp-up {
+            position: absolute; left: 95px; top: 305px; width: 12px; height: 45px;
+            background: linear-gradient(90deg, #64748b, #475569); border-radius: 3px; z-index: 6; transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #1e293b;
+        }
+        .clamp-down {
+            position: absolute; left: 600px; top: 305px; width: 12px; height: 45px;
+            background: linear-gradient(90deg, #64748b, #475569); border-radius: 3px; z-index: 6; transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #1e293b;
+        }
+        .clamp-up.occluded, .clamp-down.occluded { top: 325px; background: linear-gradient(90deg, #ef4444, #b91c1c); }
+
+        /* --- MECANISMO PERISTÁLTICO --- */
+        .peristaltic-block {
+            position: absolute;
+            left: 200px;
+            top: 250px;
+            width: 220px;
+            height: 130px;
+            background: #cbd5e1;
+            border-radius: 12px;
+            border: 3px solid #94a3b8;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.2), 10px 10px 25px rgba(0,0,0,0.3);
+            z-index: 2;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 5px;
+            overflow: hidden;
+        }
+        
+        /* A Placa Traseira (Platen) */
+        .platen-backplate {
+            position: absolute;
+            bottom: 35px;
+            left: 10px;
+            right: 10px;
+            height: 12px;
+            background: linear-gradient(180deg, #334155, #0f172a);
+            border-radius: 6px;
+            z-index: 1;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+        }
+
+        /* Tubo de Silicone interno */
+        .peristaltic-tube {
+            position: absolute;
+            bottom: 45px;
+            left: 10px;
+            right: 10px;
+            height: 12px;
+            background: var(--fluid-color);
+            border-top: 2px solid var(--tube-color);
+            border-bottom: 2px solid var(--tube-color);
+            border-radius: 6px;
+            z-index: 2;
+        }
+
+        /* Dedos Peristálticos (Cames) */
+        .finger-container {
+            display: flex;
+            gap: 2px;
+            position: relative;
+            z-index: 4;
+            top: 0px;
+        }
+        .finger {
+            width: 24px;
+            height: 60px;
+            background: linear-gradient(180deg, #94a3b8, #cbd5e1, #64748b);
+            border-radius: 6px;
+            border: 1px solid #475569;
+            /* Sombra projeta o "peso" sobre o tubo */
+            box-shadow: 0 8px 6px rgba(0,0,0,0.4), inset 0 -4px 4px rgba(255,255,255,0.4);
+            /* Transformação y via JS */
+        }
+
+        /* --- PORTA DA BOMBA (Transparente / Glassmorphism) --- */
+        .pump-door {
+            position: absolute;
+            left: 185px;
+            top: 235px;
+            width: 250px;
+            height: 160px;
+            /* Vidro muito transparente */
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            z-index: 10;
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-origin: top;
+            box-shadow: inset 0 0 20px rgba(255,255,255,0.2), 10px 20px 30px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding-bottom: 15px;
+            color: #1e293b;
+            font-weight: 900;
+            font-size: 16px;
+            text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+        }
+        /* Reflexo diagonal estilo vidro */
+        .pump-door::before {
+            content: ''; position: absolute; top: 0; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(to bottom right, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 100%);
+            transform: rotate(-30deg); pointer-events: none;
+        }
+
+        .pump-door.open {
+            transform: rotateX(110deg);
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 0 0 rgba(0,0,0,0);
+        }
+        .door-latch {
+            width: 70px;
+            height: 18px;
+            background: linear-gradient(180deg, #94a3b8, #64748b);
+            border-radius: 5px;
+            border: 1px solid #334155;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+            position: relative; z-index: 2;
+        }
+
+        /* --- Painel Eletrônico (Direita) --- */
+        .control-panel {
+            width: 400px;
+            background: var(--panel-dark);
+            padding: 25px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            border-left: 2px solid #000;
+            color: white;
+            z-index: 10;
+            box-shadow: -15px 0 30px rgba(0,0,0,0.5);
+            border-radius: 0 16px 16px 0;
+        }
+
+        /* Tela OLED Premium */
+        .display-screen {
+            background: var(--screen-bg);
+            height: 260px;
+            border-radius: 8px;
+            border: 3px solid #334155;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: inset 0 0 30px rgba(0, 246, 255, 0.05);
+            font-family: 'Courier New', Courier, monospace;
+            position: relative;
+            overflow: hidden;
+        }
+        .display-screen::before {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2; background-size: 100% 4px, 6px 100%; pointer-events: none;
+        }
+
+        .header-status {
+            display: flex; justify-content: space-between; font-size: 14px;
+            color: #94a3b8; border-bottom: 1px dashed #1e293b; padding-bottom: 5px;
+            position: relative; z-index: 3;
+        }
+        .status-text { font-weight: bold; }
+        .status-text.infusing { color: var(--text-green); text-shadow: 0 0 8px var(--text-green); }
+        .status-text.stopped { color: var(--text-yellow); }
+        .status-text.alarm { color: var(--text-red); animation: blink 0.5s infinite; text-shadow: 0 0 8px var(--text-red);}
+
+        .main-rate {
+            text-align: center; font-size: 46px; color: var(--text-cyan);
+            text-shadow: 0 0 15px rgba(0, 246, 255, 0.4); font-weight: bold;
+            margin: 5px 0; position: relative; z-index: 3;
+        }
+
+        .volume-info {
+            display: flex; justify-content: space-between; font-size: 14px;
+            color: var(--text-cyan); position: relative; z-index: 3; font-weight: bold;
+        }
+
+        .alarm-msg {
+            text-align: center; background: var(--text-red); color: white;
+            font-weight: bold; font-size: 13px; padding: 4px; border-radius: 3px;
+            display: none; position: relative; z-index: 3; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+
+        /* Telemetria Peristáltica */
+        .telemetry-box {
+            border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 4px;
+            font-size: 12px; color: #64748b; display: flex; flex-direction: column;
+            gap: 4px; position: relative; z-index: 3;
+        }
+        .tel-row { display: flex; justify-content: space-between; align-items: center; }
+        .tel-val { color: var(--text-cyan); font-weight: bold;}
+        .tel-val.alert { color: var(--text-red); }
+
+        /* Barras de Pressão independentes */
+        .press-bars { display: flex; flex-direction: column; gap: 2px; width: 110px; }
+        .p-bar-bg { width: 100%; height: 5px; background: #1e293b; border-radius: 3px; overflow: hidden; position: relative; border: 1px solid #334155;}
+        .p-bar-up { height: 100%; width: 50%; background: var(--text-green); transition: 0.1s; transform-origin: center;}
+        .p-bar-down { height: 100%; width: 50%; background: var(--text-green); transition: 0.1s; }
+
+        /* Controles */
+        .controls-wrapper { display: flex; flex-direction: column; gap: 10px; }
+        .input-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #1e293b; padding: 10px 15px; border-radius: 8px; border: 1px solid #334155;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .input-row input {
+            width: 90px; background: #0f172a; border: 1px solid #475569;
+            color: var(--text-cyan); padding: 8px; border-radius: 4px; font-size: 16px;
+            text-align: right; font-family: 'Courier New', monospace; font-weight: bold; outline: none;
+        }
+        .input-row input:focus { border-color: var(--text-cyan); }
+
+        /* Teclado */
+        .keypad { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button {
+            padding: 14px; border: none; border-radius: 8px; font-weight: bold; font-size: 12px;
+            cursor: pointer; text-transform: uppercase; box-shadow: 0 5px 0 rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.2);
+            transition: transform 0.1s, box-shadow 0.1s; letter-spacing: 0.5px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        button:active { transform: translateY(5px); box-shadow: 0 0 0 rgba(0,0,0,0.4); }
+        
+        .btn-start { background: linear-gradient(180deg, #10b981, #059669); color: white; }
+        .btn-stop { background: linear-gradient(180deg, #f59e0b, #d97706); color: white; }
+        .btn-door { background: linear-gradient(180deg, #64748b, #475569); color: white; }
+        .btn-bubble { background: linear-gradient(180deg, #cbd5e1, #94a3b8); color: #0f172a; text-shadow: none;}
+        .btn-occ { background: linear-gradient(180deg, #3b82f6, #2563eb); color: white; }
+        .btn-clear { background: linear-gradient(180deg, #ef4444, #dc2626); color: white; grid-column: span 2; }
+
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        /* Luz de Alarme Superior */
+        .physical-alarm {
+            position: absolute; top: -14px; left: 340px; transform: translateX(-50%);
+            width: 120px; height: 14px; background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+            border-radius: 10px 10px 0 0; border: 1px solid #64748b; border-bottom: none;
+        }
+        .physical-alarm.active {
+            background: var(--text-red); box-shadow: 0 -15px 50px var(--text-red);
+            border-color: #fca5a5; animation: blink 0.5s infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="pump-machine">
+        <div class="physical-alarm" id="topAlarmLight"></div>
+        
+        <!-- --- ÁREA MECÂNICA --- -->
+        <div class="mechanism-area">
+            
+            <!-- Bolsa de Soro -->
+            <div class="iv-bag-container">
+                <div class="iv-bag-fluid" id="ivFluid"></div>
+            </div>
+
+            <!-- Câmara Gotejadora -->
+            <div class="drip-chamber" id="dripChamber">
+                <!-- Gotas são inseridas aqui via JS -->
+                <div class="drip-fluid-bottom"></div>
+            </div>
+
+            <!-- Tubulação -->
+            <div class="tube-vertical"></div>
+            <div class="tube-curve"></div>
+            <div class="tube-horizontal">
+                <!-- Segmentos que "incham" ou "murcham" na oclusão -->
+                <div class="comp-up" id="tCompUp"></div>
+                <div class="comp-down" id="tCompDown"></div>
+            </div>
+            
+            <!-- Bolha animada no tubo horizontal -->
+            <div class="bubble" id="tBubble"></div>
+
+            <!-- Grampos (Usuário interage via botão) -->
+            <div class="clamp-up" id="mClampUp"></div>
+            <div class="clamp-down" id="mClampDown"></div>
+
+            <!-- Sensores Físicos -->
+            <div class="sensor-block sensor-up">
+                UP
+                <div class="led green" id="ledUp"></div>
+            </div>
+            
+            <div class="sensor-block sensor-ail">
+                AIL
+                <div class="led green" id="ledAil"></div>
+            </div>
+
+            <div class="sensor-block sensor-down">
+                DOWN
+                <div class="led green" id="ledDown"></div>
+            </div>
+
+            <!-- Mecanismo Peristáltico -->
+            <div class="peristaltic-block">
+                <div class="platen-backplate"></div>
+                <div class="peristaltic-tube"></div>
+                <div class="finger-container" id="mFingers">
+                    <div class="finger"></div><div class="finger"></div>
+                    <div class="finger"></div><div class="finger"></div>
+                    <div class="finger"></div><div class="finger"></div>
+                </div>
+            </div>
+
+            <!-- Porta da Bomba (Transparente) -->
+            <div class="pump-door" id="mDoor">
+                <div class="door-latch"></div>
+            </div>
+        </div>
+
+        <!-- --- PAINEL ELETRÔNICO --- -->
+        <div class="control-panel">
+            <div class="display-screen">
+                <div class="header-status">
+                    <span>PERISTALTIC PRO</span>
+                    <span class="status-text stopped" id="lcdStatus">PARADO</span>
+                </div>
+                
+                <div class="main-rate" id="lcdRate">120.0 <span style="font-size: 16px;">mL/h</span></div>
+                <div class="alarm-msg" id="lcdAlarm"></div>
+
+                <div>
+                    <div class="volume-info">
+                        <span>VTBI: <span id="lcdVtbi">500.0</span> mL</span>
+                        <span>INF: <span id="lcdInf">0.0</span> mL</span>
+                    </div>
+                </div>
+
+                <!-- Telemetria Avançada -->
+                <div class="telemetry-box">
+                    <div class="tel-row">
+                        <span>PORTA FRONT:</span>
+                        <span class="tel-val" id="telDoor">FECHADA</span>
+                    </div>
+                    <div class="tel-row">
+                        <span>GOTAS / MIN:</span>
+                        <span class="tel-val" id="telDrops">0 DPM</span>
+                    </div>
+                    <div class="tel-row">
+                        <span>P. MONTANTE (UP):</span>
+                        <div class="press-bars">
+                            <div class="p-bar-bg"><div class="p-bar-up" id="barUp"></div></div>
+                        </div>
+                    </div>
+                    <div class="tel-row">
+                        <span>P. JUSANTE (DOWN):</span>
+                        <div class="press-bars">
+                            <div class="p-bar-bg"><div class="p-bar-down" id="barDown"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls-wrapper">
+                <div class="input-row">
+                    <label style="font-size: 13px; font-weight: bold; color: #94a3b8;">Fluxo (mL/h):</label>
+                    <input type="number" id="inpFlow" value="120" min="1" max="1200" step="1">
+                </div>
+                <div class="input-row">
+                    <label style="font-size: 13px; font-weight: bold; color: #94a3b8;">Volume (VTBI):</label>
+                    <input type="number" id="inpVtbi" value="500" min="1" max="2000" step="10">
+                </div>
+            </div>
+
+            <div class="keypad">
+                <button class="btn-start" onclick="pump.start()">Start</button>
+                <button class="btn-stop" onclick="pump.stop()">Stop</button>
+                <button class="btn-door" id="btnDoor" onclick="pump.toggleDoor()">Abrir Porta</button>
+                <button class="btn-bubble" onclick="pump.injectBubble()">Bolha de Ar</button>
+                <button class="btn-occ" id="btnOccUp" onclick="pump.toggleClampUp()">Ocluir Acima</button>
+                <button class="btn-occ" id="btnOccDown" onclick="pump.toggleClampDown()">Ocluir Abaixo</button>
+                <button class="btn-clear" onclick="pump.resetPump()">Limpar Alarme / Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class PeristalticPump {
+            constructor() {
+                // Parâmetros Clínicos
+                this.maxVtbi = 500.0;
+                this.vtbi = 500.0;     
+                this.infused = 0.0;    
+                this.flowRate = 120.0; 
+                this.state = 'STOPPED'; 
+                
+                // Físicos / Sensores
+                this.pressUp = 0;     // (-100 a 0)
+                this.pressDown = 0;   // (0 a 100)
+                this.isClampUp = false;
+                this.isClampDown = false;
+                this.isDoorOpen = false;
+                
+                // Bolha
+                this.hasBubble = false;
+                this.bubblePos = 0; 
+                this.ailSensorX = 360; 
+
+                // Animação
+                this.phase = 0;
+                this.dropAccumulator = 0; 
+                this.volPerDrop = 0.05;   
+
+                this.timeScale = 60; 
+                this.lastTick = performance.now();
+
+                // Cache DOM
+                this.dom = {
+                    fingers: document.querySelectorAll('.finger'),
+                    dripChamber: document.getElementById('dripChamber'),
+                    ivFluid: document.getElementById('ivFluid'),
+                    bubble: document.getElementById('tBubble'),
+                    compUp: document.getElementById('tCompUp'),
+                    compDown: document.getElementById('tCompDown'),
+                    door: document.getElementById('mDoor'),
+                    clampUp: document.getElementById('mClampUp'),
+                    clampDown: document.getElementById('mClampDown'),
+                    
+                    ledUp: document.getElementById('ledUp'),
+                    ledAil: document.getElementById('ledAil'),
+                    ledDown: document.getElementById('ledDown'),
+                    topAlarm: document.getElementById('topAlarmLight'),
+                    
+                    lcdStatus: document.getElementById('lcdStatus'),
+                    lcdRate: document.getElementById('lcdRate'),
+                    lcdVtbi: document.getElementById('lcdVtbi'),
+                    lcdInf: document.getElementById('lcdInf'),
+                    lcdAlarm: document.getElementById('lcdAlarm'),
+                    
+                    telDoor: document.getElementById('telDoor'),
+                    telDrops: document.getElementById('telDrops'),
+                    barUp: document.getElementById('barUp'),
+                    barDown: document.getElementById('barDown'),
+                    
+                    inpFlow: document.getElementById('inpFlow'),
+                    inpVtbi: document.getElementById('inpVtbi'),
+                    btnDoor: document.getElementById('btnDoor'),
+                    btnOccUp: document.getElementById('btnOccUp'),
+                    btnOccDown: document.getElementById('btnOccDown')
+                };
+
+                this.dom.inpFlow.addEventListener('change', (e) => {
+                    this.flowRate = Math.max(1, Math.min(1200, parseFloat(e.target.value) || 1));
+                    e.target.value = this.flowRate;
+                    this.updateUI();
+                });
+                
+                this.dom.inpVtbi.addEventListener('change', (e) => {
+                    this.vtbi = Math.max(1, parseFloat(e.target.value) || 1);
+                    this.maxVtbi = this.vtbi; // Reset the max for the bag visual
+                    this.infused = 0;
+                    e.target.value = this.vtbi;
+                    this.updateUI();
+                });
+
+                this.updateUI();
+                requestAnimationFrame((t) => this.loop(t));
+            }
+
+            start() {
+                if (this.state === 'ALARM' || this.vtbi <= 0) return;
+                if (this.isDoorOpen) {
+                    this.triggerAlarm("FALHA: PORTA ABERTA");
+                    return;
+                }
+                
+                this.flowRate = parseFloat(this.dom.inpFlow.value) || 120;
+                this.state = 'INFUSING';
+                this.lastTick = performance.now();
+                this.updateUI();
+            }
+
+            stop() {
+                if (this.state === 'ALARM') return;
+                this.state = 'STOPPED';
+                this.updateUI();
+            }
+
+            resetPump() {
+                this.state = 'STOPPED';
+                this.dom.lcdAlarm.style.display = 'none';
+                this.dom.topAlarm.classList.remove('active');
+                
+                this.dom.ledUp.className = 'led green';
+                this.dom.ledAil.className = 'led green';
+                this.dom.ledDown.className = 'led green';
+                
+                if (this.vtbi <= 0) {
+                    this.vtbi = parseFloat(this.dom.inpVtbi.value);
+                    this.maxVtbi = this.vtbi;
+                    this.infused = 0;
+                }
+
+                this.pressUp = 0;
+                this.pressDown = 0;
+                this.hasBubble = false;
+                this.dom.bubble.style.display = 'none';
+                
+                this.updateUI();
+            }
+
+            triggerAlarm(msg) {
+                this.state = 'ALARM';
+                this.dom.lcdAlarm.innerText = msg;
+                this.dom.lcdAlarm.style.display = 'block';
+                this.dom.topAlarm.classList.add('active');
+                
+                this.dom.lcdStatus.className = 'status-text alarm';
+                this.dom.lcdStatus.innerText = 'FALHA';
+                
+                if (msg.includes('MONTANTE')) this.dom.ledUp.className = 'led red';
+                if (msg.includes('JUSANTE')) this.dom.ledDown.className = 'led red';
+                if (msg.includes('AR')) this.dom.ledAil.className = 'led red';
+            }
+
+            toggleDoor() {
+                this.isDoorOpen = !this.isDoorOpen;
+                if (this.isDoorOpen) {
+                    this.dom.door.classList.add('open');
+                    this.dom.btnDoor.innerText = 'Fechar Porta';
+                    if (this.state === 'INFUSING') {
+                        this.triggerAlarm("FALHA: PORTA ABERTA DURANTE INFUSÃO");
+                    }
+                } else {
+                    this.dom.door.classList.remove('open');
+                    this.dom.btnDoor.innerText = 'Abrir Porta';
+                    if (this.state === 'ALARM' && this.dom.lcdAlarm.innerText.includes('PORTA')) {
+                        this.resetPump(); 
+                    }
+                }
+                this.updateUI();
+            }
+
+            toggleClampUp() {
+                this.isClampUp = !this.isClampUp;
+                this.dom.clampUp.classList.toggle('occluded');
+                this.dom.btnOccUp.style.background = this.isClampUp ? 'linear-gradient(180deg, #ef4444, #b91c1c)' : '';
+            }
+
+            toggleClampDown() {
+                this.isClampDown = !this.isClampDown;
+                this.dom.clampDown.classList.toggle('occluded');
+                this.dom.btnOccDown.style.background = this.isClampDown ? 'linear-gradient(180deg, #ef4444, #b91c1c)' : '';
+            }
+
+            injectBubble() {
+                if (this.hasBubble || this.state === 'ALARM') return;
+                this.hasBubble = true;
+                this.bubblePos = 0; 
+                this.dom.bubble.style.left = '0px';
+                this.dom.bubble.style.display = 'block';
+            }
+
+            // Spawna uma gota e a destrói depois da animação
+            animateDrop() {
+                const drop = document.createElement('div');
+                drop.className = 'drop';
+                this.dom.dripChamber.appendChild(drop);
+                setTimeout(() => {
+                    drop.remove();
+                }, 400); // Duração da animação CSS
+            }
+
+            updateUI() {
+                if (this.state !== 'ALARM') {
+                    this.dom.lcdStatus.className = `status-text ${this.state === 'INFUSING' ? 'infusing' : 'stopped'}`;
+                    this.dom.lcdStatus.innerText = this.state === 'INFUSING' ? 'INFUNDINDO...' : 'PARADO';
+                }
+                
+                this.dom.lcdRate.innerHTML = `${this.flowRate.toFixed(1)} <span style="font-size: 16px;">mL/h</span>`;
+                this.dom.lcdVtbi.innerText = this.vtbi.toFixed(1);
+                this.dom.lcdInf.innerText = this.infused.toFixed(1);
+
+                // Nível da Bolsa de Soro
+                const bagPct = Math.max(0, (this.vtbi / this.maxVtbi) * 100);
+                this.dom.ivFluid.style.height = `${bagPct}%`;
+
+                // Telemetria Porta
+                this.dom.telDoor.innerText = this.isDoorOpen ? 'ABERTA' : 'FECHADA';
+                this.dom.telDoor.className = `tel-val ${this.isDoorOpen ? 'alert' : ''}`;
+
+                // Gotas por min
+                if (this.state === 'INFUSING') {
+                    const dpm = (this.flowRate / 60) * 20;
+                    this.dom.telDrops.innerText = `${Math.round(dpm)} DPM`;
+                } else {
+                    this.dom.telDrops.innerText = `0 DPM`;
+                }
+
+                // Barras de Pressão
+                const upPct = Math.max(0, 100 - Math.abs(this.pressUp)); 
+                this.dom.barUp.style.width = `${upPct}%`;
+                this.dom.barUp.style.background = this.pressUp < -80 ? 'var(--text-red)' : (this.pressUp < -50 ? 'var(--text-yellow)' : 'var(--text-green)');
+                
+                const downPct = Math.max(0, Math.min(100, this.pressDown));
+                this.dom.barDown.style.width = `${downPct}%`;
+                this.dom.barDown.style.background = this.pressDown > 80 ? 'var(--text-red)' : (this.pressDown > 50 ? 'var(--text-yellow)' : 'var(--text-green)');
+
+                // Tubo Complacência
+                const scaleUp = 1 - (Math.abs(this.pressUp) / 100) * 0.8;
+                this.dom.compUp.style.transform = `scaleY(${Math.max(0.2, scaleUp)})`;
+                
+                const scaleDown = 1 + (this.pressDown / 100) * 1.5;
+                this.dom.compDown.style.transform = `scaleY(${scaleDown})`;
+            }
+
+            loop(timestamp) {
+                const dt = (timestamp - this.lastTick) / 1000;
+                this.lastTick = timestamp;
+
+                if (this.state === 'INFUSING') {
+                    const simulatedFlow = (this.flowRate / 3600) * this.timeScale; 
+                    const volumeDelta = simulatedFlow * dt;
+
+                    // --- ANIMAÇÃO DOS DEDOS ESMAGANDO O TUBO ---
+                    this.phase += (this.flowRate / 60) * dt;
+                    this.dom.fingers.forEach((finger, index) => {
+                        // Offset empurra o dedo para BAIXO. 0px = retraído, 28px = esmagando tubo
+                        const offset = Math.sin(this.phase - (index * 1.2)) * 14 + 14; 
+                        finger.style.transform = `translateY(${offset}px)`;
+                    });
+
+                    // --- DINÂMICA ---
+                    if (this.isClampUp) {
+                        this.pressUp -= (simulatedFlow * 200) * dt;
+                        if (this.pressUp <= -100) {
+                            this.pressUp = -100;
+                            this.triggerAlarm("ALERTA: OCLUSÃO A MONTANTE (VÁCUO)");
+                        }
+                    } else if (this.isClampDown) {
+                        this.pressDown += (simulatedFlow * 200) * dt;
+                        this.pressUp = Math.min(0, this.pressUp + 100 * dt); 
+                        if (this.pressDown >= 100) {
+                            this.pressDown = 100;
+                            this.triggerAlarm("ALERTA: OCLUSÃO A JUSANTE (ALTA PRESSÃO)");
+                        }
+                    } else {
+                        // Fluxo Normal
+                        this.pressUp = Math.min(0, this.pressUp + 100 * dt);
+                        this.pressDown = Math.max(0, this.pressDown - 100 * dt);
+
+                        this.vtbi -= volumeDelta;
+                        this.infused += volumeDelta;
+
+                        if (this.vtbi <= 0.05) {
+                            this.vtbi = 0;
+                            this.triggerAlarm("INFUSÃO CONCLUÍDA (VTBI)");
+                        }
+
+                        // Gotejamento
+                        this.dropAccumulator += volumeDelta;
+                        if (this.dropAccumulator >= this.volPerDrop) {
+                            this.dropAccumulator -= this.volPerDrop;
+                            this.animateDrop();
+                        }
+
+                        // Bolha
+                        if (this.hasBubble) {
+                            const speedPx = (simulatedFlow / 10.0) * 550;
+                            this.bubblePos += speedPx * dt;
+                            this.dom.bubble.style.left = `${this.bubblePos}px`;
+
+                            if (this.bubblePos > this.ailSensorX && this.bubblePos < this.ailSensorX + 20) {
+                                this.triggerAlarm("ALERTA: AR NA LINHA DETECTADO (AIL)");
+                            }
+
+                            if (this.bubblePos > 550) {
+                                this.hasBubble = false;
+                                this.dom.bubble.style.display = 'none';
+                            }
+                        }
+                    }
+                    this.updateUI();
+
+                } else if (this.state === 'STOPPED') {
+                    if (!this.isClampUp && this.pressUp < 0) this.pressUp = Math.min(0, this.pressUp + 40 * dt);
+                    if (!this.isClampDown && this.pressDown > 0) this.pressDown = Math.max(0, this.pressDown - 40 * dt);
+                    this.updateUI();
+                }
+
+                requestAnimationFrame((t) => this.loop(t));
+            }
+        }
+
+        const pump = new PeristalticPump();
+    </script>
+</body>
+</html>
