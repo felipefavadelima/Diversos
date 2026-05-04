@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador: Peristáltica vs Centrífuga</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --accent-blue: #38bdf8;
+            --accent-purple: #a855f7;
+            --text: #f1f5f9;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { margin-bottom: 10px; color: var(--accent-blue); }
+        .description { max-width: 800px; text-align: center; color: #94a3b8; margin-bottom: 30px; }
+
+        .simulation-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .pump-card {
+            background: var(--panel);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .pump-card h2 { margin-top: 0; font-size: 1.2rem; height: 3rem; text-align: center; }
+
+        .analog-label {
+            background: #0ea5e922;
+            color: var(--accent-blue);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            border: 1px solid #0ea5e944;
+        }
+
+        svg {
+            background: #000;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            width: 100%;
+            height: 250px;
+        }
+
+        .controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        input[type=range] { width: 100%; accent-color: var(--accent-blue); }
+
+        .display-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .display-item {
+            background: #0f172a;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        .display-item .val {
+            display: block;
+            font-size: 1.5rem;
+            font-family: monospace;
+            font-weight: bold;
+        }
+
+        .display-item .unit { font-size: 0.7rem; color: #64748b; text-transform: uppercase; }
+
+        .color-flow { color: #22c55e; }
+        .color-press { color: #ef4444; }
+
+        .global-resistance {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid #ef4444;
+        }
+
+        @media (max-width: 800px) {
+            .simulation-container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Bomba Peristáltica x Centrífuga</h1>
+
+    <div class="global-resistance">
+        <div class="label-row">
+            <span style="color:#ef4444; font-weight:bold;">RESISTÊNCIA DO PACIENTE (R)</span>
+            <span id="resVal">1.0</span>
+        </div>
+        <input id="inRes" type="range" min="0.5" max="5.0" step="0.1" value="1.0">
+    </div>
+
+    <div class="simulation-container">
+        
+        <div class="pump-card">
+            <h2>Bomba Peristáltica<br>(Roletes)</h2>
+            <div class="analog-label">FONTE DE CORRENTE (I)</div>
+            
+            <svg id="svgPeris" viewBox="0 0 200 200">
+                <path d="M 20 100 A 80 80 0 1 1 180 100" fill="none" stroke="#444" stroke-width="20" />
+                <path id="pathPeris" d="M 20 100 A 80 80 0 1 1 180 100" fill="none" stroke="#22c55e" stroke-width="15" stroke-dasharray="0 200" />
+                <g id="rotorPeris">
+                    <circle cx="100" cy="100" r="10" fill="#64748b" />
+                    <line x1="100" y1="100" x2="100" y2="35" stroke="#94a3b8" stroke-width="6" />
+                    <line x1="100" y1="100" x2="100" y2="165" stroke="#94a3b8" stroke-width="6" />
+                    <circle cx="100" cy="35" r="12" fill="#cbd5e1" />
+                    <circle cx="100" cy="165" r="12" fill="#cbd5e1" />
+                </g>
+            </svg>
+
+            <div class="controls">
+                <div class="control-group">
+                    <div class="label-row"><span>Velocidade (RPM)</span><span id="pSpeedVal">20</span></div>
+                    <input id="pSpeed" type="range" min="0" max="60" value="20">
+                </div>
+            </div>
+
+            <div class="display-grid">
+                <div class="display-item">
+                    <span class="unit">Fluxo (I)</span>
+                    <span id="pFlow" class="val color-flow">0.0</span>
+                    <span class="unit">L/min</span>
+                </div>
+                <div class="display-item">
+                    <span class="unit">Pressão (V)</span>
+                    <span id="pPress" class="val color-press">0.0</span>
+                    <span class="unit">mmHg</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pump-card">
+            <h2>Bomba Centrífuga<br>(Rotor Magnético)</h2>
+            <div class="analog-label">FONTE DE TENSÃO (V)</div>
+            
+            <svg id="svgCentri" viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="85" fill="none" stroke="#444" stroke-width="5" />
+                <g id="rotorCentri">
+                    <circle cx="100" cy="100" r="60" fill="#1e293b" stroke="#38bdf8" stroke-width="2" />
+                    <line x1="100" y1="40" x2="100" y2="160" stroke="#38bdf8" stroke-width="4" />
+                    <line x1="40" y1="100" x2="160" y2="100" stroke="#38bdf8" stroke-width="4" />
+                </g>
+                <circle id="glowCentri" cx="100" cy="100" r="60" fill="#38bdf8" opacity="0.2">
+                    <animate attributeName="opacity" values="0.1;0.3;0.1" dur="2s" repeatCount="indefinite" />
+                </circle>
+            </svg>
+
+            <div class="controls">
+                <div class="control-group">
+                    <div class="label-row"><span>Potência/RPM</span><span id="cSpeedVal">2500</span></div>
+                    <input id="cSpeed" type="range" min="0" max="5000" step="100" value="2500">
+                </div>
+            </div>
+
+            <div class="display-grid">
+                <div class="display-item">
+                    <span class="unit">Fluxo (I)</span>
+                    <span id="cFlow" class="val color-flow">0.0</span>
+                    <span class="unit">L/min</span>
+                </div>
+                <div class="display-item">
+                    <span class="unit">Pressão (V)</span>
+                    <span id="cPress" class="val color-press">0.0</span>
+                    <span class="unit">mmHg</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const resInput = document.getElementById('inRes');
+        const resVal = document.getElementById('resVal');
+
+        // Peristáltica
+        const pSpeedInput = document.getElementById('pSpeed');
+        const pSpeedVal = document.getElementById('pSpeedVal');
+        const pFlowDisp = document.getElementById('pFlow');
+        const pPressDisp = document.getElementById('pPress');
+        const rotorPeris = document.getElementById('rotorPeris');
+
+        // Centrífuga
+        const cSpeedInput = document.getElementById('cSpeed');
+        const cSpeedVal = document.getElementById('cSpeedVal');
+        const cFlowDisp = document.getElementById('cFlow');
+        const cPressDisp = document.getElementById('cPress');
+        const rotorCentri = document.getElementById('rotorCentri');
+        const glowCentri = document.getElementById('glowCentri');
+
+        let rotationP = 0;
+        let rotationC = 0;
+
+        function update() {
+            const R = parseFloat(resInput.value);
+            resVal.innerText = R.toFixed(1);
+
+            // LÓGICA PERISTÁLTICA: Fluxo é definido pela velocidade (RPM)
+            // Fluxo (I) = RPM * constante
+            // Pressão (V) = I * R (Ohm)
+            const pRPM = parseFloat(pSpeedInput.value);
+            pSpeedVal.innerText = pRPM;
+            const pFlow = pRPM * 0.1; 
+            const pPress = pFlow * R * 40; // 40 é um fator de escala para mmHg
+
+            pFlowDisp.innerText = pFlow.toFixed(1);
+            pPressDisp.innerText = Math.round(pPress);
+
+            // LÓGICA CENTRÍFUGA: Pressão é definida pela velocidade (RPM²)
+            // Pressão (V) = RPM^2 * constante
+            // Fluxo (I) = V / R (Ohm)
+            const cRPM = parseFloat(cSpeedInput.value);
+            cSpeedVal.innerText = cRPM;
+            const cPress = (cRPM / 5000) * 300; // Pressão máxima 300mmHg
+            const cFlow = (cPress / R) / 50; // Fator de escala para L/min
+
+            cPressDisp.innerText = Math.round(cPress);
+            cFlowDisp.innerText = cFlow.toFixed(1);
+            
+            // Visual Glow para a centrífuga (tensão)
+            glowCentri.setAttribute('opacity', (cPress / 400));
+        }
+
+        function animate() {
+            const pRPM = parseFloat(pSpeedInput.value);
+            const cRPM = parseFloat(cSpeedInput.value);
+
+            // Rotação visual
+            rotationP += (pRPM * 0.1);
+            rotationC += (cRPM * 0.01);
+
+            rotorPeris.setAttribute('transform', `rotate(${rotationP} 100 100)`);
+            rotorCentri.setAttribute('transform', `rotate(${rotationC} 100 100)`);
+
+            // Animação do fluxo no tubo peristáltico (apenas visual)
+            const dashOffset = (rotationP * 2) % 200;
+            document.getElementById('pathPeris').setAttribute('stroke-dasharray', `10 5`);
+            document.getElementById('pathPeris').setAttribute('stroke-dashoffset', -rotationP);
+
+            requestAnimationFrame(animate);
+        }
+
+        [resInput, pSpeedInput, cSpeedInput].forEach(i => i.addEventListener('input', update));
+
+        update();
+        animate();
+    </script>
+</body>
+</html>
