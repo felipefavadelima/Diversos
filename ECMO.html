@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador Avançado ECMO VV</title>
+<style>
+    :root {
+        --bg: #050505;
+        --panel: #111;
+        --border: #333;
+        --text: #e0e0e0;
+        --accent: #0ea5e9;
+        --green: #22c55e;
+        --yellow: #eab308;
+        --red: #ef4444;
+        --blue: #3b82f6;
+    }
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+    
+    header { text-align: center; margin-bottom: 20px; }
+    header h1 { color: var(--accent); margin: 0; font-size: 1.8rem; text-transform: uppercase; letter-spacing: 2px;}
+    header p { color: #888; margin: 5px 0 0 0; font-size: 0.95rem; }
+
+    .layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 20px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    /* Painel de Controle ECMO */
+    .controls {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    }
+    .controls h2 {
+        color: #fff; margin-top: 0; font-size: 1.2rem;
+        border-bottom: 2px solid var(--accent); padding-bottom: 10px;
+    }
+    .control-item { margin-bottom: 25px; }
+    .control-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .control-label { font-weight: bold; color: #ccc; }
+    .control-val { color: var(--accent); font-family: monospace; font-size: 1.2rem; font-weight: bold;}
+    input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+    .hint { font-size: 0.8rem; color: #666; margin-top: 5px; }
+
+    /* Status do Paciente (Oculto, mas o sistema calcula) */
+    .patient-status {
+        margin-top: 20px; padding: 15px; border-radius: 8px; background: #1a1a1a; border: 1px solid #333;
+    }
+    .patient-status h3 { margin: 0 0 10px 0; font-size: 1rem; color: #aaa; }
+    .status-bar { height: 6px; background: #333; border-radius: 3px; overflow: hidden; margin-bottom: 10px;}
+    .status-fill { height: 100%; transition: width 0.3s; }
+
+    /* Monitor */
+    .monitor {
+        background: #000; border: 2px solid #222; border-radius: 12px;
+        padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;
+    }
+    .vital { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px; padding: 15px; position: relative; }
+    .vital-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; color: #888;}
+    .vital-val-box { display: flex; align-items: baseline; gap: 5px; }
+    .vital-val { font-size: 3.5rem; font-family: 'Courier New', monospace; font-weight: bold; text-shadow: 0 0 15px currentColor; }
+    .vital-unit { font-size: 1rem; opacity: 0.7; }
+    .vital-ideal {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        font-size: 0.78rem;
+        line-height: 1.25;
+        color: #9ca3af;
+    }
+    .vital-ideal strong {
+        color: #d1d5db;
+        font-weight: 600;
+    }
+    .vital-trend { position: absolute; top: 15px; right: 15px; font-size: 1.2rem; }
+
+    .c-green { color: var(--green); }
+    .c-yellow { color: var(--yellow); }
+    .c-blue { color: var(--blue); }
+
+    /* Animação do Circuito */
+    .animation-box {
+        margin-top: 20px; background: #0a0a0a; border: 1px solid var(--border);
+        border-radius: 12px; padding: 20px; text-align: center; overflow: hidden;
+    }
+    svg { width: 100%; max-width: 800px; height: 300px; background: #050505; border-radius: 8px; }
+    
+    .alarms { margin-top: 15px; padding: 10px; border-radius: 6px; display: none; font-weight: bold; animation: pulse 1s infinite alternate; }
+    @keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
+
+    /* Botões Clínicos */
+    .event-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+    button { background: #222; color: #ddd; border: 1px solid #444; padding: 10px; border-radius: 6px; cursor: pointer; transition: 0.2s;}
+    button:hover { background: var(--accent); color: #000; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Unidade de Terapia Intensiva - Leito 04 (ECMO VV)</h1>
+    <p>O paciente consome O₂ e produz CO₂ continuamente. Ajuste a ECMO para mantê-lo vivo e estável.</p>
+</header>
+
+<div class="layout">
+    <div class="controls">
+        <h2>Console da ECMO</h2>
+        
+        <div class="control-item">
+            <div class="control-header">
+                <span class="control-label">Fluxo Sanguíneo (RPM/LPM)</span>
+                <span class="control-val" id="valFlow">4.0 L/min</span>
+            </div>
+            <input id="inFlow" type="range" min="0.5" max="7.0" step="0.1" value="4.0">
+            <div class="hint">Aumenta a oferta total de O₂ ao paciente.</div>
+        </div>
+
+        <div class="control-item">
+            <div class="control-header">
+                <span class="control-label">Sweep Gas (Fluxo de Gás)</span>
+                <span class="control-val" id="valSweep">4.0 L/min</span>
+            </div>
+            <input id="inSweep" type="range" min="0.0" max="12.0" step="0.5" value="4.0">
+            <div class="hint">Controla a "ventilação" (remoção de CO₂).</div>
+        </div>
+
+        <div class="control-item">
+            <div class="control-header">
+                <span class="control-label">FiO₂ do Gás (Blender)</span>
+                <span class="control-val" id="valFio2">100%</span>
+            </div>
+            <input id="inFio2" type="range" min="21" max="100" step="1" value="100">
+            <div class="hint">Concentração de O₂ na membrana.</div>
+        </div>
+
+        <div class="patient-status">
+            <h3>Metabolismo do Paciente (Oculto)</h3>
+            <div class="hint" style="margin-bottom: 5px;">Consumo de O₂ (Demanda)</div>
+            <div class="status-bar"><div class="status-fill" style="width: 70%; background: #3b82f6;"></div></div>
+            <div class="hint" style="margin-bottom: 5px;">Saturação Venosa Interna (SvO₂) - <span id="internalSvo2">65%</span></div>
+            <div class="status-bar"><div class="status-fill" id="svo2Bar" style="width: 65%; background: #8b5cf6;"></div></div>
+        </div>
+
+        <div class="event-btns">
+            <button onclick="triggerEvent('agitation')">Paciente Agitado</button>
+            <button onclick="triggerEvent('sedation')">Sedação Profunda</button>
+        </div>
+    </div>
+
+    <div>
+        <div class="monitor">
+            <div class="vital c-green">
+                <div class="vital-title">Saturação Pós-Membrana</div>
+                <div class="vital-val-box">
+                    <span class="vital-val" id="monSat">--</span><span class="vital-unit">%</span>
+                </div>
+                <div class="vital-ideal"><strong>Ideal:</strong> 95–100% pós-membrana</div>
+            </div>
+            <div class="vital c-green">
+                <div class="vital-title">PO₂ Sanguínea (Estimada)</div>
+                <div class="vital-val-box">
+                    <span class="vital-val" id="monPo2">--</span><span class="vital-unit">mmHg</span>
+                </div>
+                <div class="vital-ideal"><strong>Ideal:</strong> &gt;150 mmHg pós-membrana</div>
+            </div>
+            <div class="vital c-yellow">
+                <div class="vital-title">PCO₂ do Paciente (Arterial)</div>
+                <div class="vital-trend" id="pco2Trend"></div>
+                <div class="vital-val-box">
+                    <span class="vital-val" id="monPco2">--</span><span class="vital-unit">mmHg</span>
+                </div>
+                <div class="vital-ideal"><strong>Ideal:</strong> 35–45 mmHg</div>
+            </div>
+            <div class="vital c-blue">
+                <div class="vital-title">O₂ Transferido (ECMO)</div>
+                <div class="vital-trend" id="o2Trend"></div>
+                <div class="vital-val-box">
+                    <span class="vital-val" id="monO2">--</span><span class="vital-unit">mL/min</span>
+                </div>
+                <div class="vital-ideal"><strong>Ideal:</strong> <span id="idealO2">≥ demanda atual</span></div>
+            </div>
+        </div>
+
+        <div id="alarmBox" class="alarms"></div>
+
+        <div class="animation-box">
+            <svg viewBox="0 0 800 300">
+                <defs>
+                    <linearGradient id="gradVenoso" x1="0%" x2="100%">
+                        <stop offset="0%" stop-color="#1e3a8a"/>
+                        <stop offset="100%" stop-color="#4c1d95"/>
+                    </linearGradient>
+                    <linearGradient id="gradArterial" x1="0%" x2="100%">
+                        <stop offset="0%" stop-color="#991b1b"/>
+                        <stop id="corSaidaSangue" offset="100%" stop-color="#ef4444"/>
+                    </linearGradient>
+                </defs>
+
+                <path d="M 0 150 C 100 150, 150 150, 200 150" fill="none" stroke="url(#gradVenoso)" stroke-width="25" stroke-linecap="round"/>
+                <text x="20" y="130" fill="#60a5fa" font-size="14">Drenagem (Paciente)</text>
+
+                <circle cx="250" cy="150" r="45" fill="#111" stroke="#444" stroke-width="4"/>
+                <g id="pumpRotor">
+                    <path d="M250 150 L250 115 A35 35 0 0 1 280 170 Z" fill="#38bdf8" opacity="0.8"/>
+                    <path d="M250 150 L220 170 A35 35 0 0 1 250 115 Z" fill="#0284c7" opacity="0.8"/>
+                </g>
+                <text x="250" y="215" text-anchor="middle" fill="#aaa" font-size="12">Bomba</text>
+
+                <path d="M 300 150 L 400 150" fill="none" stroke="#4c1d95" stroke-width="25"/>
+
+                <rect x="400" y="80" width="160" height="140" rx="15" fill="#1a1a1a" stroke="#666" stroke-width="3"/>
+                <g opacity="0.4">
+                    <line x1="420" y1="100" x2="540" y2="100" stroke="#fff" stroke-width="2"/>
+                    <line x1="420" y1="120" x2="540" y2="120" stroke="#fff" stroke-width="2"/>
+                    <line x1="420" y1="140" x2="540" y2="140" stroke="#fff" stroke-width="2"/>
+                    <line x1="420" y1="160" x2="540" y2="160" stroke="#fff" stroke-width="2"/>
+                    <line x1="420" y1="180" x2="540" y2="180" stroke="#fff" stroke-width="2"/>
+                </g>
+                <text x="480" y="240" text-anchor="middle" fill="#aaa" font-size="12">Membrana (Oxigenador)</text>
+
+                <path d="M 480 20 L 480 75" fill="none" stroke="#38bdf8" stroke-width="12"/>
+                <text x="480" y="12" text-anchor="middle" fill="#38bdf8" font-size="12">Gás In</text>
+                <path d="M 480 225 L 480 280" fill="none" stroke="#eab308" stroke-width="12"/>
+                <text x="480" y="295" text-anchor="middle" fill="#eab308" font-size="12">CO₂ Out</text>
+
+                <g id="gasParticles">
+                    <circle cx="480" cy="40" r="4" fill="#fff"/>
+                    <circle cx="480" cy="250" r="4" fill="#eab308"/>
+                </g>
+
+                <path d="M 570 150 C 650 150, 700 150, 800 150" fill="none" stroke="url(#gradArterial)" stroke-width="25" stroke-linecap="round"/>
+                <text x="650" y="130" fill="#f87171" font-size="14">Retorno (Paciente)</text>
+
+                <g id="bloodParticles"></g>
+            </svg>
+        </div>
+    </div>
+</div>
+
+<script>
+// Referências de UI
+const el = id => document.getElementById(id);
+const inputs = {
+    flow: el('inFlow'), sweep: el('inSweep'), fio2: el('inFio2')
+};
+const vals = {
+    flow: el('valFlow'), sweep: el('valSweep'), fio2: el('valFio2')
+};
+const mon = {
+    sat: el('monSat'), po2: el('monPo2'), pco2: el('monPco2'), o2: el('monO2')
+};
+
+// Event Listeners dos Sliders
+Object.values(inputs).forEach(input => {
+    input.addEventListener('input', updateUIValues);
+});
+
+function updateUIValues() {
+    vals.flow.textContent = parseFloat(inputs.flow.value).toFixed(1) + " L/min";
+    vals.sweep.textContent = parseFloat(inputs.sweep.value).toFixed(1) + " L/min";
+    vals.fio2.textContent = inputs.fio2.value + "%";
+}
+
+// ==========================================
+// MODELO FISIOLÓGICO DO PACIENTE (Automático)
+// Revisão matemática: modelo didático de ECMO VV com balanço de conteúdo de O2,
+// relação QECMO/CO, recirculação simplificada e remoção de CO2 dependente do sweep.
+// ==========================================
+let patient = {
+    hb: 10,                 // g/dL. Hb baixa reduz muito a capacidade de transporte de O2.
+    vo2_demand: 220,        // mL O2/min. Consumo metabólico basal aproximado.
+    vco2_prod: 180,         // mL CO2/min. Produção metabólica basal aproximada.
+    svo2: 0.62,             // Saturação venosa mista estimada.
+    pco2: 50,               // PaCO2 inicial, mmHg.
+    membraneHealth: 0.92,   // 1 = membrana ideal; <1 simula perda de performance.
+    cardiacOutput: 5.5,     // L/min. Em VV-ECMO, a razão QECMO/CO é determinante.
+    lungFunction: 0.08,     // Função pulmonar residual simplificada; 0.08 = pulmão muito comprometido.
+    recircBase: 0.05        // Recirculação basal didática mesmo com cânulas bem posicionadas.
+};
+
+// Variáveis de saída da ECMO
+let ecmoOutput = {
+    sat: 0,
+    po2: 0,
+    o2Transferred: 0,
+    co2Removed: 0,
+    effectiveFlow: 0,
+    recirculation: 0,
+    systemicSat: 0,
+    nativeO2: 0,
+    totalO2Support: 0
+};
+
+// Constantes e matemática de gases
+const PBAR = 760;       // mmHg
+const PH2O = 47;        // mmHg a 37 °C
+const P50 = 26.8;       // mmHg, aproximação adulta
+const HILL_N = 2.7;     // coeficiente de Hill simplificado
+
+function clamp(x, min, max) { return Math.max(min, Math.min(max, x)); }
+
+function po2ToSat(P) {
+    P = Math.max(0.1, P);
+    return Math.pow(P, HILL_N) / (Math.pow(P, HILL_N) + Math.pow(P50, HILL_N));
+}
+
+function satToPO2(S) {
+    S = clamp(S, 0.005, 0.999);
+    return P50 * Math.pow(S / (1 - S), 1 / HILL_N);
+}
+
+// Conteúdo de O2 em mL O2/dL sangue.
+// O termo ligado à Hb domina; o termo dissolvido fica relevante em PO2 pós-membrana muito alto.
+function o2Content(hb, sat, po2) {
+    return 1.34 * hb * sat + 0.0031 * po2;
+}
+
+// Inversão numérica de CaO2 -> PO2, necessária porque conteúdo de O2 não é linear com PO2.
+function contentToPO2(hb, content) {
+    let lo = 0.1;
+    let hi = 700;
+    for (let i = 0; i < 45; i++) {
+        let mid = (lo + hi) / 2;
+        let cMid = o2Content(hb, po2ToSat(mid), mid);
+        if (cMid < content) lo = mid;
+        else hi = mid;
+    }
+    return (lo + hi) / 2;
+}
+
+function contentToSat(hb, content) {
+    return po2ToSat(contentToPO2(hb, content));
+}
+
+// Recirculação didática: aumenta quando QECMO se aproxima ou ultrapassa o débito cardíaco.
+function calculateRecirculation(Qb, CO) {
+    let ratio = Qb / Math.max(CO, 0.1);
+    let excess = Math.max(0, ratio - 0.65);
+    let recirc = patient.recircBase + 0.22 * (excess * excess) / (excess * excess + 0.25 * 0.25);
+    if (Qb > CO) recirc += 0.10 * (Qb - CO) / CO;
+    return clamp(recirc, 0.03, 0.35);
+}
+
+function calculateECMO() {
+    let Qb = parseFloat(inputs.flow.value);                 // L/min
+    let sweep = parseFloat(inputs.sweep.value);             // L/min
+    let fio2 = parseFloat(inputs.fio2.value) / 100;         // fração
+
+    // Pressão parcial de O2 no gás seco do oxigenador.
+    let pGasO2 = fio2 * (PBAR - PH2O);
+
+    // Recirculação reduz o fluxo efetivo que realmente entrega O2/retira CO2 do paciente.
+    let recirc = calculateRecirculation(Qb, patient.cardiacOutput);
+    let Qeff = Qb * (1 - recirc);
+    ecmoOutput.recirculation = recirc;
+    ecmoOutput.effectiveFlow = Qeff;
+
+    // Sangue pré-oxigenador: aqui aproximado pela SvO2 do paciente.
+    let po2In = satToPO2(patient.svo2);
+    let cIn = o2Content(patient.hb, patient.svo2, po2In);
+
+    // Equilíbrio teórico com o gás do oxigenador.
+    let satEq = po2ToSat(pGasO2);
+    let cEq = o2Content(patient.hb, satEq, pGasO2);
+
+    // Eficiência de transferência de O2.
+    // O sweep quase não deve modular O2 quando já há fluxo de gás suficiente;
+    // por isso sweepO2Factor satura rapidamente. O fluxo sanguíneo maior reduz tempo de trânsito.
+    let sweepO2Factor = 1 - Math.exp(-sweep / 0.6);
+    let transitPenalty = Math.pow(Math.max(Qb, 0.1) / 4.0, 0.35);
+    let o2ExtractionFraction = 1 - Math.exp(-2.0 * patient.membraneHealth * sweepO2Factor / transitPenalty);
+    if (sweep < 0.05) o2ExtractionFraction = 0;
+    o2ExtractionFraction = clamp(o2ExtractionFraction, 0, 0.995);
+
+    // Conteúdo pós-membrana e conversão coerente conteúdo -> PO2 -> saturação.
+    let cPost = cIn + (cEq - cIn) * o2ExtractionFraction;
+    let po2Out = contentToPO2(patient.hb, cPost);
+    po2Out = clamp(po2Out, po2In, Math.max(po2In, pGasO2 * 0.95));
+    let satOut = po2ToSat(po2Out);
+    cPost = o2Content(patient.hb, satOut, po2Out);
+
+    ecmoOutput.sat = satOut;
+    ecmoOutput.po2 = po2Out;
+
+    // Transferência líquida de O2 entregue ao paciente: fluxo efetivo × diferença de conteúdo.
+    ecmoOutput.o2Transferred = Math.max(0, Qeff * 10 * (cPost - cIn));
+
+    // Remoção de CO2: sweep é o controle principal; fluxo sanguíneo e PaCO2 modulam a capacidade.
+    // A curva satura para mostrar que aumentar sweep indefinidamente tem ganho decrescente.
+    let sweepFrac = 1 - Math.exp(-sweep / 2.0);
+    let bloodFrac = 1 - Math.exp(-Qeff / 1.6);
+    let pressureDrive = Math.pow(clamp(patient.pco2 / 45, 0.25, 3.0), 0.85);
+    let maxCO2Removal = 245; // mL/min em membrana íntegra, sweep alto e fluxo adequado.
+    ecmoOutput.co2Removed = Math.max(0, maxCO2Removal * patient.membraneHealth * sweepFrac * bloodFrac * pressureDrive);
+}
+
+// O Loop de Vida do Paciente (Roda a cada segundo)
+function simulatePhysiology() {
+    calculateECMO();
+
+    let oldPco2 = patient.pco2;
+
+    // ===== Balanço de O2 do paciente em VV-ECMO =====
+    // A ECMO VV devolve sangue oxigenado ao sistema venoso. O que chega ao paciente depende
+    // do fluxo efetivo da ECMO em relação ao débito cardíaco, mais alguma função pulmonar residual.
+    let CO = patient.cardiacOutput;
+    let po2Ven = satToPO2(patient.svo2);
+    let cVen = o2Content(patient.hb, patient.svo2, po2Ven);
+    let cPost = o2Content(patient.hb, ecmoOutput.sat, ecmoOutput.po2);
+
+    let ecmoFractionOfCO = clamp(ecmoOutput.effectiveFlow / CO, 0, 0.95);
+    let cAfterEcmoMixing = cVen + ecmoFractionOfCO * (cPost - cVen);
+
+    // Função pulmonar residual simplificada: pequena aproximação ao conteúdo que corresponderia
+    // a PO2 arterial de 80 mmHg. O pulmão residual só acrescenta O2 se houver margem para isso.
+    let cLungTarget = o2Content(patient.hb, po2ToSat(80), 80);
+    let nativeLungGain = patient.lungFunction * Math.max(0, cLungTarget - cAfterEcmoMixing);
+    let cArterial = cAfterEcmoMixing + nativeLungGain;
+
+    ecmoOutput.nativeO2 = CO * 10 * nativeLungGain;
+    ecmoOutput.totalO2Support = ecmoOutput.o2Transferred + ecmoOutput.nativeO2;
+    ecmoOutput.systemicSat = contentToSat(patient.hb, cArterial);
+
+    // Extração tecidual: VO2 = CO × (CaO2 - CvO2). Resolve-se CvO2 alvo.
+    let extractionContent = patient.vo2_demand / (CO * 10);
+    let cVenTarget = cArterial - extractionContent;
+    cVenTarget = clamp(cVenTarget, 2.5, o2Content(patient.hb, 0.85, 55));
+    let svo2Target = contentToSat(patient.hb, cVenTarget);
+
+    // Dinâmica lenta/educacional da SvO2, acelerada para o simulador.
+    let tauO2 = 18;
+    patient.svo2 += (svo2Target - patient.svo2) / tauO2;
+    patient.svo2 = clamp(patient.svo2, 0.20, 0.85);
+
+    let o2Balance = ecmoOutput.totalO2Support - patient.vo2_demand;
+
+    // ===== Balanço de CO2 =====
+    // PaCO2 sobe se a produção metabólica excede a remoção pela membrana.
+    let co2Balance = patient.vco2_prod - ecmoOutput.co2Removed;
+    patient.pco2 += co2Balance * 0.008;
+    patient.pco2 = clamp(patient.pco2, 25, 120);
+
+    // Atualiza UI
+    updateMonitorUI(oldPco2, o2Balance);
+}
+
+function updateMonitorUI(oldPco2, o2Balance) {
+    mon.sat.textContent = (ecmoOutput.sat * 100).toFixed(0);
+    mon.po2.textContent = ecmoOutput.po2.toFixed(0);
+    mon.pco2.textContent = patient.pco2.toFixed(0);
+    mon.o2.textContent = ecmoOutput.o2Transferred.toFixed(0);
+    el('idealO2').textContent = "≥ " + patient.vo2_demand.toFixed(0) + " mL/min (demanda atual)";
+
+    // Atualiza painel oculto do paciente
+    el('internalSvo2').textContent = (patient.svo2 * 100).toFixed(1) + "%";
+    el('svo2Bar').style.width = (patient.svo2 * 100) + "%";
+    if(patient.svo2 < 0.5) el('svo2Bar').style.background = "#ef4444";
+    else el('svo2Bar').style.background = "#8b5cf6";
+
+    // Setas de tendência
+    el('pco2Trend').innerHTML = patient.pco2 > oldPco2 + 0.5 ? "↑" : (patient.pco2 < oldPco2 - 0.5 ? "↓" : "−");
+    el('pco2Trend').style.color = patient.pco2 > 55 || patient.pco2 < 35 ? "#ef4444" : "#888";
+
+    el('o2Trend').innerHTML = o2Balance < -20 ? "↓ (Déficit)" : (o2Balance > 20 ? "↑ (Sobra)" : "− (Estável)");
+
+    // Alertas Visuais
+    let alarms = [];
+    if (patient.svo2 < 0.45) alarms.push("CRÍTICO: Hipóxia Tecidual (SvO2 Baixa)! Aumente Fluxo ou FiO2.");
+    if (patient.pco2 > 65) alarms.push("ALERTA: Hipercapnia Grave! Aumente o Sweep Gas.");
+    if (patient.pco2 < 30) alarms.push("ALERTA: Hipocapnia (Alcalose)! Reduza o Sweep Gas.");
+    if (ecmoOutput.sat < 0.88) alarms.push("ALERTA: Oxigenação da ECMO insuficiente!");
+
+    let alarmBox = el('alarmBox');
+    if (alarms.length > 0) {
+        alarmBox.style.display = "block";
+        alarmBox.style.background = "rgba(239,68,68,0.2)";
+        alarmBox.style.border = "1px solid #ef4444";
+        alarmBox.style.color = "#fca5a5";
+        alarmBox.innerHTML = alarms.join("<br>");
+    } else {
+        alarmBox.style.display = "none";
+    }
+
+    // Atualiza Cor do Sangue no SVG (Arterial muda dependendo da Saturação de Saída)
+    let colorSaida = ecmoOutput.sat > 0.92 ? "#ef4444" : (ecmoOutput.sat > 0.8 ? "#991b1b" : "#4c1d95");
+    el('corSaidaSangue').setAttribute('stop-color', colorSaida);
+}
+
+// ==========================================
+// ANIMAÇÃO (requestAnimationFrame)
+// ==========================================
+let time = 0;
+// Cria partículas de sangue
+const bloodGroup = el('bloodParticles');
+const numParticles = 12;
+for(let i=0; i<numParticles; i++){
+    let c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('r', '6');
+    c.setAttribute('fill', '#fff');
+    c.setAttribute('opacity', '0.6');
+    bloodGroup.appendChild(c);
+}
+const bloodDots = bloodGroup.children;
+
+function animateLoop() {
+    let Qb = parseFloat(inputs.flow.value);
+    let sweep = parseFloat(inputs.sweep.value);
+    time += 0.016; // 60 fps aprox
+
+    // Gira a Bomba (Velocidade = Fluxo)
+    let pumpAngle = (time * Qb * 100) % 360;
+    el('pumpRotor').setAttribute('transform', `rotate(${pumpAngle} 250 150)`);
+
+    // Move Partículas de Sangue (Caminho reto simplificado para efeito visual)
+    for(let i=0; i<numParticles; i++) {
+        // Velocidade baseada no fluxo. Phase vai de 0 a 1.
+        let phase = ((time * Qb * 0.15) + (i / numParticles)) % 1;
+        let x = phase * 800; // De 0 a 800px largura
+        
+        // Se estiver antes da bomba, cor venosa. Depois, cor arterial calculada
+        if(x < 400) {
+            bloodDots[i].setAttribute('fill', '#93c5fd'); // Azul claro
+        } else {
+            bloodDots[i].setAttribute('fill', ecmoOutput.sat > 0.9 ? '#fca5a5' : '#93c5fd'); // Vermelho claro ou azul
+        }
+        
+        // Simular o caminho: desce pra bomba, sobe pra membrana, sai reto
+        let y = 150;
+        if(x > 220 && x < 280) y = 150 + Math.sin((x-220)*Math.PI/60)*20; // giro na bomba
+        
+        bloodDots[i].setAttribute('cx', x);
+        bloodDots[i].setAttribute('cy', y);
+    }
+
+    // Move Partículas de Gás
+    let gasParts = el('gasParticles').children;
+    let gasPhase1 = (time * sweep * 0.3) % 1;
+    let gasPhase2 = (time * sweep * 0.3 + 0.5) % 1;
+    gasParts[0].setAttribute('cy', 20 + gasPhase1 * 130);
+    gasParts[0].setAttribute('opacity', 1 - gasPhase1);
+    
+    gasParts[1].setAttribute('cy', 150 + gasPhase2 * 130);
+    gasParts[1].setAttribute('opacity', gasPhase2);
+
+    requestAnimationFrame(animateLoop);
+}
+
+// Eventos Clínicos Dinâmicos
+function triggerEvent(type) {
+    if(type === 'agitation') {
+        patient.vo2_demand = 350; // Consumo altíssimo
+        patient.vco2_prod = 300;
+        alert("O paciente acordou agitado! O consumo de O2 disparou. Compense na ECMO!");
+    } else if (type === 'sedation') {
+        patient.vo2_demand = 180; // Dormindo calmo
+        patient.vco2_prod = 150;
+        alert("Paciente sedado e curarizado. Demanda metabólica caiu.");
+    }
+}
+
+// Inicia os loops
+setInterval(simulatePhysiology, 1000); // Fisiologia roda 1x por segundo
+animateLoop(); // Animação roda solta a 60fps
+
+</script>
+</body>
+</html>
