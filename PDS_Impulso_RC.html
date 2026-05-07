@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Superposição SLIT - Resposta Impulsiva RC</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --muted: #64748b;
+            --grid: #e2e8f0;
+            --soft: #94a3b8;
+            --impulse: #ef4444;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+            width: 100%;
+            max-width: 820px;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0 0 0.5rem;
+            color: var(--primary);
+            letter-spacing: -0.02em;
+        }
+
+        p {
+            color: var(--muted);
+            margin: 0 0 1.6rem;
+        }
+
+        #plot-container {
+            position: relative;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 0.5rem;
+            margin-bottom: 1.7rem;
+            border: 1px solid var(--grid);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 320px;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem 1.5rem;
+            justify-content: center;
+            margin-top: -0.7rem;
+            margin-bottom: 1.4rem;
+            font-size: 0.85rem;
+            color: #475569;
+        }
+
+        .legend-item { display: flex; align-items: center; gap: 0.5rem; }
+        .dot { width: 12px; height: 12px; border-radius: 2px; }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 650;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: transform 0.1s, background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+        }
+
+        button:hover { background-color: #4338ca; }
+        button:active { transform: scale(0.97); }
+
+        .secondary {
+            background-color: #94a3b8;
+            box-shadow: none;
+        }
+        .secondary:hover { background-color: #64748b; }
+
+        .explanation {
+            margin-top: 1.8rem;
+            text-align: left;
+            font-size: 0.92rem;
+            line-height: 1.6;
+            border-top: 1px solid #eef2f7;
+            padding-top: 1rem;
+            color: #334155;
+        }
+
+        .equation {
+            display: inline-block;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 0.12rem 0.35rem;
+            border-radius: 0.3rem;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 620px) {
+            .container { padding: 1.2rem; }
+            canvas { height: 280px; }
+            button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Superposição em Ação</h1>
+    <p>Clique para aplicar impulsos unitários. A saída é a soma das respostas impulsivas de um RC passa-baixas.</p>
+
+    <div id="plot-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="dot" style="background:#4f46e5;"></div>Saída final y(t)</div>
+        <div class="legend-item"><div class="dot" style="background:#e2e8f0; border:1px solid #cbd5e1;"></div>Respostas individuais h(t − t<sub>k</sub>)</div>
+        <div class="legend-item"><div class="dot" style="background:#ef4444;"></div>Impulsos δ(t − t<sub>k</sub>)</div>
+    </div>
+
+    <div class="controls">
+        <button id="impulseBtn">Injetar impulso unitário δ(t)</button>
+        <button id="clearBtn" class="secondary">Limpar</button>
+    </div>
+
+    <div class="explanation">
+        <strong>A Intuição Matemática:</strong><br>
+        O sistema simulado é um RC passa-baixas com <span class="equation">R = 10 kΩ</span>, <span class="equation">C = 1 µF</span> e <span class="equation">τ = RC = 10 ms</span>.
+        Sua resposta ao impulso unitário é <span class="equation">h(t) = (1/τ)e<sup>−t/τ</sup>u(t)</span>.
+        Cada clique adiciona uma resposta deslocada no tempo. Assim, para impulsos unitários aplicados nos instantes <span class="equation">t<sub>k</sub></span>, a saída é calculada como
+        <span class="equation">y(t) = Σ h(t − t<sub>k</sub>)</span>.
+        O eixo horizontal mostra tempo simulado; a animação foi desacelerada para tornar a constante de tempo de 10 ms visualmente observável.
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const impulseBtn = document.getElementById('impulseBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    // Modelo físico do RC passa-baixas.
+    // H(s) = 1 / (1 + sRC)
+    // h(t) = (1/tau) exp(-t/tau) u(t), resposta ao impulso unitário.
+    const R = 10_000;             // ohms
+    const C = 1e-6;               // farads
+    const tauSec = R * C;         // 0.01 s
+    const tauMs = tauSec * 1000;  // 10 ms
+    const h0 = 1 / tauSec;        // valor de h(0+) em s^-1
+
+    // Como tau = 10 ms é muito rápido para cliques humanos,
+    // o tempo simulado corre mais lentamente do que o tempo real.
+    const simulatedMsPerRealMs = 0.02; // 1 s real corresponde a 20 ms simulados.
+    const windowMs = 120;              // janela horizontal em tempo simulado.
+    const responseCutoffMs = 8 * tauMs; // após 8 tau, h(t) < 0,04% de h(0+).
+
+    let impulseTimes = []; // tempos simulados, em ms, nos quais impulsos unitários foram aplicados.
+
+    // Escala vertical persistente: evita o efeito de "respiração"/tremor do gráfico
+    // quando a amplitude máxima muda ligeiramente a cada quadro da animação.
+    let yScaleDisplay = 1.15;
+
+    const realStart = performance.now();
+
+    const margins = { left: 58, right: 20, top: 22, bottom: 44 };
+
+    function simulatedNowMs() {
+        return (performance.now() - realStart) * simulatedMsPerRealMs;
+    }
+
+    function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function hRC(elapsedMs) {
+        if (elapsedMs < 0) return 0;
+        const tSec = elapsedMs / 1000;
+        return (1 / tauSec) * Math.exp(-tSec / tauSec);
+    }
+
+    function xToTime(x, plotLeft, plotWidth, tMin) {
+        return tMin + ((x - plotLeft) / plotWidth) * windowMs;
+    }
+
+    function timeToX(t, plotLeft, plotWidth, tMin) {
+        return plotLeft + ((t - tMin) / windowMs) * plotWidth;
+    }
+
+    function drawAxes(plotLeft, plotRight, plotTop, plotBottom, tMin, yScale) {
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(plotLeft, plotBottom);
+        ctx.lineTo(plotRight, plotBottom);
+        ctx.moveTo(plotLeft, plotTop);
+        ctx.lineTo(plotLeft, plotBottom);
+        ctx.stroke();
+
+        // Grade temporal fixa de 20 ms em relação à janela visível.
+        // Antes, os ticks eram calculados em tempo absoluto; isso fazia a grade deslizar
+        // e criava uma impressão visual de tremor.
+        ctx.font = '12px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = '#64748b';
+        ctx.strokeStyle = '#eef2f7';
+        ctx.lineWidth = 1;
+
+        for (let rel = 0; rel <= windowMs + 0.001; rel += 20) {
+            const x = plotLeft + (rel / windowMs) * (plotRight - plotLeft);
+            ctx.beginPath();
+            ctx.moveTo(x, plotTop);
+            ctx.lineTo(x, plotBottom);
+            ctx.stroke();
+            ctx.fillText(`${Math.round(rel)} ms`, x, plotBottom + 8);
+        }
+
+        // Referência vertical relativa. O gráfico é normalizado por h(0+) e reescalado automaticamente.
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('0', 18, plotBottom);
+        ctx.fillText(`escala: ${yScale.toFixed(2)} × h(0⁺)`, plotLeft + 6, plotTop + 12);
+
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('tempo simulado →', plotRight, plotBottom + 26);
+    }
+
+    function computeDesiredScale(plotLeft, plotRight, plotWidth, tMin) {
+        let maxNormalized = 1;
+        const step = Math.max(1, plotWidth / 500);
+        for (let x = plotLeft; x <= plotRight; x += step) {
+            const t = xToTime(x, plotLeft, plotWidth, tMin);
+            let total = 0;
+            for (const t0 of impulseTimes) {
+                total += hRC(t - t0) / h0;
+            }
+            if (total > maxNormalized) maxNormalized = total;
+        }
+
+        // Quantização em passos de 0,25 evita microvariações de escala por erro numérico
+        // e por pequenas mudanças do máximo amostrado entre quadros.
+        return Math.max(1.15, Math.ceil(maxNormalized * 1.12 * 4) / 4);
+    }
+
+    function updateStableScale(desiredScale) {
+        if (impulseTimes.length === 0) {
+            yScaleDisplay = 1.15;
+            return yScaleDisplay;
+        }
+
+        // Sobe imediatamente se houver sobreposição de impulsos.
+        // Não reduz enquanto ainda há respostas visíveis, evitando o "tremor" vertical.
+        if (desiredScale > yScaleDisplay) {
+            yScaleDisplay = desiredScale;
+        }
+        return yScaleDisplay;
+    }
+
+    function draw() {
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
+        const plotLeft = margins.left;
+        const plotRight = w - margins.right;
+        const plotTop = margins.top;
+        const plotBottom = h - margins.bottom;
+        const plotWidth = plotRight - plotLeft;
+        const plotHeight = plotBottom - plotTop;
+
+        const now = simulatedNowMs();
+        const tMin = now - windowMs;
+        const tMax = now;
+
+        impulseTimes = impulseTimes.filter(t0 => t0 >= tMin - responseCutoffMs && t0 <= tMax + 1);
+
+        ctx.clearRect(0, 0, w, h);
+
+        const desiredScale = computeDesiredScale(plotLeft, plotRight, plotWidth, tMin);
+        const yScale = updateStableScale(desiredScale);
+        const yToPixel = yNorm => plotBottom - (yNorm / yScale) * (plotHeight * 0.88);
+
+        drawAxes(plotLeft, plotRight, plotTop, plotBottom, tMin, yScale);
+
+        // Impulsos de entrada: desenhados como hastes verticais. A altura é simbólica,
+        // porque δ(t) não possui amplitude finita; o que importa é a área unitária.
+        for (const t0 of impulseTimes) {
+            if (t0 < tMin || t0 > tMax) continue;
+            const x = timeToX(t0, plotLeft, plotWidth, tMin);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, plotBottom);
+            ctx.lineTo(x, plotBottom - 42);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(x, plotBottom - 50);
+            ctx.lineTo(x - 5, plotBottom - 40);
+            ctx.lineTo(x + 5, plotBottom - 40);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Respostas impulsivas individuais h(t - tk).
+        for (const t0 of impulseTimes) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.42)';
+            ctx.lineWidth = 1.7;
+            let started = false;
+
+            for (let x = plotLeft; x <= plotRight; x++) {
+                const t = xToTime(x, plotLeft, plotWidth, tMin);
+                const elapsed = t - t0;
+                if (elapsed < 0 || elapsed > responseCutoffMs) {
+                    if (started && elapsed > responseCutoffMs) break;
+                    continue;
+                }
+                const yNorm = hRC(elapsed) / h0;
+                const y = yToPixel(yNorm);
+                if (!started) {
+                    ctx.moveTo(x, y);
+                    started = true;
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+        }
+
+        // Saída final y(t) = soma das respostas individuais.
+        ctx.beginPath();
+        ctx.strokeStyle = '#4f46e5';
+        ctx.lineWidth = 4;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        for (let x = plotLeft; x <= plotRight; x++) {
+            const t = xToTime(x, plotLeft, plotWidth, tMin);
+            let total = 0;
+            for (const t0 of impulseTimes) {
+                total += hRC(t - t0);
+            }
+            const yNorm = total / h0;
+            const y = yToPixel(yNorm);
+            if (x === plotLeft) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        requestAnimationFrame(draw);
+    }
+
+    impulseBtn.addEventListener('click', () => {
+        // Sem deslocamento artificial: o impulso é aplicado exatamente no tempo simulado atual.
+        impulseTimes.push(simulatedNowMs());
+    });
+
+    clearBtn.addEventListener('click', () => {
+        impulseTimes = [];
+    });
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    requestAnimationFrame(draw);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Superposição SLIT - Visualização Avançada</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        h1 { margin-bottom: 0.5rem; color: var(--primary); }
+        p { color: #64748b; margin-bottom: 2rem; }
+
+        #plot-container {
+            position: relative;
+            background: #ffffff;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+            box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+        }
+
+        button:hover { background-color: #4338ca; }
+        button:active { transform: scale(0.95); }
+
+        .explanation {
+            margin-top: 2rem;
+            text-align: left;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            border-top: 1px solid #eee;
+            padding-top: 1rem;
+        }
+
+        .legend {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin-top: -1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+        }
+        .legend-item { display: flex; align-items: center; gap: 0.5rem; }
+        .dot { width: 12px; height: 12px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Superposição em Ação</h1>
+    <p>Clique no botão. O sistema responde com h(t). Clique rápido para ver a soma.</p>
+
+    <div id="plot-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="dot" style="background:#4f46e5;"></div>Saída Final y(t) (Soma)</div>
+        <div class="legend-item"><div class="dot" style="background:#e2e8f0; border:1px solid #cbd5e1;"></div>Respostas Individuais h(t)</div>
+    </div>
+
+    <div class="controls">
+        <button id="impulseBtn">Injetar Impulso &delta;(t)</button>
+        <button id="clearBtn" style="background-color: #94a3b8; box-shadow:none;">Limpar</button>
+    </div>
+
+    <div class="explanation">
+        <strong>A Intuição Matemática:</strong><br>
+        A curva <strong style="color:var(--primary);">azul</strong> é a saída $y(t)$ do sistema. Ela é construída somando-se todas as respostas <strong style="color:#94a3b8;">cinzas</strong> individuais em cada instante de tempo. <br>
+        Isso prova o Princípio da Superposição: se você conhece a resposta a *um* impulso, a resposta a *qualquer* entrada é apenas a soma das respostas aos impulsos que compõem essa entrada.
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const btn = document.getElementById('impulseBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    // Configurações
+    canvas.width = 800;
+    canvas.height = 300;
+    const duration = 2000; // Duração da resposta h(t) em ms
+    const amplitude = 100; // Altura do triângulo
+    let activeImpulses = [];
+
+    // Constantes de desenho
+    const axesY = canvas.height - 30;
+    const pixelsPerMs = canvas.width / 5000; // Mostrar 5 segundos na tela
+
+    function getTriangleValue(elapsed) {
+        if (elapsed < 0 || elapsed > duration) return 0;
+        const half = duration / 2;
+        if (elapsed <= half) {
+            return (elapsed / half) * amplitude;
+        } else {
+            return (2 - (elapsed / half)) * amplitude;
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const now = Date.now();
+
+        // --- Desenhar Eixos ---
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, axesY);
+        ctx.lineTo(canvas.width, axesY);
+        ctx.stroke();
+        
+        // Rótulo de tempo (didático)
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '12px sans-serif';
+        ctx.fillText("Tempo →", canvas.width - 60, axesY + 20);
+
+        // Remove impulsos velhos (passaram de 6s)
+        activeImpulses = activeImpulses.filter(t => now - t < 6000);
+
+        // Mapeamento de tempo por pixel
+        function getTimeAtPixel(x) {
+            const msFromLeft = x / pixelsPerMs;
+            // O pixel da direita é o 'agora'
+            return now - (5000 - msFromLeft);
+        }
+
+        // === 1. DESENHAR RESPOSTAS INDIVIDUAIS (FUNDO) ===
+        activeImpulses.forEach(impulseTime => {
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(203, 213, 225, 0.5)'; // Cinza muito transparente
+            ctx.lineWidth = 1.5;
+            
+            let startedLine = false;
+
+            for (let x = 0; x < canvas.width; x++) {
+                const elapsed = getTimeAtPixel(x) - impulseTime;
+                const hVal = getTriangleValue(elapsed);
+
+                if (hVal > 0) {
+                    const drawY = axesY - hVal;
+                    if (!startedLine) {
+                        ctx.moveTo(x, drawY);
+                        startedLine = true;
+                    } else {
+                        ctx.lineTo(x, drawY);
+                    }
+                } else if (startedLine && elapsed > duration) {
+                    break; // Parar de desenhar este triângulo
+                }
+            }
+            ctx.stroke();
+        });
+
+
+        // === 2. DESENHAR A SOMA y(t) (PRINCIPAL) ===
+        ctx.beginPath();
+        ctx.strokeStyle = '#4f46e5'; // Azul Principal
+        ctx.lineWidth = 4;
+        ctx.lineJoin = 'round';
+
+        for (let x = 0; x < canvas.width; x++) {
+            const timeAtX = getTimeAtPixel(x);
+            
+            let totalY = 0;
+            activeImpulses.forEach(impulseTime => {
+                const elapsed = timeAtX - impulseTime;
+                totalY += getTriangleValue(elapsed);
+            });
+
+            const drawY = axesY - totalY;
+            if (x === 0) ctx.moveTo(x, drawY);
+            else ctx.lineTo(x, drawY);
+        }
+        ctx.stroke();
+
+        requestAnimationFrame(draw);
+    }
+
+    btn.addEventListener('click', () => {
+        // Pequeno ajuste para garantir que o triângulo comece "no ponto" do clique visualmente
+        activeImpulses.push(Date.now() - 50); 
+    });
+
+    clearBtn.addEventListener('click', () => {
+        activeImpulses = [];
+    });
+
+    draw();
+</script>
+
+</body>
+</html>
