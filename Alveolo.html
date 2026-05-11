@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Alvéolo Único - Escala Real</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e272e;
+            color: #d2dae2;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .controls {
+            width: 380px;
+            background: #2c3e50;
+            padding: 25px;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+            overflow-y: auto;
+        }
+        .animation-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #000000;
+            background-image: radial-gradient(#1e272e 1px, transparent 1px);
+            background-size: 20px 20px;
+            position: relative;
+        }
+        h2 { margin: 0; color: #0fbcf9; font-size: 1.4em; }
+        label { font-size: 0.9em; font-weight: bold; color: #808e9b; display: block; margin-bottom: 8px;}
+        
+        .slider-container {
+            background: #1e272e; padding: 15px; border-radius: 8px; border: 1px solid #485460;
+        }
+        input[type="range"] {
+            width: 100%; margin-top: 10px; cursor: pointer;
+        }
+        select {
+            width: 100%; padding: 10px; border-radius: 5px; border: none; background: #d2dae2; font-weight: bold; cursor: pointer; color: #2c3e50;
+        }
+        
+        .monitor {
+            background: #0fbcf9; color: #1e272e;
+            padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace;
+            font-weight: bold; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        }
+        .monitor div { margin-bottom: 8px; font-size: 1.1em; }
+        .monitor span { float: right; color: #000; }
+        .monitor hr { border-color: rgba(0,0,0,0.2); margin: 12px 0; }
+        .scale-info { font-size: 0.75em; color: #808e9b; text-align: center; margin-top: -10px; }
+
+        /* Estilos do Alvéolo */
+        .alveolus-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .alveolus {
+            /* Tamanho visual base. 100px = 100 micrometros (escala 1:1 visual/micrometro) */
+            width: 200px; 
+            height: 200px;
+            border-radius: 50%;
+            position: absolute;
+            transition: all 0.4s ease-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset -20px -20px 40px rgba(0,0,0,0.5);
+        }
+
+        .with-surfactant {
+            background: radial-gradient(circle at 30% 30%, #ff9ff3, #f368e0);
+            border: 6px dashed #0be881; 
+        }
+
+        .without-surfactant {
+            background: radial-gradient(circle at 30% 30%, #ff4d4d, #c0392b);
+            border: 8px solid #ffdd59;
+        }
+
+        .force-arrows {
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .without-surfactant .force-arrows { opacity: 0.6; }
+
+        .legend {
+            position: absolute;
+            bottom: 20px; right: 20px;
+            background: rgba(44, 62, 80, 0.8);
+            padding: 15px; border-radius: 8px; font-size: 0.85em;
+        }
+        .legend div { margin-bottom: 5px; display: flex; align-items: center; gap: 8px;}
+        .color-box { width: 15px; height: 15px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h2>Dinâmica Alveolar (Escala Real)</h2>
+    <div class="scale-info">Valores baseados na anatomia humana real</div>
+    
+    <div class="slider-container">
+        <label>Pressão nas Vias Aéreas: <span id="p-val" style="color:#0fbcf9; float:right;">15 cmH2O</span></label>
+        <input type="range" id="pressure" min="0" max="30" step="1" value="15">
+    </div>
+
+    <div>
+        <label>Condição da Superfície:</label>
+        <select id="surfactant">
+            <option value="yes">Fisiológico (Com Surfactante)</option>
+            <option value="no">Patológico (Sem Surfactante / Água)</option>
+        </select>
+    </div>
+
+    <div class="monitor">
+        <div title="1 nanolitro = 1 milionésimo de mililitro">Volume (V): <span id="mon-v">0 nL</span></div>
+        <hr>
+        <div>Raio Estimado (r): <span id="mon-r">0 μm</span></div>
+        <div>Área Superficial: <span id="mon-a">0 μm²</span></div>
+    </div>
+</div>
+
+<div class="animation-area">
+    <div class="alveolus-container">
+        <div class="alveolus with-surfactant" id="alveolus">
+            <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 10 L50 30 M90 50 L70 50 M50 90 L50 70 M10 50 L30 50' stroke='%23000' stroke-width='4' stroke-linecap='round'/></svg>" class="force-arrows" alt="Forças de colapso">
+        </div>
+    </div>
+
+    <div class="legend">
+        <div><div class="color-box" style="background:#0be881; border: 2px dashed #000;"></div> Surfactante (Baixa Tensão: ~20 mN/m)</div>
+        <div><div class="color-box" style="background:#ffdd59; border: 2px solid #000;"></div> Tensão da Água (~70 mN/m)</div>
+    </div>
+</div>
+
+<script>
+    const pressureSlider = document.getElementById('pressure');
+    const surfactantSelect = document.getElementById('surfactant');
+    const alveolus = document.getElementById('alveolus');
+    const pValDisplay = document.getElementById('p-val');
+    
+    // Monitores
+    const monV = document.getElementById('mon-v');
+    const monR = document.getElementById('mon-r');
+    const monA = document.getElementById('mon-a');
+
+    function updateSimulation() {
+        let pressure = parseFloat(pressureSlider.value);
+        let hasSurfactant = surfactantSelect.value === 'yes';
+        
+        pValDisplay.innerText = pressure + " cmH2O";
+
+        // CÁLCULO FISIOLÓGICO DO RAIO (μm)
+        // Raio típico de um alvéolo varia de ~50μm (colapsado) a ~150μm (máxima insuflação)
+        let radius;
+        
+        if (hasSurfactant) {
+            // Com surfactante, o alvéolo expande facilmente com pressões clínicas.
+            // P=0 -> r=50μm. P=30 -> r=140μm.
+            radius = 50 + (pressure * 3); 
+        } else {
+            // Sem surfactante (alta tensão superficial), ele resiste à expansão.
+            // P=0 -> r=30μm (atelectasia severa). P=30 -> r=60μm (muita pressão, pouca expansão).
+            radius = 30 + (pressure * 1);
+        }
+
+        // ÁREA SUPERFICIAL: Esfera (A = 4 * PI * r^2)
+        // Unidade: micrômetros quadrados (μm²)
+        let area = 4 * Math.PI * Math.pow(radius, 2);
+
+        // VOLUME: Esfera (V = 4/3 * PI * r^3)
+        // O resultado será em micrômetros cúbicos (μm³).
+        let volume_um3 = (4/3) * Math.PI * Math.pow(radius, 3);
+        
+        // Conversão: 1 nanolitro (nL) = 1.000.000 μm³
+        let volume_nL = volume_um3 / 1000000;
+
+        // ATUALIZAÇÃO DA INTERFACE TEXTUAL
+        // Formatamos com casas decimais apropriadas para o rigor científico
+        monR.innerText = radius.toFixed(1) + " μm";
+        monA.innerText = area.toLocaleString('pt-BR', {maximumFractionDigits: 0}) + " μm²";
+        monV.innerText = volume_nL.toFixed(3) + " nL";
+
+        // ATUALIZAÇÃO VISUAL
+        // Nossa base visual é width: 200px. Vamos assumir que 1px = 1μm para a animação central.
+        // Como o CSS base tem 200px (raio visual = 100px), a escala será: (raio_real / 100)
+        let scale = radius / 100;
+        
+        alveolus.style.transform = `scale(${scale})`;
+
+        // Atualiza as classes CSS
+        if (hasSurfactant) {
+            alveolus.className = 'alveolus with-surfactant';
+        } else {
+            alveolus.className = 'alveolus without-surfactant';
+        }
+    }
+
+    // Event Listeners
+    pressureSlider.addEventListener('input', updateSimulation);
+    surfactantSelect.addEventListener('change', updateSimulation);
+
+    // Roda a primeira vez
+    updateSimulation();
+</script>
+
+</body>
+</html>
