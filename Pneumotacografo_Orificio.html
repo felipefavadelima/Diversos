@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Avançado de Pneumotacógrafo</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --danger: #e74c3c;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --bg: #f4f7f6;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 1100px;
+            width: 100%;
+        }
+        h1 { color: var(--primary); text-align: center; margin-bottom: 20px; font-weight: 300; }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 30px;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid var(--accent);
+        }
+
+        .type-selector {
+            display: flex;
+            margin-bottom: 25px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+        .type-selector button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+            background: #eee;
+            color: #777;
+        }
+        .type-selector button.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .control-group { margin-bottom: 20px; }
+        label { display: block; font-size: 0.85em; font-weight: bold; color: var(--primary); margin-bottom: 8px; }
+        input[type="range"] { width: 100%; height: 6px; border-radius: 5px; appearance: none; background: #dfe6e9; outline: none; }
+        input[type="range"]::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        .value-badge { float: right; color: var(--accent); font-family: monospace; font-size: 1.1em; }
+
+        .visualizers { display: flex; flex-direction: column; gap: 20px; }
+        canvas { background: white; border: 1px solid #eee; border-radius: 8px; width: 100%; }
+        
+        .info-box {
+            grid-column: 1 / span 2;
+            margin-top: 20px;
+            padding: 15px;
+            background: #eef2f7;
+            border-radius: 8px;
+            font-size: 0.9em;
+            color: #555;
+            line-height: 1.6;
+        }
+        .warning-text { color: var(--danger); font-size: 0.8em; margin-top: 5px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Simulador de Pneumotacógrafo</h1>
+    
+    <div class="dashboard">
+        <section class="controls">
+            <div class="type-selector">
+                <button id="btnFixed" class="active" onclick="setType('fixed')">Orifício Fixo</button>
+                <button id="btnVariable" onclick="setType('variable')">Orifício Variável</button>
+            </div>
+
+            <div class="control-group">
+                <label>Fluxo Inspiratório <span id="valFlow" class="value-badge">60</span><br><small>L/min</small></label>
+                <input type="range" id="inputFlow" min="0" max="120" value="60">
+            </div>
+            
+            <div class="control-group">
+                <label>Diâmetro do Tubo (D1) <span id="valPipe" class="value-badge">22</span><br><small>mm</small></label>
+                <input type="range" id="inputPipe" min="15" max="30" value="22">
+            </div>
+
+            <div class="control-group">
+                <label>Diâmetro do Orifício (D2) <span id="valOrifice" class="value-badge">12</span><br><small>mm</small></label>
+                <input type="range" id="inputOrifice" min="5" max="30" value="12">
+                <div id="limitWarning" class="warning-text">⚠️ O orifício não pode exceder o tubo!</div>
+            </div>
+
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                <p style="font-size: 0.8em; color: #888;">
+                    <strong>Física aplicada:</strong><br>
+                    Equação de Bernoulli para fluidos incompressíveis.<br>
+                    $\Delta P = \frac{\rho}{2} (v_2^2 - v_1^2)$
+                </p>
+            </div>
+        </section>
+
+        <section class="visualizers">
+            <div>
+                <label>Comportamento do Fluxo e Deformação da Membrana</label>
+                <canvas id="flowCanvas" width="650" height="220"></canvas>
+            </div>
+            <div>
+                <label>Curva de Pressão (Escala Dinâmica)</label>
+                <canvas id="graphCanvas" width="650" height="280"></canvas>
+            </div>
+        </section>
+
+        <div class="info-box">
+            <strong>Instruções de Laboratório:</strong> 
+            Observe que no modo <b>Orifício Fixo</b>, se você reduzir o diâmetro (D2), a pressão sobe de forma exponencial (quadrática). 
+            No modo <b>Orifício Variável</b>, note como a membrana se curva para frente com o fluxo. Esse movimento aumenta a área efetiva de passagem, 
+            fazendo com que a curva no gráfico seja "achatada" (linearizada), reduzindo a resistência imposta ao paciente em altos fluxos.
+        </div>
+    </div>
+</div>
+
+<script>
+    const flowCanvas = document.getElementById('flowCanvas');
+    const flowCtx = flowCanvas.getContext('2d');
+    const graphCanvas = document.getElementById('graphCanvas');
+    const graphCtx = graphCanvas.getContext('2d');
+
+    let state = {
+        type: 'fixed',
+        flow: 60,
+        pipeDiam: 22,
+        orificeDiam: 12,
+        particles: []
+    };
+
+    // Inicialização das partículas
+    for (let i = 0; i < 150; i++) {
+        state.particles.push({
+            x: Math.random() * flowCanvas.width,
+            y: 0,
+            offsetY: Math.random()
+        });
+    }
+
+    // Handlers com lógica de restrição
+    document.getElementById('inputFlow').oninput = e => { 
+        state.flow = +e.target.value; 
+        updateUI(); 
+    };
+
+    document.getElementById('inputPipe').oninput = e => {
+        state.pipeDiam = +e.target.value;
+        if (state.orificeDiam > state.pipeDiam) {
+            state.orificeDiam = state.pipeDiam;
+            document.getElementById('inputOrifice').value = state.pipeDiam;
+        }
+        updateUI();
+    };
+
+    document.getElementById('inputOrifice').oninput = e => {
+        let val = +e.target.value;
+        if (val > state.pipeDiam) {
+            val = state.pipeDiam;
+            e.target.value = val;
+            document.getElementById('limitWarning').style.display = 'block';
+        } else {
+            document.getElementById('limitWarning').style.display = 'none';
+        }
+        state.orificeDiam = val;
+        updateUI();
+    };
+
+    function setType(t) {
+        state.type = t;
+        document.getElementById('btnFixed').classList.toggle('active', t === 'fixed');
+        document.getElementById('btnVariable').classList.toggle('active', t === 'variable');
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('valFlow').innerText = state.flow;
+        document.getElementById('valPipe').innerText = state.pipeDiam;
+        document.getElementById('valOrifice').innerText = state.orificeDiam;
+    }
+
+    function calculateDeltaP(flow, orificeD, pipeD, type) {
+        if (flow <= 0 || orificeD >= pipeD) return 0;
+        
+        const rho = 1.225; // kg/m3
+        const Q = (flow / 60000); // m3/s
+        const A1 = Math.PI * Math.pow(pipeD/2000, 2);
+        
+        let effectiveD;
+        if (type === 'fixed') {
+            effectiveD = orificeD;
+        } else {
+            // No variável, a membrana abre de um mínimo (ex: 4mm) até o D original
+            const minD = 4;
+            effectiveD = minD + (flow / 120) * (orificeD - minD);
+        }
+        
+        const A2 = Math.PI * Math.pow(effectiveD/2000, 2);
+        const v1 = Q / A1;
+        const v2 = Q / A2;
+        
+        const dpPa = 0.5 * rho * (v2*v2 - v1*v1);
+        return dpPa / 98.06; // cmH2O
+    }
+
+    function drawFlow() {
+        flowCtx.clearRect(0, 0, flowCanvas.width, flowCanvas.height);
+        
+        const centerX = flowCanvas.width / 2;
+        const centerY = flowCanvas.height / 2 + 25;
+        const pScale = 4; 
+        const pipeH = state.pipeDiam * pScale;
+        const rigidH = state.orificeDiam * pScale;
+        
+        // Taps de Pressão
+        flowCtx.strokeStyle = '#95a5a6';
+        flowCtx.lineWidth = 2;
+        flowCtx.beginPath();
+        flowCtx.moveTo(centerX - 60, centerY - pipeH/2); flowCtx.lineTo(centerX - 60, centerY - pipeH/2 - 20);
+        flowCtx.moveTo(centerX + 60, centerY - pipeH/2); flowCtx.lineTo(centerX + 60, centerY - pipeH/2 - 20);
+        flowCtx.stroke();
+        flowCtx.fillStyle = '#95a5a6';
+        flowCtx.font = '10px Arial';
+        flowCtx.fillText("P1", centerX - 65, centerY - pipeH/2 - 25);
+        flowCtx.fillText("P2", centerX + 55, centerY - pipeH/2 - 25);
+
+        // Tubo
+        flowCtx.strokeStyle = '#2c3e50';
+        flowCtx.lineWidth = 3;
+        flowCtx.strokeRect(0, centerY - pipeH/2, flowCanvas.width, pipeH);
+
+        // Orifício Rígido
+        flowCtx.fillStyle = '#bdc3c7';
+        flowCtx.fillRect(centerX - 5, centerY - pipeH/2, 10, (pipeH - rigidH)/2);
+        flowCtx.fillRect(centerX - 5, centerY + rigidH/2, 10, (pipeH - rigidH)/2);
+
+        // Membrana (Apenas Variável)
+        let gapH = rigidH;
+        let flapCurve = 0;
+        if (state.type === 'variable') {
+            const minGap = 4 * pScale;
+            gapH = minGap + (state.flow/120) * (rigidH - minGap);
+            flapCurve = (state.flow/120) * 40;
+            
+            flowCtx.strokeStyle = '#34495e';
+            flowCtx.lineWidth = 3;
+            // Superior
+            flowCtx.beginPath();
+            flowCtx.moveTo(centerX + 5, centerY - rigidH/2);
+            flowCtx.quadraticCurveTo(centerX + 5 + flapCurve, centerY - rigidH/2, centerX + 5 + flapCurve, centerY - gapH/2);
+            flowCtx.stroke();
+            // Inferior
+            flowCtx.beginPath();
+            flowCtx.moveTo(centerX + 5, centerY + rigidH/2);
+            flowCtx.quadraticCurveTo(centerX + 5 + flapCurve, centerY + rigidH/2, centerX + 5 + flapCurve, centerY + gapH/2);
+            flowCtx.stroke();
+        }
+
+        // Partículas
+        state.particles.forEach(p => {
+            let speed = (state.flow / 15) + 1;
+            let currentMargin = pipeH/2 - 5;
+            
+            // Aceleração e compressão no orifício
+            if (p.x > centerX - 10 && p.x < centerX + 10 + flapCurve) {
+                speed *= (pipeH / gapH);
+                currentMargin = gapH/2 - 3;
+            }
+
+            p.x += speed;
+            if (p.x > flowCanvas.width) p.x = 0;
+
+            const yPos = centerY + (p.offsetY - 0.5) * (currentMargin * 2);
+            flowCtx.fillStyle = 'rgba(52, 152, 219, 0.7)';
+            flowCtx.beginPath();
+            flowCtx.arc(p.x, yPos, 2, 0, Math.PI*2);
+            flowCtx.fill();
+        });
+
+        requestAnimationFrame(drawFlow);
+    }
+
+    function drawGraph() {
+        graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+        const pad = 50;
+        const w = graphCanvas.width - pad*2;
+        const h = graphCanvas.height - pad*2;
+
+        // 1. Encontrar o Max Delta P para a escala dinâmica
+        let maxObservedP = 0;
+        const curvePoints = [];
+        for (let f = 0; f <= 120; f += 2) {
+            let p = calculateDeltaP(f, state.orificeDiam, state.pipeDiam, state.type);
+            curvePoints.push(p);
+            if (p > maxObservedP) maxObservedP = p;
+        }
+        
+        // Ajuste de escala: Se o max for quase zero, define um mínimo para não quebrar o desenho
+        const yMax = maxObservedP < 1 ? 5 : maxObservedP * 1.2;
+
+        // Eixos
+        graphCtx.strokeStyle = '#333';
+        graphCtx.lineWidth = 2;
+        graphCtx.beginPath();
+        graphCtx.moveTo(pad, pad);
+        graphCtx.lineTo(pad, h + pad);
+        graphCtx.lineTo(w + pad, h + pad);
+        graphCtx.stroke();
+
+        // Linhas de Grade e Valores Y
+        graphCtx.textAlign = 'right';
+        graphCtx.fillStyle = '#888';
+        graphCtx.font = '10px Arial';
+        for(let i=0; i<=5; i++) {
+            let valY = (yMax / 5) * i;
+            let yPos = (h+pad) - (i/5)*h;
+            graphCtx.fillText(valY.toFixed(1), pad - 10, yPos + 4);
+            graphCtx.beginPath();
+            graphCtx.strokeStyle = '#eee';
+            graphCtx.moveTo(pad, yPos);
+            graphCtx.lineTo(w+pad, yPos);
+            graphCtx.stroke();
+        }
+
+        // Títulos
+        graphCtx.fillStyle = '#333';
+        graphCtx.textAlign = 'center';
+        graphCtx.fillText("Fluxo (L/min)", w/2 + pad, h + pad + 35);
+        graphCtx.save();
+        graphCtx.translate(15, h/2 + pad);
+        graphCtx.rotate(-Math.PI/2);
+        graphCtx.fillText("ΔP (cmH₂O)", 0, 0);
+        graphCtx.restore();
+
+        // Desenhar Curva
+        graphCtx.beginPath();
+        graphCtx.strokeStyle = state.type === 'fixed' ? '#e74c3c' : '#27ae60';
+        graphCtx.lineWidth = 3;
+        curvePoints.forEach((p, i) => {
+            let x = pad + (i * 2 / 120) * w;
+            let y = (h + pad) - (p / yMax) * h;
+            if (i === 0) graphCtx.moveTo(x, y);
+            else graphCtx.lineTo(x, y);
+        });
+        graphCtx.stroke();
+
+        // Ponto Atual
+        const currentP = calculateDeltaP(state.flow, state.orificeDiam, state.pipeDiam, state.type);
+        const curX = pad + (state.flow / 120) * w;
+        const curY = (h + pad) - (currentP / yMax) * h;
+
+        graphCtx.fillStyle = '#2c3e50';
+        graphCtx.beginPath();
+        graphCtx.arc(curX, curY, 6, 0, Math.PI*2);
+        graphCtx.fill();
+        graphCtx.fillText(currentP.toFixed(2) + " cmH₂O", curX, curY - 15);
+
+        setTimeout(drawGraph, 60);
+    }
+
+    updateUI();
+    drawFlow();
+    drawGraph();
+</script>
+
+</body>
+</html>

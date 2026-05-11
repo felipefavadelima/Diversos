@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Animado RC - Mecânica Pulmonar</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .controls {
+            width: 350px;
+            background: #34495e;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+        .animation-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: #ecf0f1;
+        }
+        h2, h3 { margin: 0 0 10px 0; color: #3498db; }
+        label { font-size: 0.9em; font-weight: bold; margin-bottom: 5px; display: block;}
+        select, input[type="range"] {
+            width: 100%; padding: 8px; border-radius: 5px; border: none; margin-bottom: 10px;
+        }
+        .btn-panel { display: flex; gap: 10px; }
+        button {
+            flex: 1; padding: 15px; border: none; border-radius: 5px;
+            font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        #btn-inspire { background-color: #2ecc71; color: white; }
+        #btn-inspire:active { background-color: #27ae60; }
+        #btn-expire { background-color: #e74c3c; color: white; }
+        #btn-expire:active { background-color: #c0392b; }
+        
+        .monitor {
+            background: #000; color: #0f0; font-family: monospace;
+            padding: 15px; border-radius: 5px; margin-top: 10px;
+            border: 2px solid #333;
+        }
+        .monitor span { color: #fff; }
+
+        /* Desenho do Sistema Respiratório */
+        .system-container {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+        
+        /* O Cano (Vias Aéreas / Resistência) */
+        .pipe-wrapper {
+            width: 150px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            position: relative;
+            z-index: 10;
+        }
+        .pipe {
+            background: #7f8c8d;
+            height: 40px; /* Altura padrão, muda na asma */
+            width: 100%;
+            border: 2px solid #333;
+            border-right: none;
+            transition: height 0.5s ease;
+            position: relative;
+        }
+        .pipe::after {
+            content: 'Ar'; position: absolute; left: -30px; top: 20%; color: #333; font-weight: bold;
+        }
+
+        /* A Bexiga (Pulmão / Complacência) */
+        .balloon {
+            width: 250px;
+            height: 250px;
+            background: #ff7675;
+            border-radius: 50%;
+            border: 3px solid #d63031;
+            position: relative;
+            transform-origin: center left;
+            transition: transform 1s ease-in-out, background-color 0.5s;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: inset -10px -10px 20px rgba(0,0,0,0.2);
+            /* Escala inicial baseada em Volume 0 */
+            transform: scale(0.3); 
+        }
+
+        /* Alvéolos (Bolinhas) */
+        .alveolus {
+            width: 25px;
+            height: 25px;
+            background: #fab1a0;
+            border: 1px solid #d63031;
+            border-radius: 50%;
+            margin: 2px;
+            transition: all 0.5s ease;
+        }
+
+        /* Classes de Estados Patológicos */
+        .state-asma .pipe { height: 10px; background: #e67e22; } /* Cano estreito */
+        .state-sdra .balloon { background: #b2bec3; border-color: #636e72; } /* Pulmão duro/opaco */
+        .alveolus.collapsed {
+            background: #555;
+            border-color: #222;
+            transform: scale(0.3);
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h2>Painel do Simulador</h2>
+    
+    <div>
+        <label>Condição Clínica:</label>
+        <select id="condition">
+            <option value="normal">Normal</option>
+            <option value="asma">Asma (Tubo Estreito / R Alta)</option>
+            <option value="sdra">SDRA (Bexiga Dura / C Baixa)</option>
+            <option value="atelectasia">Atelectasia (Alvéolos Colapsados)</option>
+        </select>
+    </div>
+
+    <div>
+        <label>Modo de Injeção:</label>
+        <select id="mode">
+            <option value="vcv">Controle a Volume (VCV)</option>
+            <option value="pcv">Controle a Pressão (PCV)</option>
+        </select>
+    </div>
+
+    <div id="target-v-container">
+        <label>Injetar Volume (mL): <span id="v-val">500</span></label>
+        <input type="range" id="targetV" min="200" max="800" step="50" value="500">
+    </div>
+
+    <div id="target-p-container" style="display:none;">
+        <label>Injetar Pressão (cmH2O): <span id="p-val">15</span></label>
+        <input type="range" id="targetP" min="5" max="40" step="1" value="15">
+    </div>
+
+    <div>
+        <label>PEEP (Pressão Final): <span id="peep-val">5</span></label>
+        <input type="range" id="peep" min="0" max="20" step="1" value="5">
+    </div>
+
+    <div class="btn-panel">
+        <button id="btn-inspire">INJETAR AR<br>(Inspirar)</button>
+        <button id="btn-expire">SOLTAR AR<br>(Expirar)</button>
+    </div>
+
+    <div class="monitor">
+        <h3>Monitor (Resultados)</h3>
+        <div>Complacência (C): <span id="mon-c">--</span> mL/cmH2O</div>
+        <div>Resistência (R): <span id="mon-r">--</span> cmH2O/L/s</div>
+        <hr style="border-color:#333; margin: 10px 0;">
+        <div>Vol. Atingido (V): <span id="mon-v">--</span> mL</div>
+        <div>Pressão de Pico (P): <span id="mon-p">--</span> cmH2O</div>
+        <div style="margin-top: 10px; color: #f1c40f; font-size: 0.8em;" id="recrutamento-msg"></div>
+    </div>
+</div>
+
+<div class="animation-area" id="anim-area">
+    <div class="system-container">
+        <div class="pipe-wrapper">
+            <div class="pipe"></div>
+        </div>
+        <div class="balloon" id="balloon">
+            </div>
+    </div>
+</div>
+
+<script>
+    // Referências DOM
+    const balloon = document.getElementById('balloon');
+    const animArea = document.getElementById('anim-area');
+    const conditionSelect = document.getElementById('condition');
+    const modeSelect = document.getElementById('mode');
+    const targetVInput = document.getElementById('targetV');
+    const targetPInput = document.getElementById('targetP');
+    const peepInput = document.getElementById('peep');
+    const btnInspire = document.getElementById('btn-inspire');
+    const btnExpire = document.getElementById('btn-expire');
+
+    // Inicializa alvéolos (bolinhas)
+    for(let i=0; i<45; i++) {
+        let alv = document.createElement('div');
+        alv.className = 'alveolus';
+        balloon.appendChild(alv);
+    }
+    const alveoli = document.querySelectorAll('.alveolus');
+
+    // UI Updates
+    modeSelect.addEventListener('change', (e) => {
+        if(e.target.value === 'vcv') {
+            document.getElementById('target-v-container').style.display = 'block';
+            document.getElementById('target-p-container').style.display = 'none';
+        } else {
+            document.getElementById('target-v-container').style.display = 'none';
+            document.getElementById('target-p-container').style.display = 'block';
+        }
+        updatePhysics();
+    });
+
+    targetVInput.addEventListener('input', (e) => document.getElementById('v-val').innerText = e.target.value);
+    targetPInput.addEventListener('input', (e) => document.getElementById('p-val').innerText = e.target.value);
+    peepInput.addEventListener('input', (e) => {
+        document.getElementById('peep-val').innerText = e.target.value;
+        updatePhysics(); // PEEP afeta visual em repouso
+    });
+    conditionSelect.addEventListener('change', updatePhysics);
+
+    let isInspiring = false;
+
+    function getMechanics() {
+        let condition = conditionSelect.value;
+        let peep = parseFloat(peepInput.value);
+        let C = 50; // Normal
+        let R = 5;  // Normal
+        let isRecruited = false;
+
+        animArea.className = 'animation-area'; // Reset classes
+        document.getElementById('recrutamento-msg').innerText = "";
+
+        // Lógica dos Alvéolos (Atelectasia)
+        alveoli.forEach(a => a.classList.remove('collapsed'));
+
+        if (condition === 'asma') {
+            animArea.classList.add('state-asma');
+            R = 30; 
+        } else if (condition === 'sdra') {
+            animArea.classList.add('state-sdra');
+            C = 20;
+        } else if (condition === 'atelectasia') {
+            if (peep >= 10) {
+                // RECRUTAMENTO! A PEEP abriu os alvéolos
+                C = 40; 
+                isRecruited = true;
+                document.getElementById('recrutamento-msg').innerText = "RECRUTAMENTO ALVEOLAR ATIVO! (PEEP abriu os alvéolos)";
+            } else {
+                C = 15; // Pulmão muito duro por falta de área
+                // Colapsa 80% dos alvéolos
+                alveoli.forEach((a, index) => {
+                    if(index % 5 !== 0) a.classList.add('collapsed');
+                });
+            }
+        }
+
+        document.getElementById('mon-c').innerText = C;
+        document.getElementById('mon-r').innerText = R;
+
+        return { C, R };
+    }
+
+    function updatePhysics() {
+        if(!isInspiring) {
+            let { C } = getMechanics();
+            let peep = parseFloat(peepInput.value);
+            // Volume em repouso baseado na PEEP
+            let restVolume = peep * C;
+            // Escala (Máx Volume = 1000mL = Escala 1.2)
+            let scale = Math.max(0.2, restVolume / 1000 * 1.2); 
+            balloon.style.transform = `scale(${scale})`;
+            
+            document.getElementById('mon-v').innerText = Math.round(restVolume);
+            document.getElementById('mon-p').innerText = peep;
+        }
+    }
+
+    btnInspire.addEventListener('mousedown', () => {
+        isInspiring = true;
+        let { C, R } = getMechanics();
+        let mode = modeSelect.value;
+        let peep = parseFloat(peepInput.value);
+        
+        let finalVolume = 0;
+        let finalPressure = 0;
+        let flow = 0.5; // Fixo para simulação L/s
+
+        if (mode === 'vcv') {
+            finalVolume = parseFloat(targetVInput.value);
+            // P = V/C + PEEP + R*Flow
+            finalPressure = (finalVolume / C) + peep + (R * flow);
+        } else {
+            let targetP = parseFloat(targetPInput.value);
+            finalPressure = targetP;
+            // V = (P - PEEP - R*Flow) * C
+            // Simplificação para manter visual didático no pico inspiratório
+            finalVolume = (targetP - peep) * C; 
+            if(finalVolume < 0) finalVolume = 0;
+        }
+
+        // Animação de enchimento
+        let scale = Math.max(0.2, (finalVolume + (peep*C)) / 1000 * 1.2);
+        // Na asma, o fluxo é mais lento, demora mais pra inflar
+        balloon.style.transitionDuration = (R > 15) ? '2s' : '0.8s';
+        balloon.style.transform = `scale(${scale})`;
+
+        document.getElementById('mon-v').innerText = Math.round(finalVolume);
+        document.getElementById('mon-p').innerText = Math.round(finalPressure);
+    });
+
+    btnExpire.addEventListener('mousedown', () => {
+        isInspiring = false;
+        balloon.style.transitionDuration = '1.2s';
+        updatePhysics();
+    });
+
+    // Para evitar que a animação trave se soltar o botão fora dele
+    window.addEventListener('mouseup', () => {
+        if(isInspiring) {
+            isInspiring = false;
+            balloon.style.transitionDuration = '1.2s';
+            updatePhysics();
+        }
+    });
+
+    // Inicia estado repouso
+    updatePhysics();
+</script>
+
+</body>
+</html>

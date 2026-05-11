@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Fio Quente - Corrente Constante</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e67e22;
+            --danger: #c0392b;
+            --bg: #fdfbf7;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2b2b2b; /* Fundo escuro para destacar o fio brilhante */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-width: 1100px;
+            width: 100%;
+        }
+        h1 { color: var(--primary); text-align: center; margin-bottom: 5px; }
+        p.subtitle { text-align: center; color: #666; margin-bottom: 20px; font-size: 0.9em; }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 25px;
+        }
+
+        .controls {
+            background: var(--bg);
+            padding: 20px;
+            border-radius: 10px;
+            border-top: 4px solid var(--accent);
+            border: 1px solid #eee;
+        }
+
+        .control-group { margin-bottom: 18px; }
+        label { display: block; font-weight: bold; font-size: 0.85em; margin-bottom: 5px; color: var(--primary); }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--accent); }
+        .val { float: right; color: var(--accent); font-weight: bold; font-family: monospace; font-size: 1.1em;}
+
+        .display-panel {
+            background: #111;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 2px solid #333;
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .display-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px;}
+        .display-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0;}
+        .display-label { color: #888; font-size: 0.85em; }
+        .display-value { font-size: 1.2em; font-weight: bold; }
+
+        .viz-area { display: flex; flex-direction: column; gap: 20px; }
+        canvas { background: #1a1a1a; border: 2px solid #444; border-radius: 8px; width: 100%; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); }
+        .graph-canvas { background: white; border: 1px solid #ddd; box-shadow: none; }
+
+        .formula-box {
+            grid-column: 1 / span 2;
+            background: #fff3e0;
+            border-left: 5px solid var(--accent);
+            padding: 15px;
+            font-size: 0.85em;
+            color: #444;
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Anemômetro de Fio Quente</h1>
+    <p class="subtitle">Modo de Corrente Constante (CCA) e Lei de King</p>
+
+    <div class="layout">
+        <aside class="controls">
+            <div class="control-group">
+                <label>Fluxo de Ar (Q): <span id="txtFlow" class="val">20</span> L/min</label>
+                <input type="range" id="rangeFlow" min="0" max="120" value="20">
+            </div>
+
+            <div class="control-group">
+                <label>Corrente Fixa da Fonte (I): <span id="txtCurrent" class="val">0.45</span> A</label>
+                <input type="range" id="rangeCurrent" min="0.3" max="0.6" step="0.01" value="0.45">
+            </div>
+
+            <div class="control-group">
+                <label>Temperatura do Gás (Tf): <span id="txtTempFluid" class="val">25</span> °C</label>
+                <input type="range" id="rangeTemp" min="15" max="40" step="1" value="25">
+            </div>
+
+            <div class="display-panel">
+                <div class="display-row">
+                    <span class="display-label">VOLTÍMETRO (V)</span>
+                    <span class="display-value" id="dispV" style="color: #f39c12;">0.00 V</span>
+                </div>
+                <div class="display-row">
+                    <span class="display-label">TEMP. FILAMENTO (Tw)</span>
+                    <span class="display-value" id="dispTw" style="color: #e74c3c;">0.0 °C</span>
+                </div>
+                <div class="display-row">
+                    <span class="display-label">RESISTÊNCIA (Rw)</span>
+                    <span class="display-value" id="dispRw">0.00 Ω</span>
+                </div>
+            </div>
+            
+            <p style="font-size: 0.75em; color: #888; margin-top: 15px;">
+                *Note que quanto <b>maior</b> o fluxo de ar, mais o fio esfria, e <b>menor</b> fica a tensão lida pelo circuito.
+            </p>
+        </aside>
+
+        <main class="viz-area">
+            <div>
+                <label style="color:#2c3e50;">Câmara de Medição (Visão Termográfica Simulada)</label>
+                <canvas id="flowCanvas" width="700" height="220"></canvas>
+            </div>
+            <div>
+                <label style="color:#2c3e50;">Gráfico de Calibração: Fluxo x Tensão (V)</label>
+                <canvas id="graphCanvas" class="graph-canvas" width="700" height="240"></canvas>
+            </div>
+        </main>
+
+        <div class="formula-box">
+            <strong>Física do Modelo Matemático:</strong> O equilíbrio térmico se dá quando a potência gerada pelo Efeito Joule iguala a perda por convecção (Lei de King).<br>
+            <strong>P<sub>gerada</sub> = I² · Rw</strong> <br>
+            <strong>P<sub>perdida</sub> = (A + B√Q) · (Tw - Tf)</strong><br>
+            A resistência do fio de tungstênio varia com a temperatura: <strong>Rw = R₀ [1 + α(Tw - Tf)]</strong>.<br>
+            O simulador resolve este sistema algebricamente a cada frame. O resultado é a curva não linear vista no gráfico. Ventiladores modernos usam circuitos de Temperatura Constante (CTA) acoplados a microprocessadores para linearizar essa leitura.
+        </div>
+    </div>
+</div>
+
+<script>
+    const flowCanvas = document.getElementById('flowCanvas');
+    const flowCtx = flowCanvas.getContext('2d');
+    const graphCanvas = document.getElementById('graphCanvas');
+    const graphCtx = graphCanvas.getContext('2d');
+
+    // Propriedades físicas reais parametrizadas para a simulação
+    const physicsConst = {
+        Rf: 5.0,        // Resistência base do fio a Tf (Ohms)
+        alpha: 0.0045,  // Coef. de temperatura (Tungstênio) 1/ºC
+        A: 0.015,       // Constante convecção estática (King)
+        B: 0.00365      // Constante convecção dinâmica (King)
+    };
+
+    let state = {
+        flow: 20,
+        current: 0.45,
+        tempF: 25,
+        particles: []
+    };
+
+    // Inicializar partículas de vento
+    for(let i=0; i<150; i++) {
+        state.particles.push({
+            x: Math.random() * flowCanvas.width,
+            y: Math.random(),
+            speedOffset: Math.random() * 0.5 + 0.5
+        });
+    }
+
+    // Handlers
+    const ids = ['rangeFlow', 'rangeCurrent', 'rangeTemp'];
+    ids.forEach(id => {
+        document.getElementById(id).oninput = updateState;
+    });
+
+    function updateState() {
+        state.flow = +document.getElementById('rangeFlow').value;
+        state.current = +document.getElementById('rangeCurrent').value;
+        state.tempF = +document.getElementById('rangeTemp').value;
+        
+        document.getElementById('txtFlow').innerText = state.flow;
+        document.getElementById('txtCurrent').innerText = state.current.toFixed(2);
+        document.getElementById('txtTempFluid').innerText = state.tempF;
+        
+        updateDisplays();
+    }
+
+    // Motor Matemático: Resolve a temperatura de equilíbrio e a tensão
+    function solvePhysics(Q, I, Tf) {
+        const P_base = I * I * physicsConst.Rf; // Joule base
+        // Denominador da solução algébrica
+        const denom = (physicsConst.A + physicsConst.B * Math.sqrt(Q)) - (P_base * physicsConst.alpha);
+        
+        // Proteção matemática contra runaway térmico (corrente excessiva para a geometria)
+        if(denom <= 0.001) return { Tw: 800, Rw: 20, V: I*20 }; // Fio fundiu/saturou
+        
+        const deltaT = P_base / denom;
+        const Tw = Tf + deltaT;
+        const Rw = physicsConst.Rf * (1 + physicsConst.alpha * deltaT);
+        const V = I * Rw;
+        
+        return { Tw, Rw, V };
+    }
+
+    function updateDisplays() {
+        const res = solvePhysics(state.flow, state.current, state.tempF);
+        
+        document.getElementById('dispV').innerText = res.V.toFixed(3) + " V";
+        document.getElementById('dispTw').innerText = res.Tw.toFixed(1) + " °C";
+        document.getElementById('dispRw').innerText = res.Rw.toFixed(2) + " Ω";
+    }
+
+    // Cor do fio baseada na temperatura (preto -> vermelho -> amarelo -> branco)
+    function getWireColor(temp) {
+        if(temp < 50) return { r: 80, g: 80, b: 80, blur: 0 };
+        if(temp < 150) return { r: 180, g: 0, b: 0, blur: 5 };
+        if(temp < 300) return { r: 255, g: Math.min(255, (temp-150)*1.5), b: 0, blur: 15 };
+        return { r: 255, g: 255, b: Math.min(255, (temp-300)*2), blur: 25 }; // Muito quente
+    }
+
+    function drawFlow() {
+        flowCtx.clearRect(0, 0, flowCanvas.width, flowCanvas.height);
+        
+        const res = solvePhysics(state.flow, state.current, state.tempF);
+        const wCenterX = flowCanvas.width / 2;
+        const wCenterY = flowCanvas.height / 2;
+        const tubeRadius = 80;
+
+        // Desenhar partículas de ar frio
+        const speedBase = (state.flow / 10);
+        flowCtx.fillStyle = 'rgba(52, 152, 219, 0.4)';
+        
+        state.particles.forEach(p => {
+            p.x += (speedBase === 0 ? 0 : Math.max(1, speedBase * p.speedOffset));
+            if(p.x > flowCanvas.width) p.x = 0;
+
+            const py = (wCenterY - tubeRadius + 10) + p.y * (tubeRadius*2 - 20);
+            
+            // Partículas esquentam visualmente (ficam brancas) ao cruzar o fio
+            if(p.x > wCenterX && p.x < wCenterX + 50 && res.Tw > 100) {
+                flowCtx.fillStyle = `rgba(255, ${255 - (p.x-wCenterX)*5}, 200, 0.6)`;
+            } else {
+                flowCtx.fillStyle = 'rgba(52, 152, 219, 0.5)';
+            }
+
+            flowCtx.beginPath();
+            flowCtx.arc(p.x, py, 2, 0, Math.PI*2);
+            flowCtx.fill();
+        });
+
+        // Desenhar hastes de suporte do filamento
+        flowCtx.strokeStyle = "#888";
+        flowCtx.lineWidth = 6;
+        flowCtx.beginPath();
+        flowCtx.moveTo(wCenterX, 0); flowCtx.lineTo(wCenterX, wCenterY - 40);
+        flowCtx.moveTo(wCenterX, flowCanvas.height); flowCtx.lineTo(wCenterX, wCenterY + 40);
+        flowCtx.stroke();
+
+        // Calcular brilho e desenhar o filamento de tungstênio (zig-zag)
+        const c = getWireColor(res.Tw);
+        flowCtx.strokeStyle = `rgb(${c.r}, ${c.g}, ${c.b})`;
+        flowCtx.shadowColor = `rgb(${c.r}, ${c.g}, ${c.b})`;
+        flowCtx.shadowBlur = c.blur;
+        flowCtx.lineWidth = 2;
+        
+        flowCtx.beginPath();
+        flowCtx.moveTo(wCenterX, wCenterY - 40);
+        let zig = -1;
+        for(let y = wCenterY - 30; y <= wCenterY + 40; y += 10) {
+            flowCtx.lineTo(wCenterX + (zig * 8), y);
+            zig *= -1;
+        }
+        flowCtx.stroke();
+
+        // Resetar sombras para não bugar outros desenhos
+        flowCtx.shadowBlur = 0;
+
+        // UI do Voltímetro na imagem
+        flowCtx.fillStyle = "#222";
+        flowCtx.strokeStyle = "#555";
+        flowCtx.lineWidth = 2;
+        flowCtx.fillRect(wCenterX - 45, 10, 90, 30);
+        flowCtx.strokeRect(wCenterX - 45, 10, 90, 30);
+        flowCtx.fillStyle = "#f39c12";
+        flowCtx.font = "bold 14px Courier";
+        flowCtx.textAlign = "center";
+        flowCtx.fillText(res.V.toFixed(2) + " V", wCenterX, 30);
+
+        requestAnimationFrame(drawFlow);
+    }
+
+    function drawGraph() {
+        graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+        const pad = 45;
+        const w = graphCanvas.width - pad*2;
+        const h = graphCanvas.height - pad*2;
+
+        // Eixos
+        graphCtx.strokeStyle = "#2c3e50";
+        graphCtx.lineWidth = 2;
+        graphCtx.beginPath();
+        graphCtx.moveTo(pad, pad - 10);
+        graphCtx.lineTo(pad, h + pad);
+        graphCtx.lineTo(w + pad + 10, h + pad);
+        graphCtx.stroke();
+
+        graphCtx.fillStyle = "#2c3e50";
+        graphCtx.font = "bold 11px Arial";
+        graphCtx.textAlign = "center";
+        graphCtx.fillText("Fluxo (L/min)", w/2 + pad, h + pad + 35);
+        
+        graphCtx.save();
+        graphCtx.translate(15, h/2 + pad);
+        graphCtx.rotate(-Math.PI/2);
+        graphCtx.fillText("Tensão Medida (V)", 0, 0);
+        graphCtx.restore();
+
+        // Encontrar limites do gráfico para a corrente atual
+        const resZero = solvePhysics(0, state.current, state.tempF);
+        const resMax = solvePhysics(120, state.current, state.tempF);
+        
+        // Escala Y baseada na tensão máxima (quando fluxo é zero)
+        const yMax = Math.ceil(resZero.V * 1.2 * 10) / 10; // Arredonda para cima
+        
+        // Grid Horizontal
+        graphCtx.textAlign = 'right';
+        graphCtx.fillStyle = '#7f8c8d';
+        graphCtx.font = '10px Arial';
+        for(let i=1; i<=5; i++) {
+            let valY = (yMax / 5) * i;
+            let yPos = (h+pad) - (i/5)*h;
+            graphCtx.fillText(valY.toFixed(2), pad - 8, yPos + 4);
+            
+            graphCtx.beginPath();
+            graphCtx.strokeStyle = '#ecf0f1';
+            graphCtx.lineWidth = 1;
+            graphCtx.moveTo(pad, yPos);
+            graphCtx.lineTo(w+pad, yPos);
+            graphCtx.stroke();
+        }
+
+        // Desenhar a Curva da Lei de King
+        graphCtx.beginPath();
+        graphCtx.strokeStyle = "#e67e22";
+        graphCtx.lineWidth = 3;
+        for(let f=0; f<=120; f+=2) {
+            let res = solvePhysics(f, state.current, state.tempF);
+            let x = pad + (f / 120) * w;
+            let y = (h + pad) - (res.V / yMax) * h;
+            if(f === 0) graphCtx.moveTo(x, y);
+            else graphCtx.lineTo(x, y);
+        }
+        graphCtx.stroke();
+
+        // Ponto Atual
+        const currentRes = solvePhysics(state.flow, state.current, state.tempF);
+        const curX = pad + (state.flow / 120) * w;
+        const curY = (h + pad) - (currentRes.V / yMax) * h;
+
+        graphCtx.fillStyle = "#c0392b";
+        graphCtx.beginPath();
+        graphCtx.arc(curX, curY, 6, 0, Math.PI*2);
+        graphCtx.fill();
+        
+        // Tooltip
+        graphCtx.fillStyle = 'rgba(255,255,255,0.9)';
+        graphCtx.fillRect(curX + 10, curY - 25, 65, 20);
+        graphCtx.fillStyle = "#c0392b";
+        graphCtx.textAlign = "left";
+        graphCtx.font = "bold 11px Arial";
+        graphCtx.fillText(currentRes.V.toFixed(2) + " V", curX + 15, curY - 11);
+
+        setTimeout(drawGraph, 60);
+    }
+
+    // Inicialização
+    updateState();
+    drawFlow();
+    drawGraph();
+</script>
+
+</body>
+</html>

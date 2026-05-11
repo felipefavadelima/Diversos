@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ventilador Mecânico - Simulador Interativo</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #000000;
+            color: #ffffff;
+            margin: 0;
+            display: grid;
+            grid-template-columns: 260px 1fr 260px; /* Alargado ligeiramente o painel direito */
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* PAINEL ESQUERDO: CONTROLES DA MÁQUINA */
+        #controls {
+            background-color: #111;
+            border-right: 2px solid #333;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+        }
+        .control-box { background: #1a1a1a; border: 1px solid #333; padding: 10px; border-radius: 6px; }
+        label { display: block; font-size: 0.75em; color: #aaa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        select, input[type="range"] { width: 100%; background: #222; color: #fff; border: 1px solid #444; padding: 5px; outline: none; border-radius: 4px; cursor: pointer; }
+        .val-display { float: right; color: #00ffcc; font-weight: bold; font-size: 1.1em; }
+
+        /* PAINEL CENTRAL: ONDAS */
+        #waveforms {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            gap: 10px;
+            height: 100vh;
+        }
+        .chart-wrapper {
+            flex: 1;
+            position: relative;
+            background: #050505;
+            border: 1px solid #222;
+            border-radius: 8px;
+        }
+        .chart-label { position: absolute; top: 5px; left: 10px; font-size: 0.8em; font-weight: bold; z-index: 10; }
+        .lbl-p { color: #ffea00; }
+        .lbl-f { color: #00e676; }
+        .lbl-v { color: #00b0ff; }
+
+        /* PAINEL DIREITO: MONITOR & PACIENTE */
+        #monitor {
+            background-color: #111;
+            border-left: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            gap: 15px;
+            overflow-y: auto;
+        }
+        .readout { text-align: right; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .readout .title { font-size: 0.8em; color: #aaa; }
+        .readout .value { font-size: 2.5em; font-weight: bold; }
+        .val-p { color: #ffea00; }
+        .val-v { color: #00b0ff; }
+
+        #animation-container {
+            background: #0a0a0a;
+            border-radius: 8px;
+            border: 1px solid #222;
+            padding: 15px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        #lung-svg { width: 100%; max-height: 160px; overflow: visible; margin-bottom: 15px; }
+        .lung-path { fill: #ff4d4d; transition: transform 0.05s linear; transform-origin: 50% 25px; }
+        .diaphragm { stroke: #00e676; stroke-width: 4; fill: none; transition: d 0.05s linear; }
+        .diaphragm.active { stroke: #e94560; stroke-width: 6; }
+
+        /* Controles do Paciente (Direita) */
+        .patient-controls {
+            width: 100%;
+            background: #1a1a1a;
+            border: 1px solid #e94560;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .btn-trigger {
+            background: #e94560; color: #fff; border: none; padding: 10px; font-weight: bold;
+            cursor: pointer; border-radius: 4px; text-transform: uppercase; font-size: 0.8em;
+            margin-top: 10px; transition: background 0.2s; width: 100%;
+        }
+        .btn-trigger:active { background: #ff7675; }
+
+    </style>
+</head>
+<body>
+
+<!-- PAINEL ESQUERDO: MÁQUINA -->
+<div id="controls">
+    <div style="font-size: 1.2em; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 10px;">AJUSTES DO VENTILADOR</div>
+    
+    <div class="control-box">
+        <label>Modo Ventilatório</label>
+        <select id="mode">
+            <option value="VCV">VCV (Volume)</option>
+            <option value="PCV">PCV (Pressão)</option>
+        </select>
+    </div>
+    <div class="control-box">
+        <label>Disparo (Trigger)</label>
+        <select id="triggerType">
+            <option value="AC" selected>A/C (Permite Disparo)</option>
+            <option value="CMV">CMV (Ignora Paciente)</option>
+        </select>
+    </div>
+    <div class="control-box">
+        <label>Volume Corrente (ml) <span class="val-display" id="val-vt">400</span></label>
+        <input type="range" id="vt" min="200" max="800" step="10" value="400">
+    </div>
+    <div class="control-box">
+        <label>Pressão Insp. (cmH2O) <span class="val-display" id="val-pins">15</span></label>
+        <input type="range" id="pins" min="5" max="35" step="1" value="15">
+    </div>
+    <div class="control-box">
+        <label>PEEP (cmH2O) <span class="val-display" id="val-peep">5</span></label>
+        <input type="range" id="peep" min="0" max="20" step="1" value="5">
+    </div>
+    
+    <!-- Condições Pulmonares simuladas na máquina para fins educativos -->
+    <div class="control-box" style="border-color: #ffaa00; margin-top: 10px;">
+        <label style="color: #ffaa00;">Complacência <span class="val-display" id="val-c" style="color: #ffaa00;">50</span></label>
+        <input type="range" id="c" min="10" max="100" step="5" value="50">
+    </div>
+    <div class="control-box" style="border-color: #ffaa00;">
+        <label style="color: #ffaa00;">Resistência <span class="val-display" id="val-r" style="color: #ffaa00;">10</span></label>
+        <input type="range" id="r" min="5" max="50" step="1" value="10">
+    </div>
+</div>
+
+<!-- PAINEL CENTRAL: GRÁFICOS -->
+<div id="waveforms">
+    <div class="chart-wrapper">
+        <div class="chart-label lbl-p">PAW (cmH2O)</div>
+        <canvas id="chartP"></canvas>
+    </div>
+    <div class="chart-wrapper">
+        <div class="chart-label lbl-f">FLUXO (L/min)</div>
+        <canvas id="chartF"></canvas>
+    </div>
+    <div class="chart-wrapper">
+        <div class="chart-label lbl-v">VOLUME (ml)</div>
+        <canvas id="chartV"></canvas>
+    </div>
+</div>
+
+<!-- PAINEL DIREITO: MONITORIZAÇÃO E PACIENTE -->
+<div id="monitor">
+    <div class="readout">
+        <div class="title">PRESSÃO DE PICO (cmH2O)</div>
+        <div class="value val-p" id="out-ppeak">0</div>
+    </div>
+    <div class="readout">
+        <div class="title">VOLUME EXPIRADO (ml)</div>
+        <div class="value val-v" id="out-vte">0</div>
+    </div>
+    
+    <div id="animation-container">
+        <!-- Animação do Pulmão -->
+        <svg id="lung-svg" viewBox="0 0 100 120">
+            <line x1="50" y1="5" x2="50" y2="25" stroke="#ffffff" stroke-width="4"/>
+            <path id="lung-path" class="lung-path" d="M 50 25 C 20 25, 10 50, 20 80 C 30 85, 45 80, 50 70 C 55 80, 70 85, 80 80 C 90 50, 80 25, 50 25 Z" />
+            <path id="diaphragm-path" class="diaphragm" d="M 10 85 Q 50 75 90 85" />
+        </svg>
+
+        <!-- Controles exclusivos do Paciente (Abaixo da animação) -->
+        <div class="patient-controls">
+            <label style="color: #e94560;">Estado do Paciente</label>
+            <select id="patientState" style="border-color: #e94560;">
+                <option value="sedated">Sedado / Passivo</option>
+                <option value="active">Ativo (Respira Sozinho)</option>
+            </select>
+            <button class="btn-trigger" id="btn-effort">Forçar Esforço Único</button>
+            <div style="font-size:0.65em; color:#888; text-align:center; margin-top:8px;">
+                O diafragma fica vermelho durante a contração.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Variáveis Globais (Parâmetros Iniciais)
+    let mode = 'VCV', triggerType = 'AC', patientState = 'sedated';
+    let vt = 400, pins = 15, peep = 5, C = 50, R = 10;
+    
+    let dt = 0.05, cycleTime = 0, Ti = 1.0, Te = 3.0; // Ciclo total 4s (15 rpm)
+    let isInsufflating = false;
+    let dataPoints = 150, maxP = 0, maxV = 0;
+
+    // Fisiologia do Esforço Muscular (Pmus)
+    let effortActive = false;
+    let effortTime = 0;
+    let p_mus = 0; 
+    let effortDuration = 0.6; // Duração do esforço em segundos
+
+    // Inicialização do Chart.js
+    const chartDefaults = (color, min, max) => ({
+        type: 'line',
+        data: { labels: Array(dataPoints).fill(''), datasets: [{ data: Array(dataPoints).fill(0), borderColor: color, borderWidth: 2, pointRadius: 0, tension: 0.1 }] },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            layout: { padding: { left: 0, right: 0, top: 25, bottom: 0 } },
+            scales: { x: { display: false }, y: { min: min, max: max, grid: { color: '#222' }, border: { display: false }, ticks: { color: color, font: { size: 10 }, stepSize: (max-min)/4 } } },
+            plugins: { legend: { display: false }, tooltip: { enabled: false } }
+        }
+    });
+
+    const chartP = new Chart(document.getElementById('chartP').getContext('2d'), chartDefaults('#ffea00', -10, 40));
+    const chartF = new Chart(document.getElementById('chartF').getContext('2d'), chartDefaults('#00e676', -80, 80));
+    const chartV = new Chart(document.getElementById('chartV').getContext('2d'), chartDefaults('#00b0ff', 0, 800));
+
+    // --- CORREÇÃO AQUI: Ligação direta e explícita dos sliders às variáveis ---
+    document.getElementById('vt').oninput = (e) => { vt = parseInt(e.target.value); document.getElementById('val-vt').innerText = vt; };
+    document.getElementById('pins').oninput = (e) => { pins = parseInt(e.target.value); document.getElementById('val-pins').innerText = pins; };
+    document.getElementById('peep').oninput = (e) => { peep = parseInt(e.target.value); document.getElementById('val-peep').innerText = peep; };
+    document.getElementById('c').oninput = (e) => { C = parseInt(e.target.value); document.getElementById('val-c').innerText = C; };
+    document.getElementById('r').oninput = (e) => { R = parseInt(e.target.value); document.getElementById('val-r').innerText = R; };
+    
+    document.getElementById('mode').onchange = (e) => { mode = e.target.value; };
+    document.getElementById('triggerType').onchange = (e) => { triggerType = e.target.value; };
+    document.getElementById('patientState').onchange = (e) => { patientState = e.target.value; };
+
+    // Lógica do botão de esforço
+    function startEffort() {
+        if (!effortActive) {
+            effortActive = true;
+            effortTime = 0;
+        }
+    }
+    document.getElementById('btn-effort').onclick = startEffort;
+
+    // Respiração automática do paciente quando "Ativo"
+    setInterval(() => {
+        if (patientState === 'active') startEffort();
+    }, 3500);
+
+    let currentP = 5, currentF = 0, currentV = 0;
+
+    // --- MOTOR FÍSICO DO VENTILADOR (Roda a cada 50ms) ---
+    setInterval(() => {
+        cycleTime += dt;
+        
+        // 1. Dinâmica do Esforço Muscular (Pmus)
+        if (effortActive) {
+            effortTime += dt;
+            if (effortTime <= effortDuration) {
+                // Simula a curva de força do diafragma
+                p_mus = Math.sin((effortTime / effortDuration) * Math.PI) * 10; 
+                // Animação visual do diafragma contraindo para baixo
+                document.getElementById('diaphragm-path').setAttribute('d', `M 10 95 Q 50 ${95 + (p_mus*1.5)} 90 95`);
+                document.getElementById('diaphragm-path').classList.add('active');
+            } else {
+                effortActive = false;
+                p_mus = 0;
+                document.getElementById('diaphragm-path').setAttribute('d', 'M 10 85 Q 50 75 90 85');
+                document.getElementById('diaphragm-path').classList.remove('active');
+            }
+        } else {
+            p_mus = 0;
+        }
+
+        // 2. Cálculo das Pressões, Fluxos e Volumes (Equação do Movimento)
+        if (!isInsufflating) {
+            // FASE EXPIRATÓRIA
+            currentP = peep - p_mus; // Se paciente puxa, pressão cai abaixo da PEEP
+            
+            // Fluxo expiratório baseado na constante de tempo (R * C)
+            let tau_exp = (R * C) / 1000;
+            currentF = - (currentV / tau_exp) * 0.06;
+            currentV = Math.max(0, currentV + (currentF / 60) * dt * 1000);
+
+            // Verificação de Trigger (Disparo)
+            if (cycleTime >= (Ti + Te)) {
+                // Disparo por tempo (Máquina)
+                isInsufflating = true; cycleTime = 0; maxP = 0; maxV = 0;
+            } 
+            else if (triggerType === 'AC' && currentP <= peep - 2.0) {
+                // Disparo por pressão (Paciente atinge a sensibilidade de -2 cmH2O)
+                isInsufflating = true; cycleTime = 0; maxP = 0; maxV = 0;
+            }
+
+        } else {
+            // FASE INSPIRATÓRIA
+            if (mode === 'VCV') {
+                // Fluxo constante
+                currentF = (vt / 1000) / (Ti / 60); 
+                currentV += (currentF / 60) * dt * 1000;
+                
+                // Pressão é uma consequência. Se C baixa (10), P sobe muito. Se R sobe, P sobe.
+                currentP = (currentV / C) + ((currentF/60) * R) + peep - p_mus;
+            } else {
+                // PCV: Pressão alvo constante
+                let target_P = pins + peep;
+                
+                // Gradiente de pressão dita o fluxo. Se o paciente puxa (p_mus), entra mais fluxo.
+                let pressure_gradient = target_P + p_mus - peep - (currentV / C);
+                let F_L_s = pressure_gradient / R;
+                if (F_L_s < 0) F_L_s = 0; 
+                
+                currentF = F_L_s * 60;
+                currentV += (currentF / 60) * dt * 1000;
+                
+                // Pressão vista no gráfico em PCV (pequena distorção visual com esforço forte)
+                currentP = target_P - (p_mus * 0.3); 
+            }
+
+            // Ciclagem por tempo
+            if (cycleTime >= Ti) {
+                isInsufflating = false;
+            }
+        }
+
+        // 3. Atualização da Interface Visual
+        // Animação da amplitude do pulmão
+        let scaleFactor = 1 + (currentV / 1500); 
+        document.getElementById('lung-path').style.transform = `scale(${scaleFactor}, ${scaleFactor})`;
+
+        // Atualizar Monitores numéricos
+        if (currentP > maxP) { maxP = currentP; document.getElementById('out-ppeak').innerText = Math.round(maxP); }
+        if (currentV > maxV) { maxV = currentV; document.getElementById('out-vte').innerText = Math.round(maxV); }
+
+        // Desenhar Gráficos (Varredura contínua)
+        chartP.data.datasets[0].data.push(currentP); chartP.data.datasets[0].data.shift(); chartP.update();
+        chartF.data.datasets[0].data.push(currentF); chartF.data.datasets[0].data.shift(); chartF.update();
+        chartV.data.datasets[0].data.push(currentV); chartV.data.datasets[0].data.shift(); chartV.update();
+
+    }, 50);
+
+</script>
+
+</body>
+</html>

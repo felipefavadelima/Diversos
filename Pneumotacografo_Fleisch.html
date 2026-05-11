@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Fleisch - Fluxo Laminar</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #27ae60;
+            --danger: #e74c3c;
+            --bg: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #eef2f3;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            max-width: 1100px;
+            width: 100%;
+        }
+        h1 { color: var(--primary); text-align: center; margin-bottom: 5px; }
+        p.subtitle { text-align: center; color: #666; margin-bottom: 20px; font-size: 0.9em; }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 25px;
+        }
+
+        .controls {
+            background: var(--bg);
+            padding: 20px;
+            border-radius: 10px;
+            border-top: 4px solid var(--accent);
+        }
+
+        .control-group { margin-bottom: 18px; }
+        label { display: block; font-weight: bold; font-size: 0.85em; margin-bottom: 5px; color: var(--primary); }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .val { float: right; color: var(--accent); font-weight: bold; }
+
+        .status-card {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            transition: 0.3s;
+        }
+        .laminar { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .turbulent { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        .viz-area { display: flex; flex-direction: column; gap: 20px; }
+        canvas { background: white; border: 1px solid #ddd; border-radius: 8px; width: 100%; }
+
+        .formula-box {
+            grid-column: 1 / span 2;
+            background: #fff;
+            border-left: 5px solid var(--primary);
+            padding: 15px;
+            font-size: 0.85em;
+            color: #444;
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Pneumotacógrafo de Fleisch</h1>
+    <p class="subtitle">Estudo de Fluxo Laminar e Lei de Hagen-Poiseuille</p>
+
+    <div class="layout">
+        <aside class="controls">
+            <div class="control-group">
+                <label>Fluxo Total: <span id="txtFlow" class="val">60</span> L/min</label>
+                <input type="range" id="rangeFlow" min="0" max="150" value="60">
+            </div>
+
+            <div class="control-group">
+                <label>Diâmetro Capilar (d): <span id="txtDiam" class="val">0.8</span> mm</label>
+                <input type="range" id="rangeDiam" min="0.2" max="3.0" step="0.1" value="0.8">
+            </div>
+
+            <div class="control-group">
+                <label>Nº de Capilares: <span id="txtN" class="val">500</span></label>
+                <input type="range" id="rangeN" min="100" max="2000" step="50" value="500">
+            </div>
+
+            <div id="statusCard" class="status-card laminar">
+                <div style="font-size: 0.8em; text-transform: uppercase;">Regime de Fluxo</div>
+                <strong id="txtRegime">LAMINAR</strong><br>
+                <span style="font-size: 0.75em;">Reynolds (Re): <span id="txtRe">0</span></span>
+            </div>
+            
+            <p style="font-size: 0.75em; color: #888; margin-top: 15px;">
+                *Mantendo Re < 2000, a resposta é linear e precisa. Se o fluxo se tornar turbulento, a pressão sobe de forma exponencial (perda de linearidade).
+            </p>
+        </aside>
+
+        <main class="viz-area">
+            <div>
+                <label>Visualização da Colmeia (Corte Transversal e Taps de Pressão)</label>
+                <canvas id="flowCanvas" width="700" height="240"></canvas>
+            </div>
+            <div>
+                <label>Gráfico: Fluxo (Q) x Pressão (ΔP) - Linearidade</label>
+                <canvas id="graphCanvas" width="700" height="260"></canvas>
+            </div>
+        </main>
+
+        <div class="formula-box">
+            <strong>Fundamento Físico:</strong> No Fleisch, a resistência é dissipativa por viscosidade. 
+            A queda de pressão é regida pela equação de Hagen-Poiseuille: <strong>ΔP = (8 · η · L · Q) / (n · π · r⁴)</strong>. 
+            Como <em>Q</em> não está ao quadrado na fórmula, a relação é puramente <strong>linear</strong>, facilitando a medição pelo ventilador mecânico.
+        </div>
+    </div>
+</div>
+
+<script>
+    const flowCanvas = document.getElementById('flowCanvas');
+    const flowCtx = flowCanvas.getContext('2d');
+    const graphCanvas = document.getElementById('graphCanvas');
+    const graphCtx = graphCanvas.getContext('2d');
+
+    // Constantes Físicas
+    const L = 0.032; // Comprimento dos tubos (32mm)
+    const ETA = 1.81e-5; // Viscosidade do ar (Pa.s)
+    const RHO = 1.225; // Densidade do ar (kg/m3)
+
+    let state = {
+        flowLmin: 60,
+        capDiamMm: 0.8,
+        nCapilares: 500,
+        particles: []
+    };
+
+    // Partículas para animação
+    for(let i=0; i<250; i++) {
+        state.particles.push({
+            x: Math.random() * flowCanvas.width,
+            y: Math.random()
+        });
+    }
+
+    // Eventos
+    const inputs = ['rangeFlow', 'rangeDiam', 'rangeN'];
+    inputs.forEach(id => {
+        document.getElementById(id).oninput = function() {
+            state.flowLmin = +document.getElementById('rangeFlow').value;
+            state.capDiamMm = +document.getElementById('rangeDiam').value;
+            state.nCapilares = +document.getElementById('rangeN').value;
+            updateUI();
+        }
+    });
+
+    function updateUI() {
+        document.getElementById('txtFlow').innerText = state.flowLmin;
+        document.getElementById('txtDiam').innerText = state.capDiamMm.toFixed(1);
+        document.getElementById('txtN').innerText = state.nCapilares;
+        
+        const phys = getPhysics(state.flowLmin);
+        document.getElementById('txtRe').innerText = Math.round(phys.re);
+        
+        const card = document.getElementById('statusCard');
+        const txtR = document.getElementById('txtRegime');
+        
+        if (state.flowLmin === 0) {
+            card.className = "status-card laminar";
+            txtR.innerText = "PARADO";
+        } else if(phys.re < 2000) {
+            card.className = "status-card laminar";
+            txtR.innerText = "LAMINAR";
+        } else {
+            card.className = "status-card turbulent";
+            txtR.innerText = "TURBULENTO / TRANSIÇÃO";
+        }
+    }
+
+    function getPhysics(customFlow) {
+        // Correção do bug: checa undefined invés de truthy/falsy, para aceitar fluxo = 0
+        const flowValue = customFlow !== undefined ? customFlow : state.flowLmin;
+        
+        if (flowValue === 0) return { re: 0, dp: 0, v: 0 };
+
+        const Q_total = flowValue / 60000; // L/min -> m3/s
+        const r = (state.capDiamMm / 2) / 1000; // mm -> metros
+        const area_single = Math.PI * r * r;
+        const v = Q_total / (state.nCapilares * area_single); // velocidade no capilar
+        
+        const re = (RHO * v * (r*2)) / ETA;
+        
+        // ΔP Hagen-Poiseuille (Linear)
+        let dp = (8 * ETA * L * Q_total) / (state.nCapilares * Math.PI * Math.pow(r, 4));
+        
+        // Se turbulento, introduz perda de carga quadrática extra para distorcer a linha no gráfico
+        if(re > 2000) {
+            const extra = Math.pow(re/2000, 1.5);
+            dp *= extra;
+        }
+
+        return { re, dp: dp / 98.06, v }; // dp convertido de Pascal para cmH2O
+    }
+
+    function drawFlow() {
+        flowCtx.clearRect(0, 0, flowCanvas.width, flowCanvas.height);
+        
+        const centerX = flowCanvas.width / 2;
+        const centerY = flowCanvas.height / 2 + 10;
+        const honeyH = 100;
+        const pipeRadius = honeyH / 2 + 5;
+        const startX = centerX - 100;
+        const endX = centerX + 100;
+
+        // --- TUBO EXTERNO ---
+        flowCtx.strokeStyle = "#95a5a6";
+        flowCtx.lineWidth = 4;
+        flowCtx.beginPath();
+        flowCtx.moveTo(0, centerY - pipeRadius);
+        flowCtx.lineTo(flowCanvas.width, centerY - pipeRadius);
+        flowCtx.moveTo(0, centerY + pipeRadius);
+        flowCtx.lineTo(flowCanvas.width, centerY + pipeRadius);
+        flowCtx.stroke();
+
+        // --- CONEXÕES DO SENSOR DE PRESSÃO ---
+        const p1X = startX - 30;
+        const p2X = endX + 30;
+        flowCtx.strokeStyle = "#3498db";
+        flowCtx.lineWidth = 3;
+        flowCtx.beginPath();
+        // Tubo P1
+        flowCtx.moveTo(p1X, centerY - pipeRadius);
+        flowCtx.lineTo(p1X, centerY - pipeRadius - 30);
+        flowCtx.lineTo(centerX - 40, centerY - pipeRadius - 30);
+        // Tubo P2
+        flowCtx.moveTo(p2X, centerY - pipeRadius);
+        flowCtx.lineTo(p2X, centerY - pipeRadius - 30);
+        flowCtx.lineTo(centerX + 40, centerY - pipeRadius - 30);
+        flowCtx.stroke();
+
+        // Caixa do Sensor
+        flowCtx.fillStyle = "#3498db";
+        flowCtx.fillRect(centerX - 40, centerY - pipeRadius - 45, 80, 30);
+        flowCtx.fillStyle = "white";
+        flowCtx.font = "bold 12px Arial";
+        flowCtx.textAlign = "center";
+        flowCtx.fillText("Sensor ΔP", centerX, centerY - pipeRadius - 25);
+
+        // Labels P1 e P2
+        flowCtx.fillStyle = "#2980b9";
+        flowCtx.font = "bold 11px Arial";
+        flowCtx.fillText("P1", p1X - 15, centerY - pipeRadius - 10);
+        flowCtx.fillText("P2", p2X + 15, centerY - pipeRadius - 10);
+
+        // --- ESTRUTURA DA COLMEIA (FLEISCH) ---
+        flowCtx.fillStyle = "#ecf0f1";
+        flowCtx.fillRect(startX, centerY - honeyH/2, endX - startX, honeyH);
+        
+        flowCtx.strokeStyle = "#bdc3c7";
+        flowCtx.lineWidth = 1.5;
+        const numVisible = 10;
+        const step = honeyH / numVisible;
+        
+        for(let i=0; i <= numVisible; i++) {
+            let y = (centerY - honeyH/2) + i * step;
+            flowCtx.beginPath();
+            flowCtx.moveTo(startX, y);
+            flowCtx.lineTo(endX, y);
+            flowCtx.stroke();
+        }
+
+        // Bordas da colmeia
+        flowCtx.strokeStyle = "#7f8c8d";
+        flowCtx.lineWidth = 4;
+        flowCtx.strokeRect(startX, centerY - honeyH/2, endX - startX, honeyH);
+
+        // --- PARTÍCULAS DE AR ---
+        const phys = getPhysics(state.flowLmin);
+        const speed = (state.flowLmin / 15);
+        
+        state.particles.forEach(p => {
+            let inCapillary = (p.x >= startX && p.x <= endX);
+            let currentSpeed = inCapillary ? (speed * 1.5) : speed;
+            
+            p.x += currentSpeed;
+            if(p.x > flowCanvas.width) p.x = 0;
+
+            let yTarget;
+            if(inCapillary) {
+                // Alinha as partículas dentro dos "tubinhos"
+                let lane = Math.floor(p.y * numVisible);
+                yTarget = (centerY - honeyH/2) + (lane + 0.5) * step;
+            } else {
+                // Flutua livremente no tubo principal
+                yTarget = (centerY - pipeRadius + 5) + p.y * (pipeRadius * 2 - 10);
+            }
+
+            // Partículas ficam vermelhas se houver turbulência
+            flowCtx.fillStyle = phys.re < 2000 ? "#27ae60" : "#e74c3c";
+            flowCtx.beginPath();
+            flowCtx.arc(p.x, yTarget, 2.5, 0, Math.PI*2);
+            flowCtx.fill();
+        });
+
+        requestAnimationFrame(drawFlow);
+    }
+
+    function drawGraph() {
+        graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+        const pad = 50;
+        const w = graphCanvas.width - pad*2;
+        const h = graphCanvas.height - pad*2;
+
+        // Escala dinâmica calculada para a curva inteira
+        let maxDP = 0;
+        let points = [];
+        for(let f=0; f<=150; f+=5) {
+            let res = getPhysics(f);
+            points.push({f, dp: res.dp});
+            if(res.dp > maxDP) maxDP = res.dp;
+        }
+        const yMax = maxDP < 0.5 ? 2 : maxDP * 1.2;
+
+        // Eixos
+        graphCtx.strokeStyle = "#2c3e50";
+        graphCtx.lineWidth = 2;
+        graphCtx.beginPath();
+        graphCtx.moveTo(pad, pad - 10);
+        graphCtx.lineTo(pad, h + pad);
+        graphCtx.lineTo(w + pad + 10, h + pad);
+        graphCtx.stroke();
+
+        // Linhas de Grade e Valores Y
+        graphCtx.textAlign = 'right';
+        graphCtx.fillStyle = '#7f8c8d';
+        graphCtx.font = '10px Arial';
+        for(let i=1; i<=4; i++) {
+            let valY = (yMax / 4) * i;
+            let yPos = (h+pad) - (i/4)*h;
+            graphCtx.fillText(valY.toFixed(2), pad - 8, yPos + 4);
+            
+            graphCtx.beginPath();
+            graphCtx.strokeStyle = '#ecf0f1';
+            graphCtx.lineWidth = 1;
+            graphCtx.moveTo(pad, yPos);
+            graphCtx.lineTo(w+pad, yPos);
+            graphCtx.stroke();
+        }
+        graphCtx.fillText("0", pad - 8, h + pad + 4);
+
+        // Labels dos Eixos
+        graphCtx.fillStyle = "#2c3e50";
+        graphCtx.font = "bold 11px Arial";
+        graphCtx.textAlign = "center";
+        graphCtx.fillText("Fluxo (L/min)", w/2 + pad, h + pad + 35);
+        
+        graphCtx.save();
+        graphCtx.translate(15, h/2 + pad);
+        graphCtx.rotate(-Math.PI/2);
+        graphCtx.fillText("ΔP (cmH₂O)", 0, 0);
+        graphCtx.restore();
+
+        // Desenhar a Curva
+        graphCtx.beginPath();
+        graphCtx.strokeStyle = "#27ae60";
+        graphCtx.lineWidth = 3;
+        points.forEach((pt, i) => {
+            let x = pad + (pt.f / 150) * w;
+            let y = (h + pad) - (pt.dp / yMax) * h;
+            if(i === 0) graphCtx.moveTo(x, y); // Agora o ponto 0 realmente é (0,0)
+            else graphCtx.lineTo(x, y);
+        });
+        graphCtx.stroke();
+
+        // Marcar Ponto Atual
+        const current = getPhysics(state.flowLmin);
+        const curX = pad + (state.flowLmin / 150) * w;
+        const curY = (h + pad) - (current.dp / yMax) * h;
+
+        graphCtx.fillStyle = "#2c3e50";
+        graphCtx.beginPath();
+        graphCtx.arc(curX, curY, 6, 0, Math.PI*2);
+        graphCtx.fill();
+        
+        // Tooltip do ponto
+        graphCtx.fillStyle = 'rgba(255,255,255,0.9)';
+        graphCtx.fillRect(curX + 8, curY - 25, 90, 20);
+        graphCtx.fillStyle = "#2c3e50";
+        graphCtx.textAlign = "left";
+        graphCtx.fillText(current.dp.toFixed(3) + " cmH₂O", curX + 12, curY - 11);
+
+        setTimeout(drawGraph, 60);
+    }
+
+    // Iniciar
+    updateUI();
+    drawFlow();
+    drawGraph();
+</script>
+
+</body>
+</html>

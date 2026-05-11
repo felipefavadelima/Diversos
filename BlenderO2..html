@@ -1,0 +1,357 @@
+
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Blender - Versão Final Otimizada</title>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --primary: #2563eb;
+            --o2-color: #0ea5e9;
+            --air-color: #64748b;
+            --mixed-color: #8b5cf6;
+            --text-main: #0f172a;
+            --text-sub: #475569;
+            --danger: #ef4444;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 1100px;
+            width: 100%;
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.04);
+        }
+
+        header { text-align: center; margin-bottom: 40px; }
+        h1 { margin: 0; font-size: 2rem; color: var(--primary); font-weight: 800; letter-spacing: -0.025em; }
+        p.subtitle { color: var(--text-sub); margin-top: 8px; font-size: 1.1rem; }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 40px;
+        }
+
+        /* Controls Section */
+        .controls {
+            background: #f1f5f9;
+            padding: 24px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .control-group {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        label { display: block; font-weight: 700; margin-bottom: 12px; font-size: 0.85rem; color: var(--text-sub); text-transform: uppercase; }
+        input[type="range"] { width: 100%; cursor: pointer; height: 6px; border-radius: 3px; accent-color: var(--primary); }
+
+        .value-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-top: 10px;
+        }
+        .value-num { font-size: 1.4rem; font-weight: 800; color: var(--primary); }
+        .unit { font-size: 0.9rem; color: var(--text-sub); font-weight: 600; }
+
+        /* Simulation Section */
+        .simulation-viewport {
+            position: relative;
+            background: #ffffff;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
+        }
+
+        svg { width: 100%; height: auto; display: block; }
+
+        .particle {
+            fill: none;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 2, 12;
+            animation: flow 2s linear infinite;
+        }
+
+        @keyframes flow { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+
+        .sensor-label { font-size: 10px; font-weight: 800; fill: #64748b; letter-spacing: 0.05em; }
+        .pid-label { font-size: 11px; font-weight: 900; fill: #ffffff; }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            padding: 20px;
+            background: #f8fafc;
+            border-top: 1px solid var(--border);
+        }
+
+        .data-card {
+            background: #fff;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        .data-card .label { font-size: 0.65rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; margin-bottom: 4px; }
+        .data-card .value { font-size: 1.1rem; font-weight: 800; color: var(--text-main); }
+
+        .alert {
+            color: var(--danger);
+            font-size: 0.75rem;
+            font-weight: 800;
+            margin-top: 8px;
+            display: none;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Simulador de Blender Eletrónico</h1>
+        <p class="subtitle">Controlo de Precisão de Gases Medicinais</p>
+    </header>
+
+    <div class="dashboard">
+        <div class="controls">
+            <div class="control-group">
+                <label>FiO₂ Desejada</label>
+                <input type="range" id="fio2-input" min="21" max="100" value="40">
+                <div class="value-display">
+                    <span class="value-num" id="fio2-val">40</span>
+                    <span class="unit">%</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Fluxo Total</label>
+                <input type="range" id="flow-input" min="5" max="120" value="60">
+                <div class="value-display">
+                    <span class="value-num" id="flow-val">60</span>
+                    <span class="unit">L/min</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Rede O₂</label>
+                <input type="range" id="pres-o2-input" min="0" max="80" value="50">
+                <div class="value-display">
+                    <span class="value-num" id="pres-o2-val">50</span>
+                    <span class="unit">psi</span>
+                </div>
+                <div id="alert-o2" class="alert">⚠️ BAIXA PRESSÃO O₂</div>
+            </div>
+
+            <div class="control-group">
+                <label>Rede Ar</label>
+                <input type="range" id="pres-air-input" min="0" max="80" value="50">
+                <div class="value-display">
+                    <span class="value-num" id="pres-air-val">50</span>
+                    <span class="unit">psi</span>
+                </div>
+                <div id="alert-air" class="alert">⚠️ BAIXA PRESSÃO AR</div>
+            </div>
+        </div>
+
+        <div class="main-sim">
+            <div class="simulation-viewport">
+                <svg viewBox="0 0 600 400">
+                    <!-- Tubagens Base -->
+                    <path d="M 40 120 L 300 120" stroke="#f1f5f9" stroke-width="14" fill="none" />
+                    <text x="40" y="105" class="sensor-label">REDE O₂ (100%)</text>
+                    
+                    <path d="M 40 280 L 300 280" stroke="#f1f5f9" stroke-width="14" fill="none" />
+                    <text x="40" y="265" class="sensor-label">REDE AR (21%)</text>
+
+                    <!-- Partículas Animadas -->
+                    <path id="path-o2" d="M 40 120 L 300 120" class="particle" stroke="var(--o2-color)" />
+                    <path id="path-air" d="M 40 280 L 300 280" class="particle" stroke="var(--air-color)" />
+
+                    <!-- Válvula O2 -->
+                    <g transform="translate(180, 85)">
+                        <rect x="0" y="0" width="40" height="25" fill="#334155" rx="4" />
+                        <text x="-5" y="-12" class="sensor-label" style="fill:#0f172a">VÁLV. PROP. O₂</text>
+                        <rect x="0" y="25" width="10" height="30" fill="#1e293b" />
+                        <rect x="30" y="25" width="10" height="30" fill="#1e293b" />
+                        <rect id="gate-o2" x="10" y="25" width="20" height="25" fill="var(--primary)" style="transition: height 0.3s ease;" />
+                    </g>
+
+                    <!-- Válvula Ar -->
+                    <g transform="translate(180, 245)">
+                        <rect x="0" y="0" width="40" height="25" fill="#334155" rx="4" />
+                        <text x="-5" y="-12" class="sensor-label" style="fill:#0f172a">VÁLV. PROP. AR</text>
+                        <rect x="0" y="25" width="10" height="30" fill="#1e293b" />
+                        <rect x="30" y="25" width="10" height="30" fill="#1e293b" />
+                        <rect id="gate-air" x="10" y="25" width="20" height="25" fill="#64748b" style="transition: height 0.3s ease;" />
+                    </g>
+
+                    <!-- Câmara de Mistura -->
+                    <path d="M 220 120 L 320 120 L 320 280 L 220 280" stroke="#f1f5f9" stroke-width="14" fill="none" />
+                    <rect x="320" y="160" width="100" height="80" rx="16" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2" />
+                    <text x="325" y="150" class="sensor-label">CÂMARA DE MISTURA</text>
+
+                    <!-- Saída -->
+                    <path d="M 420 200 L 560 200" stroke="#f1f5f9" stroke-width="14" fill="none" />
+                    <path id="path-mix" d="M 420 200 L 560 200" class="particle" stroke="var(--mixed-color)" />
+                    
+                    <!-- Sensor -->
+                    <circle cx="490" cy="200" r="14" fill="#fff" stroke="var(--mixed-color)" stroke-width="3" />
+                    <text x="445" y="175" class="sensor-label">SENSOR FiO₂ / FLUXO</text>
+
+                    <!-- CONTROLADOR PID (Posição Otimizada) -->
+                    <g transform="translate(420, 30)">
+                        <rect x="0" y="0" width="150" height="50" rx="10" fill="#1e293b" />
+                        <text x="25" y="30" class="pid-label">CONTROLADOR PID</text>
+                        
+                        <!-- Linhas de Sinal (Sem obstrução) -->
+                        <path id="line-feedback" d="M 75 50 L 70 170" stroke="#94a3b8" stroke-dasharray="4" fill="none" opacity="0.6" />
+                        <text x="85" y="110" class="sensor-label" style="fill:#94a3b8; font-size:8px">SINAL FEEDBACK</text>
+                        
+                        <path d="M 0 25 L -200 65" stroke="var(--primary)" stroke-dasharray="4" fill="none" opacity="0.4" />
+                        <path d="M 0 25 L -200 225" stroke="var(--air-color)" stroke-dasharray="4" fill="none" opacity="0.4" />
+                    </g>
+                </svg>
+
+                <div class="data-grid">
+                    <div class="data-card">
+                        <div class="label">Válvula O₂</div>
+                        <div class="value" id="v-o2-pc">0%</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">Válvula Ar</div>
+                        <div class="value" id="v-air-pc">0%</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">Fluxo Real</div>
+                        <div class="value" id="real-flow">0.0</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">FiO₂ Real</div>
+                        <div class="value" id="real-fio2">21%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const inputs = {
+        fio2: document.getElementById('fio2-input'),
+        flow: document.getElementById('flow-input'),
+        pO2: document.getElementById('pres-o2-input'),
+        pAir: document.getElementById('pres-air-input')
+    };
+
+    const displays = {
+        fio2Val: document.getElementById('fio2-val'),
+        flowVal: document.getElementById('flow-val'),
+        pO2Val: document.getElementById('pres-o2-val'),
+        pAirVal: document.getElementById('pres-air-val'),
+        vO2Pc: document.getElementById('v-o2-pc'),
+        vAirPc: document.getElementById('v-air-pc'),
+        realFlow: document.getElementById('real-flow'),
+        realFio2: document.getElementById('real-fio2'),
+        alertO2: document.getElementById('alert-o2'),
+        alertAir: document.getElementById('alert-air'),
+        gateO2: document.getElementById('gate-o2'),
+        gateAir: document.getElementById('gate-air'),
+        pathO2: document.getElementById('path-o2'),
+        pathAir: document.getElementById('path-air'),
+        pathMix: document.getElementById('path-mix')
+    };
+
+    function update() {
+        const targetFiO2 = parseFloat(inputs.fio2.value);
+        const targetFlow = parseFloat(inputs.flow.value);
+        const pO2 = parseFloat(inputs.pO2.value);
+        const pAir = parseFloat(inputs.pAir.value);
+
+        displays.fio2Val.textContent = targetFiO2;
+        displays.flowVal.textContent = targetFlow;
+        displays.pO2Val.textContent = pO2;
+        displays.pAirVal.textContent = pAir;
+
+        // Cálculos de Mistura
+        let flowO2 = targetFlow * (targetFiO2 - 21) / 79;
+        let flowAir = targetFlow - flowO2;
+
+        // Limitação por pressão (50psi é o padrão para fluxo nominal)
+        const capO2 = (pO2 / 50) * 120;
+        const capAir = (pAir / 50) * 120;
+
+        const realO2 = Math.min(flowO2, capO2);
+        const realAir = Math.min(flowAir, capAir);
+        const totalFlow = realO2 + realAir;
+        const realFiO2 = totalFlow > 0 ? ((realO2 * 100) + (realAir * 21)) / totalFlow : 21;
+
+        // Atualizar UI
+        displays.realFlow.textContent = totalFlow.toFixed(1) + " L/m";
+        displays.realFio2.textContent = Math.round(realFiO2) + " %";
+        displays.alertO2.style.display = pO2 < 30 ? 'block' : 'none';
+        displays.alertAir.style.display = pAir < 30 ? 'block' : 'none';
+
+        // Animação das Válvulas (Êmbolo)
+        const openO2 = Math.min(100, (realO2 / 80) * 100);
+        const openAir = Math.min(100, (realAir / 80) * 100);
+        
+        displays.vO2Pc.textContent = Math.round(openO2) + "%";
+        displays.vAirPc.textContent = Math.round(openAir) + "%";
+
+        // Altura do êmbolo: 25px (fechado) até 5px (aberto)
+        displays.gateO2.setAttribute('height', 25 - (openO2 * 0.2));
+        displays.gateAir.setAttribute('height', 25 - (openAir * 0.2));
+
+        // Velocidade das partículas
+        updateFlow(displays.pathO2, realO2);
+        updateFlow(displays.pathAir, realAir);
+        updateFlow(displays.pathMix, totalFlow);
+    }
+
+    function updateFlow(path, flow) {
+        if (flow < 0.5) {
+            path.style.display = 'none';
+        } else {
+            path.style.display = 'block';
+            path.style.animationDuration = (40 / flow) + 's';
+        }
+    }
+
+    Object.values(inputs).forEach(i => i.addEventListener('input', update));
+    update();
+</script>
+
+</body>
+</html>
