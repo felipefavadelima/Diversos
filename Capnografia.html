@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Simulador Didático de Capnografia</title>
+<style>
+    :root{
+        --bg:#eef3f7;
+        --panel:#ffffff;
+        --ink:#17212b;
+        --muted:#617181;
+        --line:#d9e2ea;
+        --blue:#2563eb;
+        --green:#12a150;
+        --red:#dc2626;
+        --amber:#f59e0b;
+        --dark:#0f172a;
+        --co2:#334155;
+        --shadow:0 18px 45px rgba(15,23,42,.12);
+        --radius:22px;
+    }
+
+    *{box-sizing:border-box}
+
+    body{
+        margin:0;
+        min-height:100vh;
+        font-family:Inter, "Segoe UI", Roboto, Arial, sans-serif;
+        background:
+            radial-gradient(circle at top left, rgba(37,99,235,.13), transparent 34%),
+            linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+        color:var(--ink);
+        padding:22px;
+    }
+
+    .shell{
+        width:min(1180px, 100%);
+        margin:0 auto;
+    }
+
+    header{
+        display:flex;
+        align-items:flex-end;
+        justify-content:space-between;
+        gap:18px;
+        margin:4px 0 18px;
+    }
+
+    h1{
+        margin:0;
+        font-size:clamp(1.55rem, 3vw, 2.45rem);
+        letter-spacing:-.035em;
+        font-weight:760;
+    }
+
+    .subtitle{
+        margin:7px 0 0;
+        color:var(--muted);
+        max-width:780px;
+        line-height:1.48;
+        font-size:1rem;
+    }
+
+    .badge{
+        background:#e8f1ff;
+        border:1px solid #c8dcff;
+        color:#1e40af;
+        border-radius:999px;
+        padding:9px 14px;
+        font-weight:700;
+        white-space:nowrap;
+        font-size:.92rem;
+    }
+
+    .grid{
+        display:grid;
+        grid-template-columns: 1.35fr .85fr;
+        gap:18px;
+        align-items:start;
+    }
+
+    .card{
+        background:rgba(255,255,255,.92);
+        border:1px solid rgba(217,226,234,.95);
+        border-radius:var(--radius);
+        box-shadow:var(--shadow);
+        overflow:hidden;
+    }
+
+    .card-head{
+        padding:18px 20px;
+        border-bottom:1px solid var(--line);
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:12px;
+    }
+
+    .card-title{
+        font-size:1.02rem;
+        font-weight:760;
+        letter-spacing:-.015em;
+    }
+
+    .small{
+        color:var(--muted);
+        font-size:.88rem;
+        line-height:1.35;
+    }
+
+    .viewport{
+        position:relative;
+        height:310px;
+        margin:20px;
+        background:
+            linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        border:1px solid var(--line);
+        border-radius:18px;
+        overflow:hidden;
+    }
+
+    .flow-label{
+        position:absolute;
+        left:50%;
+        top:12px;
+        transform:translateX(-50%);
+        color:#475569;
+        font-size:.9rem;
+        font-weight:760;
+        z-index:5;
+        background:rgba(255,255,255,.86);
+        border:1px solid #e2e8f0;
+        border-radius:999px;
+        padding:6px 11px;
+    }
+
+    .flow-arrow{
+        position:absolute;
+        left:50%;
+        top:48px;
+        bottom:42px;
+        width:2px;
+        transform:translateX(-50%);
+        background:linear-gradient(180deg, rgba(37,99,235,.08), rgba(37,99,235,.70), rgba(37,99,235,.08));
+        z-index:2;
+    }
+    .flow-arrow::before{
+        content:"gás expirado";
+        position:absolute;
+        left:12px;
+        top:42%;
+        transform:translateY(-50%);
+        color:#2563eb;
+        font-size:.78rem;
+        font-weight:800;
+        white-space:nowrap;
+    }
+    .flow-arrow::after{
+        content:"";
+        position:absolute;
+        left:-5px;
+        bottom:-1px;
+        border-top:12px solid rgba(37,99,235,.78);
+        border-left:6px solid transparent;
+        border-right:6px solid transparent;
+    }
+
+    .optical-row{
+        position:absolute;
+        left:42px;
+        right:42px;
+        top:100px;
+        height:140px;
+        display:grid;
+        grid-template-columns:105px 1fr 112px;
+        align-items:center;
+        z-index:3;
+    }
+
+    .source, .detector{
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        gap:9px;
+        font-size:.82rem;
+        font-weight:700;
+        color:#475569;
+    }
+
+    .lamp{
+        width:70px;
+        height:70px;
+        border-radius:50%;
+        background:radial-gradient(circle at 35% 35%, #fff7ed, #fb923c 36%, #ef4444 76%);
+        box-shadow:0 0 34px rgba(239,68,68,.52);
+        animation:pulse 1.8s ease-in-out infinite;
+        position:relative;
+    }
+
+    .lamp::after{
+        content:"IR";
+        position:absolute;
+        inset:0;
+        display:grid;
+        place-items:center;
+        color:white;
+        font-weight:900;
+        letter-spacing:.04em;
+        text-shadow:0 1px 4px rgba(0,0,0,.35);
+    }
+
+    .sensor{
+        width:76px;
+        height:92px;
+        border-radius:11px;
+        background:linear-gradient(180deg, #334155, #0f172a);
+        box-shadow:inset 0 0 0 1px rgba(255,255,255,.08), 0 14px 20px rgba(15,23,42,.18);
+        position:relative;
+        display:grid;
+        place-items:center;
+        color:#dbeafe;
+        font-size:.72rem;
+        text-align:center;
+        line-height:1.15;
+    }
+
+    .sensor::before{
+        content:"";
+        width:34px;
+        height:34px;
+        border-radius:50%;
+        background:radial-gradient(circle, #dbeafe, #38bdf8 60%, #0369a1);
+        box-shadow:0 0 18px rgba(56,189,248,.45);
+        position:absolute;
+        top:10px;
+    }
+
+    .beam-wrap{
+        height:118px;
+        border:2px dashed #cbd5e1;
+        border-radius:18px;
+        position:relative;
+        overflow:hidden;
+        background:
+            linear-gradient(90deg, transparent 0 46%, rgba(37,99,235,.08) 46% 54%, transparent 54% 100%),
+            rgba(241,245,249,.58);
+    }
+
+    .beam-wrap::before{
+        content:"câmara de amostragem";
+        position:absolute;
+        left:12px;
+        top:8px;
+        z-index:4;
+        color:#64748b;
+        font-size:.74rem;
+        font-weight:800;
+        text-transform:uppercase;
+        letter-spacing:.04em;
+    }
+
+    .beam-wrap::after{
+        content:"feixe IR";
+        position:absolute;
+        right:12px;
+        top:50%;
+        transform:translateY(-50%);
+        z-index:4;
+        color:#991b1b;
+        font-size:.74rem;
+        font-weight:900;
+        background:rgba(255,255,255,.78);
+        border:1px solid #fee2e2;
+        border-radius:999px;
+        padding:4px 8px;
+    }
+
+    .beam{
+        position:absolute;
+        left:0;
+        right:0;
+        top:50%;
+        transform:translateY(-50%);
+        height:42px;
+        background:linear-gradient(90deg, rgba(239,68,68,.76), rgba(239,68,68,.22));
+        filter:blur(.2px);
+        transition:opacity .18s linear, height .18s linear;
+    }
+
+    #particleCanvas{
+        position:absolute;
+        inset:0;
+        width:100%;
+        height:100%;
+        z-index:2;
+    }
+
+    .heater{
+        position:absolute;
+        right:16px;
+        bottom:14px;
+        display:flex;
+        align-items:center;
+        gap:8px;
+        background:#fff7ed;
+        color:#9a3412;
+        border:1px solid #fed7aa;
+        border-radius:999px;
+        padding:8px 11px;
+        font-size:.82rem;
+        font-weight:760;
+        z-index:5;
+    }
+
+    .led{
+        width:10px;
+        height:10px;
+        border-radius:50%;
+        background:var(--amber);
+        box-shadow:0 0 12px var(--amber);
+        animation:blink .9s infinite alternate;
+    }
+
+    .warning{
+        position:absolute;
+        left:16px;
+        bottom:14px;
+        background:#fff1f2;
+        color:#be123c;
+        border:1px solid #fecdd3;
+        border-radius:999px;
+        padding:8px 11px;
+        font-size:.82rem;
+        font-weight:760;
+        opacity:0;
+        transition:opacity .2s;
+        z-index:5;
+    }
+
+    .warning.on{opacity:1;}
+
+    .graph-section{
+        padding:0 20px 20px;
+    }
+
+    canvas.graph{
+        width:100%;
+        height:285px;
+        background:linear-gradient(180deg, #111827 0%, #0b1220 100%);
+        border-radius:18px;
+        display:block;
+        border:1px solid rgba(148,163,184,.22);
+    }
+
+    .readouts{
+        display:grid;
+        grid-template-columns:repeat(4, 1fr);
+        gap:12px;
+        padding:0 20px 20px;
+    }
+
+    .readout{
+        background:#f8fafc;
+        border:1px solid var(--line);
+        border-radius:16px;
+        padding:13px 14px;
+        min-height:83px;
+    }
+
+    .readout .k{
+        font-size:.78rem;
+        color:var(--muted);
+        font-weight:760;
+    }
+
+    .readout .v{
+        margin-top:5px;
+        font-size:1.55rem;
+        font-weight:850;
+        letter-spacing:-.03em;
+    }
+
+    .readout .u{
+        color:var(--muted);
+        font-size:.82rem;
+        font-weight:700;
+    }
+
+    .controls{
+        padding:18px 20px 20px;
+        display:flex;
+        flex-direction:column;
+        gap:16px;
+    }
+
+    .control{
+        background:#f8fafc;
+        border:1px solid var(--line);
+        border-radius:16px;
+        padding:14px;
+    }
+
+    label{
+        display:flex;
+        justify-content:space-between;
+        align-items:baseline;
+        gap:8px;
+        font-weight:760;
+        font-size:.94rem;
+    }
+
+    .val{
+        color:var(--blue);
+        font-weight:880;
+        font-variant-numeric:tabular-nums;
+    }
+
+    input[type=range]{
+        width:100%;
+        accent-color:var(--blue);
+        margin-top:12px;
+    }
+
+    .buttons{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:10px;
+    }
+
+    button{
+        border:0;
+        border-radius:14px;
+        padding:12px 14px;
+        font-weight:820;
+        cursor:pointer;
+        color:white;
+        background:#334155;
+        box-shadow:0 8px 16px rgba(15,23,42,.14);
+        transition:transform .12s, filter .12s;
+    }
+
+    button:hover{transform:translateY(-1px); filter:brightness(1.03);}
+    button.active{background:var(--blue);}
+    button.danger{background:var(--red);}
+    button.good{background:var(--green);}
+
+    .note{
+        margin-top:10px;
+        padding:12px 14px;
+        border-radius:16px;
+        background:#eef6ff;
+        color:#334155;
+        border:1px solid #cfe4ff;
+        line-height:1.45;
+        font-size:.9rem;
+    }
+
+    .equation{
+        font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background:#0f172a;
+        color:#dbeafe;
+        border-radius:14px;
+        padding:13px 14px;
+        font-size:.88rem;
+        line-height:1.45;
+        overflow:auto;
+        margin-top:10px;
+    }
+
+    .footer{
+        color:#64748b;
+        margin:14px 4px 0;
+        line-height:1.45;
+        font-size:.86rem;
+    }
+
+    @keyframes pulse{
+        0%,100%{transform:scale(1); opacity:.92}
+        50%{transform:scale(1.045); opacity:1}
+    }
+
+    @keyframes blink{
+        from{opacity:.35}
+        to{opacity:1}
+    }
+
+    @media(max-width:920px){
+        .grid{grid-template-columns:1fr;}
+        header{align-items:flex-start; flex-direction:column;}
+        .readouts{grid-template-columns:repeat(2,1fr);}
+        .viewport{height:290px;}
+        .optical-row{left:22px; right:22px; grid-template-columns:86px 1fr 92px;}
+    }
+
+    @media(max-width:560px){
+        body{padding:12px;}
+        .readouts{grid-template-columns:1fr;}
+        .buttons{grid-template-columns:1fr;}
+        .optical-row{grid-template-columns:70px 1fr 76px;}
+        .lamp{width:56px;height:56px}
+        .sensor{width:60px;height:78px}
+    }
+</style>
+</head>
+<body>
+<div class="shell">
+    <header>
+        <div>
+            <h1>Simulador didático de capnografia</h1>
+            <p class="subtitle">
+                Observe como a concentração de CO₂ no gás expirado aumenta a absorção de radiação infravermelha. No desenho, o fluxo de gás cruza verticalmente a câmara, enquanto o feixe IR atravessa horizontalmente a amostra até o fotodetector.
+            </p>
+        </div>
+        <div class="badge">Instrumentação biomédica</div>
+    </header>
+
+    <main class="grid">
+        <section class="card">
+            <div class="card-head">
+                <div>
+                    <div class="card-title">Câmara óptica, absorção IR e capnograma</div>
+                    <div class="small">O traçado mostra CO₂ ao longo do tempo; a óptica foi desenhada com feixe IR perpendicular ao fluxo de gás.</div>
+                </div>
+                <div class="small" id="modeText">Modo: respiração automática</div>
+            </div>
+
+            <div class="viewport">
+                <div class="flow-label">Feixe IR horizontal atravessa o gás; fluxo expirado é perpendicular</div>
+                <div class="flow-arrow"></div>
+
+                <div class="optical-row">
+                    <div class="source">
+                        <div class="lamp"></div>
+                        <div>Fonte IR</div>
+                    </div>
+
+                    <div class="beam-wrap" id="beamWrap">
+                        <div class="beam" id="beam"></div>
+                        <canvas id="particleCanvas"></canvas>
+                    </div>
+
+                    <div class="detector">
+                        <div class="sensor">FOTO<br>DETECTOR</div>
+                        <div>Sensor</div>
+                    </div>
+                </div>
+
+                <div class="warning" id="condensationWarning">Condensação: sinal instável</div>
+                <div class="heater">
+                    <span class="led"></span>
+                    <span id="heaterText">aquecedor ativo</span>
+                </div>
+            </div>
+
+            <div class="graph-section">
+                <canvas id="graphCanvas" class="graph"></canvas>
+            </div>
+
+            <div class="readouts">
+                <div class="readout">
+                    <div class="k">CO₂ instantâneo</div>
+                    <div class="v"><span id="co2Now">0.0</span><span class="u">%</span></div>
+                </div>
+                <div class="readout">
+                    <div class="k">EtCO₂</div>
+                    <div class="v"><span id="etco2Pct">5.0</span><span class="u">%</span></div>
+                </div>
+                <div class="readout">
+                    <div class="k">EtCO₂ estimado</div>
+                    <div class="v"><span id="etco2MmHg">38</span><span class="u">mmHg</span></div>
+                </div>
+                <div class="readout">
+                    <div class="k">Luz detectada</div>
+                    <div class="v"><span id="lightPct">54</span><span class="u">%</span></div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="card">
+            <div class="card-head">
+                <div>
+                    <div class="card-title">Controles</div>
+                    <div class="small">Ajustes simplificados para discutir sensor, paciente e artefatos.</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control">
+                    <label>EtCO₂ alvo <span class="val"><span id="targetEtco2Label">5.0</span>%</span></label>
+                    <input id="targetEtco2" type="range" min="2" max="10" step="0.1" value="5">
+                    <div class="small">Representa a concentração máxima aproximada ao final da expiração.</div>
+                </div>
+
+                <div class="control">
+                    <label>Frequência respiratória <span class="val"><span id="rrLabel">12</span> irpm</span></label>
+                    <input id="rr" type="range" min="6" max="35" step="1" value="12">
+                    <div class="small">Altera a duração do ciclo e a velocidade do capnograma.</div>
+                </div>
+
+                <div class="control">
+                    <label>Espaço morto / reinalação <span class="val"><span id="deadSpaceLabel">0</span>%</span></label>
+                    <input id="deadSpace" type="range" min="0" max="45" step="1" value="0">
+                    <div class="small">Eleva a linha de base inspiratória, simulando reinalação ou lavagem incompleta.</div>
+                </div>
+
+                <div class="control">
+                    <label>Absorção óptica <span class="val"><span id="absorptionLabel">1.00</span>x</span></label>
+                    <input id="absorption" type="range" min="0.5" max="1.8" step="0.05" value="1">
+                    <div class="small">Muda a sensibilidade do caminho óptico: concentração maior → menor luz no detector.</div>
+                </div>
+
+                <div class="buttons">
+                    <button class="active" id="autoBtn">Respiração automática</button>
+                    <button id="manualBtn">Congelar ciclo</button>
+                    <button class="good" id="normalBtn">Cenário normal</button>
+                    <button class="danger" id="apneaBtn">Apneia</button>
+                    <button id="obstructionBtn">Obstrução parcial</button>
+                    <button id="heaterBtn">Aquecedor ligado</button>
+                </div>
+
+                <div class="note">
+                    Leitura didática: quando o CO₂ aumenta no gás expirado, mais radiação IR é absorvida.
+                    O equipamento estima CO₂ a partir da queda de intensidade óptica, geralmente usando calibração.
+                </div>
+
+                <div class="equation">
+I = I₀ · exp(−k · C_CO₂ · L)<br>
+Absorbância = −ln(I/I₀) ≈ k · C_CO₂ · L
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <p class="footer">
+        Modelo educacional simplificado. A relação entre CO₂, intensidade óptica e mmHg é aproximada para fins de ensino, não para uso clínico.
+    </p>
+</div>
+
+<script>
+(() => {
+    const els = {
+        targetEtco2: document.getElementById("targetEtco2"),
+        rr: document.getElementById("rr"),
+        deadSpace: document.getElementById("deadSpace"),
+        absorption: document.getElementById("absorption"),
+        targetEtco2Label: document.getElementById("targetEtco2Label"),
+        rrLabel: document.getElementById("rrLabel"),
+        deadSpaceLabel: document.getElementById("deadSpaceLabel"),
+        absorptionLabel: document.getElementById("absorptionLabel"),
+        beam: document.getElementById("beam"),
+        beamWrap: document.getElementById("beamWrap"),
+        particleCanvas: document.getElementById("particleCanvas"),
+        graphCanvas: document.getElementById("graphCanvas"),
+        co2Now: document.getElementById("co2Now"),
+        etco2Pct: document.getElementById("etco2Pct"),
+        etco2MmHg: document.getElementById("etco2MmHg"),
+        lightPct: document.getElementById("lightPct"),
+        autoBtn: document.getElementById("autoBtn"),
+        manualBtn: document.getElementById("manualBtn"),
+        normalBtn: document.getElementById("normalBtn"),
+        apneaBtn: document.getElementById("apneaBtn"),
+        obstructionBtn: document.getElementById("obstructionBtn"),
+        heaterBtn: document.getElementById("heaterBtn"),
+        heaterText: document.getElementById("heaterText"),
+        warning: document.getElementById("condensationWarning"),
+        modeText: document.getElementById("modeText")
+    };
+
+    const pctx = els.particleCanvas.getContext("2d");
+    const gctx = els.graphCanvas.getContext("2d");
+
+    let automatic = true;
+    let apnea = false;
+    let obstruction = false;
+    let heaterOn = true;
+    let frozenPhase = 0.62;
+    let startTime = performance.now();
+    let lastGraphPush = 0;
+    let graphData = [];
+    let particles = [];
+
+    function dprResize(canvas){
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+        canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+        const ctx = canvas.getContext("2d");
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+
+    function resizeAll(){
+        dprResize(els.particleCanvas);
+        dprResize(els.graphCanvas);
+    }
+
+    window.addEventListener("resize", resizeAll);
+    resizeAll();
+
+    function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+    function smoothstep(edge0, edge1, x){
+        const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+        return t * t * (3 - 2 * t);
+    }
+
+    function capnogramValue(phase, target, baseline){
+        // Fase I: inspiração / linha de base
+        if (phase < 0.18) return baseline;
+
+        // Fase II: subida expiratória rápida
+        if (phase < 0.35) {
+            const r = smoothstep(0.18, 0.35, phase);
+            return baseline + r * (target * 0.88 - baseline);
+        }
+
+        // Fase III: platô alveolar levemente ascendente
+        if (phase < 0.78) {
+            const r = (phase - 0.35) / (0.78 - 0.35);
+            const slope = obstruction ? 0.22 : 0.06;
+            return target * (0.88 + slope * r);
+        }
+
+        // Inspiração: queda abrupta
+        const r = smoothstep(0.78, 0.92, phase);
+        return target * (obstruction ? 1.05 : 0.94) * (1 - r) + baseline * r;
+    }
+
+    function getState(now){
+        const target = parseFloat(els.targetEtco2.value);
+        const rr = parseFloat(els.rr.value);
+        const baseline = target * parseFloat(els.deadSpace.value) / 100;
+        const cycleMs = 60000 / rr;
+        const elapsed = now - startTime;
+        const phase = automatic ? ((elapsed % cycleMs) / cycleMs) : frozenPhase;
+
+        let co2 = apnea ? baseline : capnogramValue(phase, target, baseline);
+
+        // Condensação/artefato se aquecedor desligado: ruído e instabilidade óptica.
+        let artifact = 0;
+        if (!heaterOn) artifact = (Math.random() - 0.5) * 0.65 + 0.25 * Math.sin(now / 170);
+        co2 = clamp(co2 + artifact, 0, 12);
+
+        const absorption = parseFloat(els.absorption.value);
+        const intensity = Math.exp(-absorption * co2 / 6.4); // Beer-Lambert simplificado
+        return {target, rr, baseline, phase, co2, intensity};
+    }
+
+    class Particle{
+        constructor(w,h){
+            this.x = Math.random()*w;
+            this.y = Math.random()*h;
+            this.vy = 0.42 + Math.random()*0.95;
+            this.r = 1.8 + Math.random()*3.2;
+            this.a = .30 + Math.random()*.45;
+        }
+        step(w,h){
+            this.y += this.vy;
+            if(this.y > h + 8){
+                this.y = -8;
+                this.x = Math.random()*w;
+            }
+        }
+    }
+
+    function drawParticles(co2){
+        const rect = els.particleCanvas.getBoundingClientRect();
+        const w = rect.width, h = rect.height;
+        pctx.clearRect(0,0,w,h);
+
+        const targetCount = Math.round(co2 * 22);
+        while(particles.length < targetCount) particles.push(new Particle(w,h));
+        while(particles.length > targetCount) particles.pop();
+
+        pctx.fillStyle = "rgba(51,65,85,.72)";
+        for(const p of particles){
+            p.step(w,h);
+            pctx.globalAlpha = p.a;
+            pctx.beginPath();
+            pctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+            pctx.fill();
+        }
+        pctx.globalAlpha = 1;
+    }
+
+    function drawGrid(ctx,w,h){
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = "#0b1220";
+        ctx.fillRect(0,0,w,h);
+
+        ctx.strokeStyle = "rgba(148,163,184,.18)";
+        ctx.lineWidth = 1;
+        ctx.font = "12px Inter, Segoe UI, sans-serif";
+        ctx.fillStyle = "rgba(226,232,240,.75)";
+
+        for(let yPct=0; yPct<=10; yPct+=2){
+            const y = h - 34 - yPct/10*(h-54);
+            ctx.beginPath();
+            ctx.moveTo(42,y);
+            ctx.lineTo(w-16,y);
+            ctx.stroke();
+            ctx.fillText(String(yPct), 12, y+4);
+        }
+
+        ctx.fillText("CO₂ (%)", 10, 18);
+        ctx.fillText("tempo", w-58, h-12);
+
+        ctx.strokeStyle = "rgba(226,232,240,.45)";
+        ctx.beginPath();
+        ctx.moveTo(42,18);
+        ctx.lineTo(42,h-34);
+        ctx.lineTo(w-16,h-34);
+        ctx.stroke();
+    }
+
+    function drawGraph(){
+        const rect = els.graphCanvas.getBoundingClientRect();
+        const w = rect.width, h = rect.height;
+        drawGrid(gctx,w,h);
+
+        if(graphData.length < 2) return;
+
+        const maxVal = 10;
+        const left = 42, right = w-16, top = 18, bottom = h-34;
+        const plotW = right-left;
+        const plotH = bottom-top;
+
+        gctx.strokeStyle = "#22c55e";
+        gctx.lineWidth = 3;
+        gctx.lineJoin = "round";
+        gctx.lineCap = "round";
+        gctx.beginPath();
+
+        const n = graphData.length;
+        for(let i=0;i<n;i++){
+            const x = left + (i/(Math.max(1,n-1))) * plotW;
+            const y = bottom - clamp(graphData[i],0,maxVal)/maxVal * plotH;
+            if(i===0) gctx.moveTo(x,y);
+            else gctx.lineTo(x,y);
+        }
+        gctx.stroke();
+
+        // Marcação do último ponto / EtCO2 visual
+        const last = graphData[graphData.length-1] || 0;
+        const yLast = bottom - clamp(last,0,maxVal)/maxVal * plotH;
+        gctx.fillStyle = "#bbf7d0";
+        gctx.beginPath();
+        gctx.arc(right, yLast, 4, 0, Math.PI*2);
+        gctx.fill();
+    }
+
+    function updateLabels(){
+        els.targetEtco2Label.textContent = parseFloat(els.targetEtco2.value).toFixed(1);
+        els.rrLabel.textContent = els.rr.value;
+        els.deadSpaceLabel.textContent = els.deadSpace.value;
+        els.absorptionLabel.textContent = parseFloat(els.absorption.value).toFixed(2);
+        els.etco2Pct.textContent = parseFloat(els.targetEtco2.value).toFixed(1);
+        els.etco2MmHg.textContent = Math.round(parseFloat(els.targetEtco2.value) * 7.6);
+    }
+
+    function setButtonStates(){
+        els.autoBtn.classList.toggle("active", automatic);
+        els.manualBtn.classList.toggle("active", !automatic);
+        els.apneaBtn.classList.toggle("active", apnea);
+        els.obstructionBtn.classList.toggle("active", obstruction);
+        els.heaterBtn.classList.toggle("active", heaterOn);
+        els.heaterBtn.textContent = heaterOn ? "Aquecedor ligado" : "Aquecedor desligado";
+        els.heaterText.textContent = heaterOn ? "aquecedor ativo" : "aquecedor desligado";
+        els.warning.classList.toggle("on", !heaterOn);
+        els.modeText.textContent = automatic ? "Modo: respiração automática" : "Modo: ciclo congelado";
+    }
+
+    function normalScenario(){
+        apnea = false;
+        obstruction = false;
+        heaterOn = true;
+        els.targetEtco2.value = 5;
+        els.rr.value = 12;
+        els.deadSpace.value = 0;
+        els.absorption.value = 1;
+        graphData = [];
+        particles = [];
+        updateLabels();
+        setButtonStates();
+    }
+
+    els.autoBtn.addEventListener("click", () => { automatic = true; setButtonStates(); });
+    els.manualBtn.addEventListener("click", () => {
+        const now = performance.now();
+        const rr = parseFloat(els.rr.value);
+        const cycleMs = 60000 / rr;
+        frozenPhase = ((now - startTime) % cycleMs) / cycleMs;
+        automatic = false;
+        setButtonStates();
+    });
+    els.normalBtn.addEventListener("click", normalScenario);
+    els.apneaBtn.addEventListener("click", () => { apnea = !apnea; if(apnea) obstruction=false; graphData=[]; setButtonStates(); });
+    els.obstructionBtn.addEventListener("click", () => { obstruction = !obstruction; if(obstruction) apnea=false; graphData=[]; setButtonStates(); });
+    els.heaterBtn.addEventListener("click", () => { heaterOn = !heaterOn; setButtonStates(); });
+
+    for(const input of [els.targetEtco2, els.rr, els.deadSpace, els.absorption]){
+        input.addEventListener("input", updateLabels);
+    }
+
+    function animate(now){
+        const s = getState(now);
+
+        const lightPercent = Math.round(s.intensity * 100);
+        els.beam.style.opacity = String(clamp(s.intensity, .08, .98));
+        els.beam.style.height = `${28 + 22*s.intensity}px`;
+        els.co2Now.textContent = s.co2.toFixed(1);
+        els.lightPct.textContent = lightPercent;
+
+        drawParticles(s.co2);
+
+        if(now - lastGraphPush > 60){
+            graphData.push(s.co2);
+            const maxPoints = 260;
+            if(graphData.length > maxPoints) graphData.shift();
+            lastGraphPush = now;
+            drawGraph();
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    updateLabels();
+    setButtonStates();
+    requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
