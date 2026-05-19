@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Controle Térmico (PID)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #f1f5f9;
+            --panel-bg: #ffffff;
+            --text-dark: #1e293b;
+            --text-light: #64748b;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.25rem;
+            border-bottom: 2px solid var(--bg-color);
+            padding-bottom: 10px;
+            color: var(--text-dark);
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: var(--text-dark);
+        }
+
+        input[type="range"], input[type="number"], select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        input[type="range"] {
+            padding: 0;
+        }
+
+        .slider-val {
+            float: right;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        button {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover { background: var(--primary-hover); }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .metric-box {
+            background: var(--bg-color);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .metric-value {
+            display: block;
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-top: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+
+        .hidden { display: none; }
+
+        .info-text {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- PAINEL DE CONTROLE -->
+        <div class="panel">
+            <h2>Painel de Controle</h2>
+            
+            <div class="info-text">
+                Tanque: 2L | Aquecedor: 5kW<br>
+                Atraso do Sensor: 8 segundos.
+            </div>
+
+            <div class="control-group">
+                <label>Setpoint (Alvo): <span id="val-setpoint" class="slider-val">60 °C</span></label>
+                <input type="range" id="input-setpoint" min="25" max="100" value="60" oninput="updateVal('setpoint')">
+            </div>
+
+            <div class="control-group">
+                <label>Tempo de Simulação: <span id="val-time" class="slider-val">600 s</span></label>
+                <input type="range" id="input-time" min="600" max="600" step="30" value="600" oninput="updateVal('time')">
+            </div>
+
+            <div class="control-group">
+                <label>Tipo de Controlador</label>
+                <select id="ctrl-type" onchange="updateUI()">
+                    <option value="onoff">ON/OFF (Termostato)</option>
+                    <option value="p">Proporcional (P)</option>
+                    <option value="pi">Proporcional-Integral (PI)</option>
+                    <option value="pid" selected>PID Completo</option>
+                </select>
+            </div>
+
+            <div id="param-onoff" class="control-group hidden">
+                <label>Histerese (± °C)</label>
+                <input type="number" id="input-hist" value="2.0" step="0.5">
+            </div>
+
+            <div id="param-p" class="control-group">
+                <label>Kp (Ganho Proporcional)</label>
+                <input type="number" id="input-kp" value="15" step="1">
+            </div>
+
+            <div id="param-i" class="control-group">
+                <label>Ki (Ganho Integral)</label>
+                <input type="number" id="input-ki" value="0.8" step="0.1">
+            </div>
+
+            <div id="param-d" class="control-group">
+                <label>Kd (Ganho Derivativo)</label>
+                <input type="number" id="input-kd" value="20" step="1">
+            </div>
+
+            <button onclick="runSimulation()">▶ Executar Resposta ao Degrau</button>
+        </div>
+
+        <!-- ÁREA GRÁFICA E MÉTRICAS -->
+        <div class="panel">
+            <h2 id="chart-title">Resposta do Sistema</h2>
+            <div class="chart-container">
+                <canvas id="simChart"></canvas>
+            </div>
+
+            <div class="metrics">
+                <div class="metric-box">
+                    <span class="metric-label" title="O quanto a temperatura passou do Setpoint">Overshoot Máximo da Água</span>
+                    <span class="metric-value" id="res-overshoot">0.0 °C</span>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-label" id="label-error" title="Diferença final entre o Alvo e a Água">Erro de Regime</span>
+                    <span class="metric-value" id="res-error">0.0 °C</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let myChart = null;
+
+        function updateVal(id) {
+            const val = document.getElementById(`input-${id}`).value;
+            if (id === 'setpoint') {
+                document.getElementById(`val-${id}`).innerText = val + " °C";
+            } else if (id === 'time') {
+                document.getElementById(`val-${id}`).innerText = val + " s";
+            }
+        }
+
+        function updateUI() {
+            const type = document.getElementById('ctrl-type').value;
+            
+            document.getElementById('param-onoff').classList.add('hidden');
+            document.getElementById('param-p').classList.add('hidden');
+            document.getElementById('param-i').classList.add('hidden');
+            document.getElementById('param-d').classList.add('hidden');
+
+            if (type === 'onoff') {
+                document.getElementById('param-onoff').classList.remove('hidden');
+            }
+            if (type === 'p' || type === 'pi' || type === 'pid') {
+                document.getElementById('param-p').classList.remove('hidden');
+            }
+            if (type === 'pi' || type === 'pid') {
+                document.getElementById('param-i').classList.remove('hidden');
+            }
+            if (type === 'pid') {
+                document.getElementById('param-d').classList.remove('hidden');
+            }
+        }
+
+        function runSimulation() {
+            const setpoint = parseFloat(document.getElementById('input-setpoint').value);
+            const t_max = 600;
+            const type = document.getElementById('ctrl-type').value;
+            const hist = Math.max(0, parseFloat(document.getElementById('input-hist').value) || 0);
+            const Kp = parseFloat(document.getElementById('input-kp').value) || 0;
+            const Ki = parseFloat(document.getElementById('input-ki').value) || 0;
+            const Kd = parseFloat(document.getElementById('input-kd').value) || 0;
+
+            document.getElementById('chart-title').innerText = `Resposta do Sistema (0 a ${t_max}s)`;
+            document.getElementById('label-error').innerText = `Erro de Regime (Fim de ${t_max}s)`;
+
+            // Modelo físico simplificado e dimensionalmente consistente.
+            // O aquecedor fornece potência ao tanque, mas essa potência chega à água
+            // com uma dinâmica de primeira ordem, representando o atraso de mistura térmica.
+            // O controlador não mede a água diretamente: ele mede um sensor com inércia térmica.
+            const mass = 2.0;       // kg, aproximadamente 2 L de água
+            const Cp = 4184;        // J/(kg·°C), calor específico da água
+            const C_tank = mass * Cp;
+            const P_max = 5000;     // W
+            const T_amb = 25.0;     // °C
+            const U_loss = 15.0;    // W/°C, perda térmica para o ambiente
+            const tau_mix = 5.0;    // s, atraso efetivo de mistura térmica
+            const tau_sensor = 8.0; // s, inércia térmica do sensor
+
+            let T_agua = T_amb;
+            let T_sensor = T_amb;
+            let T_sensor_ant = T_sensor;
+            let Q_heater = 0;       // potência efetivamente transferida à água após a mistura
+            let u = 0;              // fração de potência do aquecedor, entre 0 e 1
+            let integralErro = 0;   // integral do erro, em °C·s
+            let derivadaFiltrada = 0;
+
+            const timeData = [];
+            const setpointData = [];
+            const aguaData = [];
+
+            const dt = 0.05;
+            const outputEvery = Math.round(1 / dt); // aproximadamente 1 ponto por segundo no gráfico
+            let max_agua = T_amb;
+
+            const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
+
+            let iter = 0;
+            for (let t = 0; t <= t_max; t += dt) {
+                const erro = setpoint - T_sensor;
+
+                if (type === 'onoff') {
+                    // Termostato com histerese verdadeira: dentro da banda, mantém o estado anterior.
+                    if (T_sensor <= setpoint - hist) u = 1.0;
+                    else if (T_sensor >= setpoint + hist) u = 0.0;
+                } else {
+                    // Os ganhos da interface são didáticos, mas agora foram escalados para evitar
+                    // saturação permanente do atuador. Antes, para erros grandes, quase todos os
+                    // ajustes geravam u = 1 por muito tempo, mascarando o efeito dos parâmetros.
+                    const Kp_eff = (type === 'p' || type === 'pi' || type === 'pid') ? Kp : 0;
+                    const Ki_eff = (type === 'pi' || type === 'pid') ? Ki : 0;
+                    const Kd_eff = (type === 'pid') ? Kd : 0;
+
+                    // Derivada na medida, e não no erro, para evitar impulso derivativo no degrau.
+                    // A filtragem evita que pequenas oscilações numéricas dominem o termo D.
+                    const derivadaBruta = (T_sensor - T_sensor_ant) / dt;
+                    const tauDerivada = 1.0;
+                    const alphaD = dt / (tauDerivada + dt);
+                    derivadaFiltrada += alphaD * (derivadaBruta - derivadaFiltrada);
+
+                    const termoP = (Kp_eff * erro) / 500.0;
+                    const termoI = (Ki_eff * integralErro) / 8000.0;
+                    const termoD = -(Kd_eff * derivadaFiltrada) / 200.0;
+                    const uSemSaturar = termoP + termoI + termoD;
+
+                    // Anti-windup por integração condicional. A integral só acumula quando isso
+                    // não empurra o atuador ainda mais para uma saturação já presente.
+                    const saturandoAlto = (uSemSaturar >= 1.0 && erro > 0);
+                    const saturandoBaixo = (uSemSaturar <= 0.0 && erro < 0);
+
+                    if (!(saturandoAlto || saturandoBaixo)) {
+                        integralErro += erro * dt;
+                        integralErro = clamp(integralErro, -3000.0, 3000.0);
+                    }
+
+                    const uRecalculado =
+                        (Kp_eff * erro) / 500.0 +
+                        (Ki_eff * integralErro) / 8000.0 -
+                        (Kd_eff * derivadaFiltrada) / 200.0;
+
+                    u = clamp(uRecalculado, 0.0, 1.0);
+                }
+
+                T_sensor_ant = T_sensor;
+
+                // Dinâmica da potência entregue à água por atraso de mistura.
+                Q_heater += ((u * P_max) - Q_heater) / tau_mix * dt;
+
+                // Balanço de energia no tanque.
+                const Q_loss = (T_agua - T_amb) * U_loss;
+                T_agua += ((Q_heater - Q_loss) / C_tank) * dt;
+
+                // Dinâmica do sensor: primeira ordem em direção à temperatura real da água.
+                T_sensor += ((T_agua - T_sensor) / tau_sensor) * dt;
+
+                if (T_agua > max_agua) max_agua = T_agua;
+
+                if (iter % outputEvery === 0) {
+                    timeData.push(t.toFixed(0));
+                    setpointData.push(setpoint);
+                    aguaData.push(T_agua.toFixed(2));
+                    // A leitura do sensor não é enviada para a visualização.
+                }
+                iter++;
+            }
+
+            let overshoot = max_agua - setpoint;
+            if (overshoot < 0) overshoot = 0;
+            let erro_regime = setpoint - T_agua;
+
+            document.getElementById('res-overshoot').innerText = `+${overshoot.toFixed(1)} °C`;
+            document.getElementById('res-error').innerText = `${Math.abs(erro_regime).toFixed(2)} °C`;
+            
+            document.getElementById('res-overshoot').style.color = overshoot > 2 ? "var(--danger)" : "var(--success)";
+            document.getElementById('res-error').style.color = Math.abs(erro_regime) > 1 ? "var(--danger)" : "var(--success)";
+
+            renderChart(timeData, setpointData, aguaData);
+        }
+
+        function renderChart(labels, setpoint, agua) {
+            const ctx = document.getElementById('simChart').getContext('2d');
+            
+            if (myChart) {
+                myChart.destroy(); 
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Setpoint (Alvo)',
+                            data: setpoint,
+                            borderColor: '#94a3b8',
+                            borderDash: [5, 5],
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false
+                        },
+                        {
+                            label: 'Temp. Real da Água',
+                            data: agua,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 3,
+                            pointRadius: 0,
+                            fill: true,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Tempo (segundos)' } },
+                        y: { title: { display: true, text: 'Temperatura (°C)' }, suggestedMin: 25, suggestedMax: 105 }
+                    },
+                    plugins: {
+                        tooltip: { enabled: true }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('input-time').value = 600;
+        updateVal('time');
+        updateUI();
+        runSimulation();
+
+        // A aparência da interface foi preservada; apenas o comportamento foi ajustado
+        // para que qualquer mudança de parâmetro refaça imediatamente a simulação.
+        ['input-setpoint', 'input-time', 'input-hist', 'input-kp', 'input-ki', 'input-kd'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                if (id === 'input-setpoint') updateVal('setpoint');
+                if (id === 'input-time') updateVal('time');
+                runSimulation();
+            });
+        });
+
+        document.getElementById('ctrl-type').addEventListener('change', () => {
+            updateUI();
+            runSimulation();
+        });
+
+    </script>
+</body>
+</html>
