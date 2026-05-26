@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador FEA - Híbrido 2D/3D com Sonda</title>
+
+    <style>
+        :root {
+            --bg: #11111b;
+            --panel: #1e1e2e;
+            --accent: #89b4fa;
+            --text: #cdd6f4;
+            --border: #313244;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 330px;
+            background: var(--panel);
+            padding: 20px;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            min-width: 0;
+        }
+        
+        #view-2d-container {
+            height: 180px;
+            background: #181825;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            position: relative;
+        }
+
+        #canvas-2d {
+            border: 2px solid #585b70;
+            background: #11111b;
+            cursor: crosshair;
+            border-radius: 4px;
+            width: 90%;
+            max-width: 800px;
+            height: 80px;
+            touch-action: none;
+        }
+
+        .view-label {
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: var(--accent);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #view-3d-container {
+            flex: 1;
+            position: relative;
+            min-height: 260px;
+        }
+        
+        h2 {
+            margin-top: 0;
+            color: var(--accent);
+            font-size: 1.4rem;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #bac2de;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .radio-group label {
+            flex-direction: row;
+            align-items: center;
+            cursor: pointer;
+            font-weight: normal;
+        }
+        
+        .info-box {
+            background: #313244;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            color: #a6adc8;
+        }
+
+        button {
+            background: #f38ba8;
+            color: #111;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-top: auto;
+        }
+
+        button:hover {
+            background: #eba0ac;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: space-between;
+            background: linear-gradient(to right, #0055ff, #00ff00, #ff0000);
+            padding: 5px;
+            border-radius: 4px;
+            color: #000;
+            font-weight: bold;
+            font-size: 0.75rem;
+            gap: 5px;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+        }
+
+        #probe-tooltip {
+            position: absolute;
+            background: rgba(17, 17, 27, 0.92);
+            color: #a6e3a1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--accent);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            z-index: 100;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            min-width: 250px;
+        }
+
+        @media (max-width: 800px) {
+            body {
+                flex-direction: column;
+            }
+
+            #sidebar {
+                width: auto;
+                max-height: 42vh;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+
+            #view-2d-container {
+                height: 135px;
+            }
+
+            #canvas-2d {
+                height: 65px;
+            }
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+
+    <div id="sidebar">
+        <h2>Painel de Controle</h2>
+        
+        <div class="info-box">
+            <b>Material:</b> Alumínio 6061<br>
+            <b>Módulo de Young:</b> 69.000 MPa<br>
+            <b>Coeficiente de Poisson:</b> 0,33<br>
+            <b>Dimensões:</b> 100 mm × 10 mm × 10 mm
+        </div>
+
+        <div class="info-box" id="boundary-info">
+            <b>Condição mecânica:</b><br>
+            Face esquerda engastada.<br>
+            Força axial aplicada na face direita.
+        </div>
+
+        <label>
+            Carga Aplicada
+            <input type="range" id="force-input" min="-500" max="500" value="150" step="10">
+            <span id="force-val" style="color: var(--accent);">Carga: 150 N</span>
+        </label>
+
+        <label>Tipo de carga na extremidade direita:</label>
+        <div class="radio-group">
+            <label><input type="radio" name="loadtype" value="axial" checked> Axial</label>
+            <label><input type="radio" name="loadtype" value="shear"> Cisalhamento</label>
+        </div>
+
+        <label>
+            Tamanho do rasgo
+            <input type="range" id="brush-input" min="0.45" max="1.75" value="0.60" step="0.05">
+            <span id="brush-val" style="color: var(--accent);">Rasgo: 0,60 célula</span>
+        </label>
+
+        <label>
+            Sensibilidade da Cor <span id="scale-unit" style="color: var(--accent); font-weight: normal;">(MPa, modo tensão)</span>
+            <input type="range" id="scale-input" min="1" max="50" value="15">
+        </label>
+
+        <label>Grandeza exibida por cor:</label>
+        <div class="radio-group">
+            <label><input type="radio" name="displayfield" value="autoStress" checked> Tensão do modo</label>
+            <label><input type="radio" name="displayfield" value="deltaPeak"> |ΔL| pico</label>
+            <label><input type="radio" name="displayfield" value="strainEqPeak"> εeq pico</label>
+            <label><input type="radio" name="displayfield" value="vonMisesPeak"> σeq VM</label>
+        </div>
+
+        <label>Ferramenta 3D:</label>
+        <div class="radio-group">
+            <label><input type="radio" name="mode3d" value="camera" checked> 🎥 Câmera</label>
+            <label><input type="radio" name="mode3d" value="probe"> 🎯 Sonda</label>
+        </div>
+
+        <div class="info-box">
+            <b id="legend-title">Escala de tensão axial σx:</b>
+            <div class="legend" style="margin-top: 5px;">
+                <span id="legend-left">Compressão</span>
+                <span id="legend-mid">Neutro</span>
+                <span id="legend-right">Tração</span>
+            </div>
+        </div>
+
+        <button id="reset-btn">Restaurar Peça</button>
+    </div>
+
+    <div id="main-content">
+        <div id="view-2d-container">
+            <div class="view-label">Prancheta 2D: desenhe rasgos/furos na barra</div>
+            <canvas id="canvas-2d"></canvas>
+        </div>
+        
+        <div id="view-3d-container">
+            <div class="view-label">3D: engaste à esquerda e carga na extremidade direita</div>
+            <div id="probe-tooltip"></div>
+            <div id="loading">Carregando Motor 3D...</div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        // GEOMETRIA, MATERIAL E MALHA
+        // =========================================================
+
+        const DIM_X = 50;
+        const DIM_Y = 5;
+        const DIM_Z = 5;
+
+        const VOXEL_SIZE = 2;                  // mm
+        const THICKNESS = DIM_Z * VOXEL_SIZE;  // mm
+
+        const E_ALUMINUM = 69000;              // MPa = N/mm²
+        const NU_ALUMINUM = 0.33;
+
+        const NODE_COUNT = (DIM_X + 1) * (DIM_Y + 1);
+        const DOF_COUNT = NODE_COUNT * 2;
+
+        const ELEMENT_MATRICES = createQ4PlaneStressElementMatrices();
+
+        let grid2D = [];
+        let connected2D = [];
+
+        let sigmaX2D = [];
+        let sigmaY2D = [];
+        let tauXY2D = [];
+
+        let strainX2D = [];
+        let strainY2D = [];
+        let gammaXY2D = [];
+
+        let localDeltaX2D = [];
+        let localDeltaY2D = [];
+
+        // Campos escalares adicionais para visualizar concentração local.
+        // Os campos "peak" são calculados amostrando centro, pontos de Gauss e cantos do elemento.
+        let strainEqCenter2D = [];
+        let strainEqPeak2D = [];
+        let deltaEqPeak2D = [];
+        let stressVmPeak2D = [];
+
+        const canvas2d = document.getElementById('canvas-2d');
+        const ctx2d = canvas2d.getContext('2d');
+
+        const forceInput = document.getElementById('force-input');
+        const scaleInput = document.getElementById('scale-input');
+        const brushInput = document.getElementById('brush-input');
+
+        const tooltip = document.getElementById('probe-tooltip');
+
+        let scene, camera, renderer, controls, raycaster, mouse;
+        let voxels3D = [];
+        let activeMeshesCache = [];
+
+        let fixedMarker3D = null;
+        let loadFaceMarker3D = null;
+        let forceArrow3D = null;
+
+        let isDrawing = false;
+        let physicsUpdateQueued = false;
+
+        // =========================================================
+        // INICIALIZAÇÃO
+        // =========================================================
+
+        function init() {
+            initData();
+            init2D();
+            init3D();
+            updateModeLabels();
+            updateDisplayLegend();
+            updatePhysics();
+
+            forceInput.addEventListener('input', () => {
+                document.getElementById('force-val').innerText = `Carga: ${forceInput.value} N`;
+                tooltip.style.opacity = 0;
+                updateForceMarker3D();
+                requestPhysicsUpdate();
+            });
+
+            brushInput.addEventListener('input', () => {
+                document.getElementById('brush-val').innerText =
+                    `Rasgo: ${parseFloat(brushInput.value).toFixed(2).replace('.', ',')} célula`;
+            });
+
+            scaleInput.addEventListener('input', () => {
+                tooltip.style.opacity = 0;
+                syncRender(parseFloat(scaleInput.value));
+            });
+
+            document.querySelectorAll('input[name="displayfield"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    tooltip.style.opacity = 0;
+                    updateDisplayLegend();
+                    syncRender(parseFloat(scaleInput.value));
+                });
+            });
+
+            document.querySelectorAll('input[name="loadtype"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    tooltip.style.opacity = 0;
+                    updateModeLabels();
+                    updateDisplayLegend();
+                    updateForceMarker3D();
+                    requestPhysicsUpdate();
+                });
+            });
+
+            document.getElementById('reset-btn').addEventListener('click', () => {
+                initData();
+                tooltip.style.opacity = 0;
+                updatePhysics();
+            });
+        }
+
+        function initData() {
+            grid2D = [];
+            connected2D = [];
+
+            sigmaX2D = [];
+            sigmaY2D = [];
+            tauXY2D = [];
+
+            strainX2D = [];
+            strainY2D = [];
+            gammaXY2D = [];
+
+            localDeltaX2D = [];
+            localDeltaY2D = [];
+
+            strainEqCenter2D = [];
+            strainEqPeak2D = [];
+            deltaEqPeak2D = [];
+            stressVmPeak2D = [];
+
+            for (let x = 0; x < DIM_X; x++) {
+                grid2D[x] = [];
+                connected2D[x] = [];
+
+                sigmaX2D[x] = [];
+                sigmaY2D[x] = [];
+                tauXY2D[x] = [];
+
+                strainX2D[x] = [];
+                strainY2D[x] = [];
+                gammaXY2D[x] = [];
+
+                localDeltaX2D[x] = [];
+                localDeltaY2D[x] = [];
+
+                strainEqCenter2D[x] = [];
+                strainEqPeak2D[x] = [];
+                deltaEqPeak2D[x] = [];
+                stressVmPeak2D[x] = [];
+
+                for (let y = 0; y < DIM_Y; y++) {
+                    grid2D[x][y] = 1;
+                    connected2D[x][y] = true;
+
+                    sigmaX2D[x][y] = 0;
+                    sigmaY2D[x][y] = 0;
+                    tauXY2D[x][y] = 0;
+
+                    strainX2D[x][y] = 0;
+                    strainY2D[x][y] = 0;
+                    gammaXY2D[x][y] = 0;
+
+                    localDeltaX2D[x][y] = 0;
+                    localDeltaY2D[x][y] = 0;
+
+                    strainEqCenter2D[x][y] = 0;
+                    strainEqPeak2D[x][y] = 0;
+                    deltaEqPeak2D[x][y] = 0;
+                    stressVmPeak2D[x][y] = 0;
+                }
+            }
+        }
+
+        function getLoadType() {
+            return document.querySelector('input[name="loadtype"]:checked').value;
+        }
+
+        function getDisplayField() {
+            const selected = document.querySelector('input[name="displayfield"]:checked');
+            return selected ? selected.value : 'autoStress';
+        }
+
+        function updateModeLabels() {
+            const mode = getLoadType();
+
+            if (mode === 'axial') {
+                document.getElementById('boundary-info').innerHTML = `
+                    <b>Condição mecânica:</b><br>
+                    Face esquerda engastada.<br>
+                    Força axial aplicada na face direita.
+                `;
+
+                document.getElementById('legend-title').innerText = 'Escala de tensão axial σx:';
+                document.getElementById('legend-left').innerText = 'Compressão';
+                document.getElementById('legend-mid').innerText = 'Neutro';
+                document.getElementById('legend-right').innerText = 'Tração';
+            } else {
+                document.getElementById('boundary-info').innerHTML = `
+                    <b>Condição mecânica:</b><br>
+                    Face esquerda engastada.<br>
+                    Força de cisalhamento aplicada na face direita.
+                `;
+
+                document.getElementById('legend-title').innerText = 'Escala de cisalhamento τxy:';
+                document.getElementById('legend-left').innerText = 'τxy negativo';
+                document.getElementById('legend-mid').innerText = 'Neutro';
+                document.getElementById('legend-right').innerText = 'τxy positivo';
+            }
+        }
+
+        function updateDisplayLegend() {
+            const field = getDisplayField();
+            const loadMode = getLoadType();
+            const title = document.getElementById('legend-title');
+            const left = document.getElementById('legend-left');
+            const mid = document.getElementById('legend-mid');
+            const right = document.getElementById('legend-right');
+            const scaleUnit = document.getElementById('scale-unit');
+
+            if (field === 'autoStress') {
+                if (loadMode === 'axial') {
+                    title.innerText = 'Escala de tensão axial σx:';
+                    left.innerText = 'Compressão';
+                    mid.innerText = 'Neutro';
+                    right.innerText = 'Tração';
+                } else {
+                    title.innerText = 'Escala de cisalhamento τxy:';
+                    left.innerText = 'τxy negativo';
+                    mid.innerText = 'Neutro';
+                    right.innerText = 'τxy positivo';
+                }
+                scaleUnit.innerText = '(MPa, modo tensão)';
+                return;
+            }
+
+            if (field === 'deltaPeak') {
+                title.innerText = 'Escala de |ΔL| local de pico:';
+                scaleUnit.innerText = '(auto, µm)';
+                left.innerText = 'Baixo';
+                mid.innerText = 'Médio';
+                right.innerText = 'Alto';
+                return;
+            }
+
+            if (field === 'strainEqPeak') {
+                title.innerText = 'Escala de deformação equivalente de pico:';
+                scaleUnit.innerText = '(auto, µε)';
+                left.innerText = 'Baixa';
+                mid.innerText = 'Média';
+                right.innerText = 'Alta';
+                return;
+            }
+
+            title.innerText = 'Escala de tensão equivalente de von Mises:';
+            scaleUnit.innerText = '(auto, MPa)';
+            left.innerText = 'Baixa';
+            mid.innerText = 'Média';
+            right.innerText = 'Alta';
+        }
+
+        // =========================================================
+        // PRANCHETA 2D
+        // =========================================================
+
+        function init2D() {
+            canvas2d.width = DIM_X * 10;
+            canvas2d.height = DIM_Y * 10;
+
+            const handleDraw = (e) => {
+                if (!isDrawing) return;
+
+                e.preventDefault();
+
+                const rect = canvas2d.getBoundingClientRect();
+
+                const scaleX = canvas2d.width / rect.width;
+                const scaleY = canvas2d.height / rect.height;
+
+                const px = (e.clientX - rect.left) * scaleX;
+                const py = (e.clientY - rect.top) * scaleY;
+
+                const cellW = canvas2d.width / DIM_X;
+                const cellH = canvas2d.height / DIM_Y;
+
+                const gridX = Math.floor(px / cellW);
+                const gridY = Math.floor(py / cellH);
+
+                const brushRadius = parseFloat(brushInput.value);
+                const radiusCeil = Math.ceil(brushRadius);
+
+                let changed = false;
+
+                for (let i = -radiusCeil; i <= radiusCeil; i++) {
+                    for (let j = -radiusCeil; j <= radiusCeil; j++) {
+                        const tx = gridX + i;
+                        const ty = gridY + j;
+
+                        if (tx > 2 && tx < DIM_X - 3 && ty >= 0 && ty < DIM_Y) {
+                            if (Math.hypot(i, j) <= brushRadius && grid2D[tx][ty] !== 0) {
+                                grid2D[tx][ty] = 0;
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+
+                if (changed) {
+                    tooltip.style.opacity = 0;
+                    requestPhysicsUpdate();
+                }
+            };
+
+            canvas2d.addEventListener('pointerdown', (e) => {
+                isDrawing = true;
+                canvas2d.setPointerCapture(e.pointerId);
+                handleDraw(e);
+            });
+
+            canvas2d.addEventListener('pointermove', handleDraw);
+
+            window.addEventListener('pointerup', () => {
+                isDrawing = false;
+            });
+
+            window.addEventListener('pointercancel', () => {
+                isDrawing = false;
+            });
+        }
+
+        // =========================================================
+        // 3D
+        // =========================================================
+
+        function init3D() {
+            document.getElementById('loading').style.display = 'none';
+
+            const container = document.getElementById('view-3d-container');
+
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(
+                45,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                1000
+            );
+
+            camera.position.set(50, 30, 80);
+
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true
+            });
+
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+            renderer.setSize(container.clientWidth, container.clientHeight);
+
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+            controls.target.set(
+                (DIM_X * VOXEL_SIZE) / 2,
+                (DIM_Y * VOXEL_SIZE) / 2,
+                (DIM_Z * VOXEL_SIZE) / 2
+            );
+
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.08;
+            controls.update();
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(20, 50, 50);
+            scene.add(dirLight);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            const geometry = new THREE.BoxGeometry(VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE);
+
+            const edgesGeo = new THREE.EdgesGeometry(geometry);
+            const edgeMat = new THREE.LineBasicMaterial({
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.15
+            });
+            
+            for (let x = 0; x < DIM_X; x++) {
+                voxels3D[x] = [];
+
+                for (let y = 0; y < DIM_Y; y++) {
+                    voxels3D[x][y] = [];
+
+                    for (let z = 0; z < DIM_Z; z++) {
+                        const mesh = new THREE.Mesh(
+                            geometry,
+                            new THREE.MeshLambertMaterial({
+                                color: 0x00ff00
+                            })
+                        );
+
+                        mesh.add(new THREE.LineSegments(edgesGeo, edgeMat));
+
+                        const invertedY = (DIM_Y - 1) - y;
+
+                        mesh.position.set(
+                            x * VOXEL_SIZE,
+                            invertedY * VOXEL_SIZE,
+                            z * VOXEL_SIZE
+                        );
+
+                        mesh.userData = {
+                            x: x,
+                            y: y,
+                            z: z
+                        };
+
+                        scene.add(mesh);
+
+                        voxels3D[x][y][z] = mesh;
+                    }
+                }
+            }
+
+            createBoundaryMarkers3D();
+            updateForceMarker3D();
+
+            container.addEventListener('pointerdown', (e) => {
+                const mode = document.querySelector('input[name="mode3d"]:checked').value;
+
+                if (mode === 'camera') {
+                    tooltip.style.opacity = 0;
+                    return;
+                }
+
+                const rect = container.getBoundingClientRect();
+
+                mouse.x = ((e.clientX - rect.left) / container.clientWidth) * 2 - 1;
+                mouse.y = -((e.clientY - rect.top) / container.clientHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+
+                const intersects = raycaster.intersectObjects(activeMeshesCache, false);
+
+                if (intersects.length > 0) {
+                    const data = intersects[0].object.userData;
+
+                    const sx = sigmaX2D[data.x][data.y];
+                    const sy = sigmaY2D[data.x][data.y];
+                    const txy = tauXY2D[data.x][data.y];
+
+                    const ex = strainX2D[data.x][data.y];
+                    const ey = strainY2D[data.x][data.y];
+                    const gxy = gammaXY2D[data.x][data.y];
+
+                    const dLx = localDeltaX2D[data.x][data.y];
+                    const dLy = localDeltaY2D[data.x][data.y];
+                    const eqCenter = strainEqCenter2D[data.x][data.y];
+                    const eqPeak = strainEqPeak2D[data.x][data.y];
+                    const dLEqPeak = deltaEqPeak2D[data.x][data.y];
+                    const vmPeak = stressVmPeak2D[data.x][data.y];
+
+                    const modeLoad = getLoadType();
+
+                    const displayedStress = modeLoad === 'axial' ? sx : txy;
+                    const displayedLabel = modeLoad === 'axial' ? 'σx' : 'τxy';
+
+                    const colorStatus = displayedStress >= 0 ? "#ff8888" : "#8888ff";
+
+                    tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
+                    tooltip.style.top = (e.clientY - rect.top + 15) + 'px';
+
+                    tooltip.innerHTML = `
+                        <b style="color: #fff;">Medição local do elemento [${data.x}, ${data.y}, ${data.z}]</b><br>
+                        Posição X: ${(data.x * VOXEL_SIZE).toFixed(1)} mm<br><br>
+
+                        <span style="color: ${colorStatus};">
+                            Grandeza colorida (${displayedLabel}): ${displayedStress.toFixed(3)} MPa
+                        </span><br><br>
+
+                        <b style="color: #fff;">Tensões locais</b><br>
+                        σx: ${sx.toFixed(3)} MPa<br>
+                        σy: ${sy.toFixed(3)} MPa<br>
+                        τxy: ${txy.toFixed(3)} MPa<br><br>
+
+                        <b style="color: #fff;">Deformações locais do elemento</b><br>
+                        εx: ${(ex * 1e6).toFixed(2)} µε<br>
+                        εy: ${(ey * 1e6).toFixed(2)} µε<br>
+                        γxy: ${(gxy * 1e6).toFixed(2)} µrad<br><br>
+
+                        <b style="color: #fff;">Variação local de dimensão</b><br>
+                        ΔLx médio local: ${(dLx * 1000).toFixed(4)} µm<br>
+                        ΔLy médio local: ${(dLy * 1000).toFixed(4)} µm<br>
+                        |ΔL| equivalente no centro: ${(eqCenter * VOXEL_SIZE * 1000).toFixed(4)} µm<br>
+                        |ΔL| equivalente de pico: ${(dLEqPeak * 1000).toFixed(4)} µm<br><br>
+
+                        <b style="color: #fff;">Indicadores de concentração</b><br>
+                        εeq pico: ${(eqPeak * 1e6).toFixed(2)} µε<br>
+                        σeq von Mises pico: ${vmPeak.toFixed(3)} MPa
+                    `;
+
+                    tooltip.style.opacity = 1;
+                } else {
+                    tooltip.style.opacity = 0;
+                }
+            });
+
+            controls.addEventListener('start', () => {
+                tooltip.style.opacity = 0;
+            });
+
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+
+            animate();
+        }
+
+        function createBoundaryMarkers3D() {
+            const centerY = ((DIM_Y - 1) * VOXEL_SIZE) / 2;
+            const centerZ = ((DIM_Z - 1) * VOXEL_SIZE) / 2;
+
+            const fixedMat = new THREE.MeshLambertMaterial({
+                color: 0x89b4fa,
+                transparent: true,
+                opacity: 0.35
+            });
+
+            const fixedGeo = new THREE.BoxGeometry(
+                0.6,
+                DIM_Y * VOXEL_SIZE + 2,
+                DIM_Z * VOXEL_SIZE + 2
+            );
+
+            fixedMarker3D = new THREE.Mesh(fixedGeo, fixedMat);
+            fixedMarker3D.position.set(-1.4, centerY, centerZ);
+            scene.add(fixedMarker3D);
+
+            const loadMat = new THREE.MeshLambertMaterial({
+                color: 0xf38ba8,
+                transparent: true,
+                opacity: 0.28
+            });
+
+            const loadGeo = new THREE.BoxGeometry(
+                0.6,
+                DIM_Y * VOXEL_SIZE + 1,
+                DIM_Z * VOXEL_SIZE + 1
+            );
+
+            loadFaceMarker3D = new THREE.Mesh(loadGeo, loadMat);
+            loadFaceMarker3D.position.set(DIM_X * VOXEL_SIZE - 1, centerY, centerZ);
+            scene.add(loadFaceMarker3D);
+        }
+
+        function updateForceMarker3D() {
+            if (!scene) return;
+
+            if (forceArrow3D) {
+                scene.remove(forceArrow3D);
+                forceArrow3D = null;
+            }
+
+            const force = parseFloat(forceInput.value);
+            if (force === 0) return;
+
+            const mode = getLoadType();
+
+            const centerY = ((DIM_Y - 1) * VOXEL_SIZE) / 2;
+            const centerZ = ((DIM_Z - 1) * VOXEL_SIZE) / 2;
+
+            let direction;
+            let origin;
+
+            if (mode === 'axial') {
+                if (force > 0) {
+                    direction = new THREE.Vector3(1, 0, 0);
+                    origin = new THREE.Vector3(DIM_X * VOXEL_SIZE + 1, centerY, centerZ);
+                } else {
+                    direction = new THREE.Vector3(-1, 0, 0);
+                    origin = new THREE.Vector3(DIM_X * VOXEL_SIZE + 10, centerY, centerZ);
+                }
+            } else {
+                if (force > 0) {
+                    direction = new THREE.Vector3(0, 1, 0);
+                    origin = new THREE.Vector3(DIM_X * VOXEL_SIZE + 2, centerY, centerZ);
+                } else {
+                    direction = new THREE.Vector3(0, -1, 0);
+                    origin = new THREE.Vector3(DIM_X * VOXEL_SIZE + 2, centerY, centerZ);
+                }
+            }
+
+            forceArrow3D = new THREE.ArrowHelper(
+                direction.normalize(),
+                origin,
+                9,
+                0xf38ba8,
+                2.7,
+                1.8
+            );
+
+            scene.add(forceArrow3D);
+        }
+
+        // =========================================================
+        // MOTOR FEM
+        // Elasticidade linear 2D em estado plano de tensões
+        // Elementos quadrilaterais Q4
+        // =========================================================
+
+        function requestPhysicsUpdate() {
+            if (physicsUpdateQueued) return;
+
+            physicsUpdateQueued = true;
+
+            requestAnimationFrame(() => {
+                physicsUpdateQueued = false;
+                updatePhysics();
+            });
+        }
+
+        function updatePhysics() {
+            const force = parseFloat(forceInput.value);
+            const scale = parseFloat(scaleInput.value);
+            const loadType = getLoadType();
+
+            clearFields();
+
+            connected2D = computeConnectedCellsFromFixedEnd();
+
+            const solution = solveLinearElasticityFEM(connected2D, force, loadType);
+
+            if (solution) {
+                recoverElementStressAndLocalStrain(connected2D, solution.u);
+            }
+
+            syncRender(scale);
+        }
+
+        function clearFields() {
+            for (let x = 0; x < DIM_X; x++) {
+                for (let y = 0; y < DIM_Y; y++) {
+                    sigmaX2D[x][y] = 0;
+                    sigmaY2D[x][y] = 0;
+                    tauXY2D[x][y] = 0;
+
+                    strainX2D[x][y] = 0;
+                    strainY2D[x][y] = 0;
+                    gammaXY2D[x][y] = 0;
+
+                    localDeltaX2D[x][y] = 0;
+                    localDeltaY2D[x][y] = 0;
+
+                    strainEqCenter2D[x][y] = 0;
+                    strainEqPeak2D[x][y] = 0;
+                    deltaEqPeak2D[x][y] = 0;
+                    stressVmPeak2D[x][y] = 0;
+                }
+            }
+        }
+
+        function computeConnectedCellsFromFixedEnd() {
+            const connected = [];
+
+            for (let x = 0; x < DIM_X; x++) {
+                connected[x] = [];
+
+                for (let y = 0; y < DIM_Y; y++) {
+                    connected[x][y] = false;
+                }
+            }
+
+            const queue = [];
+
+            for (let y = 0; y < DIM_Y; y++) {
+                if (grid2D[0][y] === 1) {
+                    connected[0][y] = true;
+                    queue.push([0, y]);
+                }
+            }
+
+            const dirs = [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1]
+            ];
+
+            while (queue.length > 0) {
+                const [cx, cy] = queue.shift();
+
+                for (const [dx, dy] of dirs) {
+                    const nx = cx + dx;
+                    const ny = cy + dy;
+
+                    if (nx >= 0 && nx < DIM_X && ny >= 0 && ny < DIM_Y) {
+                        if (grid2D[nx][ny] === 1 && !connected[nx][ny]) {
+                            connected[nx][ny] = true;
+                            queue.push([nx, ny]);
+                        }
+                    }
+                }
+            }
+
+            return connected;
+        }
+
+        function solveLinearElasticityFEM(connected, force, loadType) {
+            const usedNode = new Uint8Array(NODE_COUNT);
+            let activeElementCount = 0;
+
+            for (let x = 0; x < DIM_X; x++) {
+                for (let y = 0; y < DIM_Y; y++) {
+                    if (!connected[x][y]) continue;
+
+                    activeElementCount++;
+
+                    const nodes = getElementNodes(x, y);
+
+                    for (const n of nodes) {
+                        usedNode[n] = 1;
+                    }
+                }
+            }
+
+            if (activeElementCount === 0) {
+                return {
+                    u: new Float64Array(DOF_COUNT)
+                };
+            }
+
+            const fixed = new Uint8Array(DOF_COUNT);
+
+            for (let y = 0; y <= DIM_Y; y++) {
+                const n = nodeId(0, y);
+                fixed[2 * n] = 1;
+                fixed[2 * n + 1] = 1;
+            }
+
+            const freeIndex = new Int32Array(DOF_COUNT);
+            freeIndex.fill(-1);
+
+            let nFree = 0;
+
+            for (let n = 0; n < NODE_COUNT; n++) {
+                if (!usedNode[n]) continue;
+
+                const dofX = 2 * n;
+                const dofY = 2 * n + 1;
+
+                if (!fixed[dofX]) freeIndex[dofX] = nFree++;
+                if (!fixed[dofY]) freeIndex[dofY] = nFree++;
+            }
+
+            if (nFree === 0) {
+                return {
+                    u: new Float64Array(DOF_COUNT)
+                };
+            }
+
+            const A = Array.from({ length: nFree }, () => new Map());
+            const b = new Float64Array(nFree);
+
+            for (let x = 0; x < DIM_X; x++) {
+                for (let y = 0; y < DIM_Y; y++) {
+                    if (!connected[x][y]) continue;
+
+                    const dofs = getElementDofs(x, y);
+                    const Ke = ELEMENT_MATRICES.Ke;
+
+                    for (let i = 0; i < 8; i++) {
+                        const row = freeIndex[dofs[i]];
+                        if (row < 0) continue;
+
+                        const rowMap = A[row];
+
+                        for (let j = 0; j < 8; j++) {
+                            const col = freeIndex[dofs[j]];
+                            if (col < 0) continue;
+
+                            rowMap.set(col, (rowMap.get(col) || 0) + Ke[i][j]);
+                        }
+                    }
+                }
+            }
+
+            applyDistributedEndLoad(b, freeIndex, connected, force, loadType);
+
+            let maxDiag = 0;
+
+            for (let i = 0; i < nFree; i++) {
+                maxDiag = Math.max(maxDiag, Math.abs(A[i].get(i) || 0));
+            }
+
+            if (maxDiag > 0) {
+                const ridge = maxDiag * 1e-10;
+
+                for (let i = 0; i < nFree; i++) {
+                    A[i].set(i, (A[i].get(i) || 0) + ridge);
+                }
+            }
+
+            const uFree = conjugateGradient(A, b, 1e-8, Math.max(350, nFree * 2));
+
+            const u = new Float64Array(DOF_COUNT);
+
+            for (let dof = 0; dof < DOF_COUNT; dof++) {
+                const idx = freeIndex[dof];
+
+                if (idx >= 0) {
+                    u[dof] = uFree[idx];
+                }
+            }
+
+            return { u };
+        }
+
+        function applyDistributedEndLoad(b, freeIndex, connected, force, loadType) {
+            const rightCells = [];
+
+            for (let y = 0; y < DIM_Y; y++) {
+                if (connected[DIM_X - 1][y]) {
+                    rightCells.push(y);
+                }
+            }
+
+            if (rightCells.length === 0 || force === 0) return;
+
+            const loadedArea = rightCells.length * VOXEL_SIZE * THICKNESS;
+            const traction = force / loadedArea;
+
+            const nodalLoad = traction * THICKNESS * VOXEL_SIZE / 2;
+
+            for (const y of rightCells) {
+                const nA = nodeId(DIM_X, y);
+                const nB = nodeId(DIM_X, y + 1);
+
+                if (loadType === 'axial') {
+                    addToRHS(b, freeIndex, 2 * nA, nodalLoad);
+                    addToRHS(b, freeIndex, 2 * nB, nodalLoad);
+                } else {
+                    addToRHS(b, freeIndex, 2 * nA + 1, nodalLoad);
+                    addToRHS(b, freeIndex, 2 * nB + 1, nodalLoad);
+                }
+            }
+        }
+
+        function recoverElementStressAndLocalStrain(connected, u) {
+            const D = ELEMENT_MATRICES.D;
+
+            const samplePoints = [
+                [0, 0],
+                [-1 / Math.sqrt(3), -1 / Math.sqrt(3)],
+                [ 1 / Math.sqrt(3), -1 / Math.sqrt(3)],
+                [ 1 / Math.sqrt(3),  1 / Math.sqrt(3)],
+                [-1 / Math.sqrt(3),  1 / Math.sqrt(3)],
+                [-1, -1],
+                [ 1, -1],
+                [ 1,  1],
+                [-1,  1]
+            ];
+
+            for (let x = 0; x < DIM_X; x++) {
+                for (let y = 0; y < DIM_Y; y++) {
+                    if (!connected[x][y]) continue;
+
+                    const dofs = getElementDofs(x, y);
+                    const ue = new Float64Array(8);
+
+                    for (let i = 0; i < 8; i++) {
+                        ue[i] = u[dofs[i]];
+                    }
+
+                    // Valor no centro do elemento: representa a variação média local do elemento.
+                    const strainCenter = multiplyMatVec(ELEMENT_MATRICES.Bcenter, ue);
+                    const stressCenter = multiplyMatVec(D, strainCenter);
+
+                    sigmaX2D[x][y] = stressCenter[0];
+                    sigmaY2D[x][y] = stressCenter[1];
+                    tauXY2D[x][y] = stressCenter[2];
+
+                    strainX2D[x][y] = strainCenter[0];
+                    strainY2D[x][y] = strainCenter[1];
+                    gammaXY2D[x][y] = strainCenter[2];
+
+                    // Variação média local de dimensão do elemento.
+                    // ΔLx ≈ εx × 2 mm; ΔLy ≈ εy × 2 mm.
+                    // Estes valores são assinados: alongamento positivo e encurtamento negativo.
+                    localDeltaX2D[x][y] = strainCenter[0] * VOXEL_SIZE;
+                    localDeltaY2D[x][y] = strainCenter[1] * VOXEL_SIZE;
+
+                    strainEqCenter2D[x][y] = equivalentStrainMagnitude(strainCenter);
+
+                    // Valor de pico amostrado dentro do elemento.
+                    // Isto é mais adequado para visualizar concentração ao redor de rasgos,
+                    // pois o máximo costuma ocorrer perto dos cantos do entalhe, não no centro.
+                    let peakEqStrain = 0;
+                    let peakDeltaEq = 0;
+                    let peakVonMises = 0;
+
+                    for (const [xi, eta] of samplePoints) {
+                        const B = q4BMatrix(xi, eta, VOXEL_SIZE, VOXEL_SIZE);
+                        const strain = multiplyMatVec(B, ue);
+                        const stress = multiplyMatVec(D, strain);
+
+                        const eqStrain = equivalentStrainMagnitude(strain);
+                        const deltaEq = eqStrain * VOXEL_SIZE;
+                        const vmStress = vonMisesPlaneStress(stress);
+
+                        peakEqStrain = Math.max(peakEqStrain, eqStrain);
+                        peakDeltaEq = Math.max(peakDeltaEq, deltaEq);
+                        peakVonMises = Math.max(peakVonMises, vmStress);
+                    }
+
+                    strainEqPeak2D[x][y] = peakEqStrain;
+                    deltaEqPeak2D[x][y] = peakDeltaEq;
+                    stressVmPeak2D[x][y] = peakVonMises;
+                }
+            }
+        }
+
+        function equivalentStrainMagnitude(strain) {
+            const ex = strain[0];
+            const ey = strain[1];
+            const gxy = strain[2];
+
+            // Magnitude escalar simples, útil para comparação visual local.
+            // Não substitui uma análise de falha; serve para mostrar onde a deformação local aumenta.
+            return Math.sqrt(ex * ex + ey * ey + 0.5 * gxy * gxy);
+        }
+
+        function vonMisesPlaneStress(stress) {
+            const sx = stress[0];
+            const sy = stress[1];
+            const txy = stress[2];
+
+            return Math.sqrt(Math.max(0, sx * sx - sx * sy + sy * sy + 3 * txy * txy));
+        }
+
+        function createQ4PlaneStressElementMatrices() {
+            const dx = VOXEL_SIZE;
+            const dy = VOXEL_SIZE;
+            const t = THICKNESS;
+
+            const E = E_ALUMINUM;
+            const nu = NU_ALUMINUM;
+
+            const c = E / (1 - nu * nu);
+
+            const D = [
+                [c, c * nu, 0],
+                [c * nu, c, 0],
+                [0, 0, c * (1 - nu) / 2]
+            ];
+
+            const Ke = Array.from({ length: 8 }, () => Array(8).fill(0));
+
+            const gp = [
+                -1 / Math.sqrt(3),
+                1 / Math.sqrt(3)
+            ];
+
+            const detJ = (dx * dy) / 4;
+
+            for (const xi of gp) {
+                for (const eta of gp) {
+                    const B = q4BMatrix(xi, eta, dx, dy);
+
+                    for (let i = 0; i < 8; i++) {
+                        for (let j = 0; j < 8; j++) {
+                            let sum = 0;
+
+                            for (let a = 0; a < 3; a++) {
+                                for (let b = 0; b < 3; b++) {
+                                    sum += B[a][i] * D[a][b] * B[b][j];
+                                }
+                            }
+
+                            Ke[i][j] += sum * t * detJ;
+                        }
+                    }
+                }
+            }
+
+            const Bcenter = q4BMatrix(0, 0, dx, dy);
+
+            return {
+                Ke,
+                Bcenter,
+                D
+            };
+        }
+
+        function q4BMatrix(xi, eta, dx, dy) {
+            const dNdxi = [
+                -(1 - eta) / 4,
+                 (1 - eta) / 4,
+                 (1 + eta) / 4,
+                -(1 + eta) / 4
+            ];
+
+            const dNdeta = [
+                -(1 - xi) / 4,
+                -(1 + xi) / 4,
+                 (1 + xi) / 4,
+                 (1 - xi) / 4
+            ];
+
+            const B = Array.from({ length: 3 }, () => Array(8).fill(0));
+
+            for (let i = 0; i < 4; i++) {
+                const dNdx = dNdxi[i] * 2 / dx;
+                const dNdy = dNdeta[i] * 2 / dy;
+
+                B[0][2 * i] = dNdx;
+                B[1][2 * i + 1] = dNdy;
+                B[2][2 * i] = dNdy;
+                B[2][2 * i + 1] = dNdx;
+            }
+
+            return B;
+        }
+
+        function nodeId(ix, iy) {
+            return ix * (DIM_Y + 1) + iy;
+        }
+
+        function getElementNodes(x, y) {
+            return [
+                nodeId(x, y),
+                nodeId(x + 1, y),
+                nodeId(x + 1, y + 1),
+                nodeId(x, y + 1)
+            ];
+        }
+
+        function getElementDofs(x, y) {
+            const n = getElementNodes(x, y);
+
+            return [
+                2 * n[0],     2 * n[0] + 1,
+                2 * n[1],     2 * n[1] + 1,
+                2 * n[2],     2 * n[2] + 1,
+                2 * n[3],     2 * n[3] + 1
+            ];
+        }
+
+        function addToRHS(b, freeIndex, globalDof, value) {
+            const idx = freeIndex[globalDof];
+
+            if (idx >= 0) {
+                b[idx] += value;
+            }
+        }
+
+        function multiplyMatVec(M, v) {
+            const out = new Float64Array(M.length);
+
+            for (let i = 0; i < M.length; i++) {
+                let sum = 0;
+
+                for (let j = 0; j < v.length; j++) {
+                    sum += M[i][j] * v[j];
+                }
+
+                out[i] = sum;
+            }
+
+            return out;
+        }
+
+        function conjugateGradient(A, b, tol, maxIter) {
+            const n = b.length;
+
+            const x = new Float64Array(n);
+            const r = new Float64Array(b);
+            const z = new Float64Array(n);
+            const p = new Float64Array(n);
+            const diagInv = new Float64Array(n);
+
+            const normB = Math.sqrt(dot(b, b));
+
+            if (normB === 0) {
+                return x;
+            }
+
+            for (let i = 0; i < n; i++) {
+                const d = A[i].get(i) || 1;
+                diagInv[i] = Math.abs(d) > 1e-30 ? 1 / d : 1;
+
+                z[i] = diagInv[i] * r[i];
+                p[i] = z[i];
+            }
+
+            let rzOld = dot(r, z);
+            const target = tol * normB;
+
+            for (let iter = 0; iter < maxIter; iter++) {
+                const Ap = sparseMatVec(A, p);
+                const denom = dot(p, Ap);
+
+                if (Math.abs(denom) < 1e-30) break;
+
+                const alpha = rzOld / denom;
+
+                for (let i = 0; i < n; i++) {
+                    x[i] += alpha * p[i];
+                    r[i] -= alpha * Ap[i];
+                }
+
+                if (Math.sqrt(dot(r, r)) < target) break;
+
+                for (let i = 0; i < n; i++) {
+                    z[i] = diagInv[i] * r[i];
+                }
+
+                const rzNew = dot(r, z);
+
+                if (Math.abs(rzOld) < 1e-30) break;
+
+                const beta = rzNew / rzOld;
+
+                for (let i = 0; i < n; i++) {
+                    p[i] = z[i] + beta * p[i];
+                }
+
+                rzOld = rzNew;
+            }
+
+            return x;
+        }
+
+        function sparseMatVec(A, x) {
+            const y = new Float64Array(x.length);
+
+            for (let i = 0; i < A.length; i++) {
+                let sum = 0;
+
+                A[i].forEach((value, col) => {
+                    sum += value * x[col];
+                });
+
+                y[i] = sum;
+            }
+
+            return y;
+        }
+
+        function dot(a, b) {
+            let s = 0;
+
+            for (let i = 0; i < a.length; i++) {
+                s += a[i] * b[i];
+            }
+
+            return s;
+        }
+
+        // =========================================================
+        // RENDERIZAÇÃO 2D E 3D
+        // =========================================================
+
+        function syncRender(scale) {
+            ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
+
+            activeMeshesCache = [];
+
+            const cellW = canvas2d.width / DIM_X;
+            const cellH = canvas2d.height / DIM_Y;
+
+            const loadType = getLoadType();
+            const displayField = getDisplayField();
+            const displayScale = getDisplayScale(loadType, displayField, scale);
+            const signedDisplay = isSignedDisplayField(displayField);
+
+            for (let x = 0; x < DIM_X; x++) {
+                for (let y = 0; y < DIM_Y; y++) {
+                    const displayValue = getDisplayedValue(x, y, loadType, displayField);
+                    const hexColor = getFieldColor(displayValue, displayScale, signedDisplay);
+
+                    if (grid2D[x][y] === 1) {
+                        if (connected2D[x] && connected2D[x][y]) {
+                            ctx2d.fillStyle = `#${hexColor.toString(16).padStart(6, '0')}`;
+                        } else {
+                            ctx2d.fillStyle = '#45475a';
+                        }
+
+                        ctx2d.fillRect(
+                            x * cellW,
+                            y * cellH,
+                            cellW,
+                            cellH
+                        );
+                    }
+
+                    if (!voxels3D[x] || !voxels3D[x][y]) continue;
+
+                    for (let z = 0; z < DIM_Z; z++) {
+                        const mesh = voxels3D[x][y][z];
+
+                        if (grid2D[x][y] === 1) {
+                            mesh.visible = true;
+
+                            if (connected2D[x] && connected2D[x][y]) {
+                                mesh.material.color.setHex(hexColor);
+                            } else {
+                                mesh.material.color.setHex(0x45475a);
+                            }
+
+                            activeMeshesCache.push(mesh);
+                        } else {
+                            mesh.visible = false;
+                        }
+                    }
+                }
+            }
+
+            drawBoundaryMarkers2D();
+        }
+
+        function getDisplayedValue(x, y, loadType, displayField) {
+            if (displayField === 'deltaPeak') {
+                return deltaEqPeak2D[x][y] * 1000; // µm
+            }
+
+            if (displayField === 'strainEqPeak') {
+                return strainEqPeak2D[x][y] * 1e6; // µε
+            }
+
+            if (displayField === 'vonMisesPeak') {
+                return stressVmPeak2D[x][y]; // MPa
+            }
+
+            if (loadType === 'axial') {
+                return sigmaX2D[x][y];
+            }
+
+            return tauXY2D[x][y];
+        }
+
+        function isSignedDisplayField(displayField) {
+            return displayField === 'autoStress';
+        }
+
+        function getDisplayScale(loadType, displayField, manualScale) {
+            if (displayField === 'autoStress') {
+                return manualScale;
+            }
+
+            let maxValue = 0;
+
+            for (let x = 0; x < DIM_X; x++) {
+                for (let y = 0; y < DIM_Y; y++) {
+                    if (!(connected2D[x] && connected2D[x][y])) continue;
+
+                    const v = Math.abs(getDisplayedValue(x, y, loadType, displayField));
+                    if (v > maxValue) maxValue = v;
+                }
+            }
+
+            return maxValue > 0 ? maxValue : 1;
+        }
+
+        function getFieldColor(value, scaleLimit, signed) {
+            if (Math.abs(value) < 1e-12) return 0x00ff00;
+
+            if (!signed) {
+                const norm = Math.max(0, Math.min(1, Math.abs(value) / scaleLimit));
+                const r = Math.floor(255 * norm);
+                const g = Math.floor(255 * (1 - 0.65 * norm));
+                const b = Math.floor(80 * (1 - norm));
+                return (r << 16) | (g << 8) | b;
+            }
+
+            const norm = Math.max(-1, Math.min(1, value / scaleLimit));
+
+            let r = 0;
+            let g = 0;
+            let b = 0;
+
+            if (norm > 0) {
+                r = Math.floor(255 * norm);
+                g = Math.floor(255 * (1 - norm));
+            } else {
+                const absNorm = Math.abs(norm);
+                g = Math.floor(255 * (1 - absNorm));
+                b = Math.floor(255 * absNorm);
+            }
+
+            return (r << 16) | (g << 8) | b;
+        }
+
+        function drawBoundaryMarkers2D() {
+            const w = canvas2d.width;
+            const h = canvas2d.height;
+
+            const cellW = w / DIM_X;
+
+            const force = parseFloat(forceInput.value);
+            const loadType = getLoadType();
+
+            ctx2d.save();
+
+            ctx2d.fillStyle = 'rgba(137, 180, 250, 0.35)';
+            ctx2d.fillRect(0, 0, cellW * 2.8, h);
+
+            ctx2d.strokeStyle = 'rgba(205, 214, 244, 0.85)';
+            ctx2d.lineWidth = 1;
+
+            for (let yy = -h; yy < h * 2; yy += 8) {
+                ctx2d.beginPath();
+                ctx2d.moveTo(0, yy);
+                ctx2d.lineTo(cellW * 2.8, yy + 18);
+                ctx2d.stroke();
+            }
+
+            ctx2d.fillStyle = '#ffffff';
+            ctx2d.font = 'bold 8px Segoe UI';
+            ctx2d.fillText('FIXO', 4, 11);
+
+            ctx2d.fillStyle = 'rgba(243, 139, 168, 0.28)';
+            ctx2d.fillRect(w - cellW * 2.8, 0, cellW * 2.8, h);
+
+            ctx2d.fillStyle = '#ffffff';
+            ctx2d.font = 'bold 8px Segoe UI';
+            ctx2d.fillText('FORÇA', w - cellW * 2.7, 11);
+
+            if (force !== 0) {
+                ctx2d.strokeStyle = '#f38ba8';
+                ctx2d.fillStyle = '#f38ba8';
+                ctx2d.lineWidth = 2;
+
+                if (loadType === 'axial') {
+                    const y0 = h / 2;
+
+                    if (force > 0) {
+                        drawArrow2D(w - cellW * 2.2, y0, w - 4, y0);
+                    } else {
+                        drawArrow2D(w - 4, y0, w - cellW * 2.2, y0);
+                    }
+                } else {
+                    const x0 = w - cellW * 1.4;
+
+                    if (force > 0) {
+                        drawArrow2D(x0, h - 5, x0, 7);
+                    } else {
+                        drawArrow2D(x0, 7, x0, h - 5);
+                    }
+                }
+            }
+
+            ctx2d.restore();
+        }
+
+        function drawArrow2D(x1, y1, x2, y2) {
+            const headlen = 7;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+
+            ctx2d.beginPath();
+            ctx2d.moveTo(x1, y1);
+            ctx2d.lineTo(x2, y2);
+            ctx2d.stroke();
+
+            ctx2d.beginPath();
+            ctx2d.moveTo(x2, y2);
+            ctx2d.lineTo(
+                x2 - headlen * Math.cos(angle - Math.PI / 6),
+                y2 - headlen * Math.sin(angle - Math.PI / 6)
+            );
+            ctx2d.lineTo(
+                x2 - headlen * Math.cos(angle + Math.PI / 6),
+                y2 - headlen * Math.sin(angle + Math.PI / 6)
+            );
+            ctx2d.closePath();
+            ctx2d.fill();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const mode = document.querySelector('input[name="mode3d"]:checked').value;
+
+            controls.enabled = mode === 'camera';
+            controls.update();
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
