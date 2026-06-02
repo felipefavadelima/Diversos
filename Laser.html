@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anatomia do Laser - Fótons Perdidos Ajustado</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        canvas {
+            background-color: #050505;
+            border: 2px solid #555;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            background-color: #2f3542;
+            color: white;
+            border: 1px solid #57606f;
+            padding: 10px 15px;
+            font-size: 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background-color: #57606f;
+        }
+        #pumpBtn {
+            background-color: #ff4757;
+            border: none;
+        }
+        #pumpBtn:hover {
+            background-color: #ff6b81;
+        }
+        #playPauseBtn {
+            background-color: #1e90ff;
+            border: none;
+        }
+        #playPauseBtn:hover {
+            background-color: #70a1ff;
+        }
+        .stats {
+            margin-top: 15px;
+            font-size: 16px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .highlight {
+            color: #ff4757;
+            font-weight: bold;
+        }
+        .laser-on { color: #2ed573; font-weight: bold; }
+        .wasted-icon { color: rgba(255, 255, 255, 0.7); }
+        .yellow-wave { color: #ffeb3b; }
+    </style>
+</head>
+<body>
+
+    <h2>Anatomia do Laser: Proporção Realista de Perdas</h2>
+    <canvas id="laserCanvas" width="900" height="350"></canvas>
+    
+    <div class="controls">
+        <button id="pumpBtn">Injetar Energia (Excitar Átomos)</button>
+        <button id="playPauseBtn">Pausar / Iniciar</button>
+        <button id="frameBtn">Avançar 1 Quadro (Pausado)</button>
+        <button id="clearBtn">Resetar Tudo</button>
+    </div>
+    
+    <div class="stats">
+        <strong id="inversionStatusLabel">Inversão de População:</strong> <span id="excitedCount" class="highlight">0</span> de 40 átomos excitados<br>
+        <small style="color: #aaa;">
+            Na natureza, a maioria das emissões espontâneas é perdida (<span class="wasted-icon">→ setas brancas</span>). <br>
+            A emissão estimulada (<span class="yellow-wave">~ ondas amarelas</span>) compensa isso multiplicando apenas a luz alinhada.
+        </small>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('laserCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const leftMirrorX = 80;
+        const rightMirrorX = 700;
+        const cavityTop = 60;
+        const cavityBottom = 290;
+
+        let atoms = [];
+        let photons = [];
+        let isPaused = false;
+
+        function initAtoms() {
+            atoms = [];
+            let rows = 4;
+            let cols = 10;
+            let startX = 150;
+            let startY = 100;
+            let spacingX = 55;
+            let spacingY = 45;
+
+            for (let i = 0; i < cols; i++) {
+                for (let j = 0; j < rows; j++) {
+                    atoms.push({
+                        x: startX + i * spacingX,
+                        y: startY + j * spacingY,
+                        radius: 10,
+                        excited: false
+                    });
+                }
+            }
+            photons = [];
+        }
+
+        document.getElementById('pumpBtn').addEventListener('click', () => {
+            atoms.forEach(atom => {
+                if (!atom.excited && Math.random() < 0.6) {
+                    atom.excited = true;
+                }
+            });
+            // O fóton inicial garantido só para dar o start
+            if(!photons.some(p => p.type === 'laser')) {
+                photons.push({ x: leftMirrorX + 5, y: 100 + Math.floor(Math.random()*4)*45, vx: 3, vy: 0, color: '#ffeb3b', inside: true, type: 'laser' });
+            }
+            if(!isPaused) render();
+        });
+
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        playPauseBtn.addEventListener('click', () => {
+            isPaused = !isPaused;
+            playPauseBtn.innerText = isPaused ? "Iniciar" : "Pausar";
+        });
+
+        document.getElementById('frameBtn').addEventListener('click', () => {
+            if (isPaused) {
+                updatePhysics();
+                render();
+            }
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            initAtoms();
+            render();
+        });
+
+        function updatePhysics() {
+            // Aumentei a frequência do decaimento espontâneo
+            atoms.forEach(atom => {
+                if (atom.excited && Math.random() < 0.008) { 
+                    atom.excited = false;
+
+                    // Física ajustada: 80% de perda, 20% de alinhamento
+                    if (Math.random() < 0.2) {
+                        // Fóton útil (ALINHADO)
+                        photons.push({
+                            x: atom.x,
+                            y: atom.y,
+                            vx: Math.random() > 0.5 ? 3 : -3, vy: 0,
+                            color: '#ffeb3b', inside: true, type: 'laser'
+                        });
+                    } else {
+                        // Fóton perdido (CIMA, BAIXO, DIAGONAL)
+                        let angle = (Math.random() * Math.PI * 2); // 360 graus
+                        
+                        // Ignora se for muito horizontal (senão ele viraria laser sem ser onda amarela)
+                        if (Math.abs(Math.sin(angle)) < 0.2) {
+                            angle += 0.5; 
+                        }
+
+                        let speed = 2.5;
+                        photons.push({
+                            x: atom.x, y: atom.y,
+                            vx: Math.cos(angle) * speed, 
+                            vy: Math.sin(angle) * speed,
+                            inside: true, type: 'wasted'
+                        });
+                    }
+                }
+            });
+
+            // Movimentação dos fótons
+            for (let i = photons.length - 1; i >= 0; i--) {
+                let p = photons[i];
+                p.x += p.vx;
+                p.y += p.vy || 0;
+
+                // === Fótons PERDIDOS (wasted) ===
+                if (p.type === 'wasted') {
+                    // Saem imediatamente da cavidade
+                    if (p.y <= cavityTop || p.y >= cavityBottom || p.x <= leftMirrorX || p.x >= rightMirrorX) {
+                        photons.splice(i, 1);
+                        continue;
+                    }
+                }
+
+                // === Fótons do LASER (úteis) ===
+                if (p.type === 'laser') {
+                    if (p.inside && p.x <= leftMirrorX && p.vx < 0) {
+                        p.vx *= -1;
+                        p.x = leftMirrorX + 2;
+                    }
+
+                    if (p.inside && p.x >= rightMirrorX && p.vx > 0) {
+                        if (Math.random() < 0.70) {
+                            p.vx *= -1;
+                            p.x = rightMirrorX - 2;
+                        } else {
+                            p.inside = false; 
+                            p.color = '#ff4757';
+                        }
+                    }
+
+                    if (!p.inside && p.x > canvas.width) {
+                        photons.splice(i, 1);
+                        continue;
+                    }
+
+                    if (p.inside) {
+                        atoms.forEach(atom => {
+                            if (atom.excited) {
+                                let dx = Math.abs(p.x - atom.x);
+                                let dy = Math.abs(p.y - atom.y);
+
+                                if (dx < 6 && dy < 5) {
+                                    atom.excited = false; 
+                                    photons.push({
+                                        x: atom.x, y: atom.y,
+                                        vx: p.vx, vy: 0,
+                                        color: '#ffeb3b', inside: true, type: 'laser'
+                                    });
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Desenhar cavidade
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(leftMirrorX, cavityTop); ctx.lineTo(rightMirrorX, cavityTop);
+            ctx.moveTo(leftMirrorX, cavityBottom); ctx.lineTo(rightMirrorX, cavityBottom);
+            ctx.stroke();
+
+            // Feixe externo
+            ctx.fillStyle = 'rgba(255, 71, 87, 0.03)';
+            ctx.fillRect(rightMirrorX, cavityTop, canvas.width - rightMirrorX, cavityBottom - cavityTop);
+
+            // Espelhos
+            ctx.fillStyle = '#888';
+            ctx.fillRect(leftMirrorX - 15, cavityTop, 15, cavityBottom - cavityTop);
+            ctx.fillStyle = '#fff';
+            ctx.font = "11px Arial";
+            ctx.fillText("Reflexão 100%", leftMirrorX - 80, cavityTop - 10);
+
+            ctx.fillStyle = 'rgba(136, 136, 136, 0.6)';
+            ctx.fillRect(rightMirrorX, cavityTop, 8, cavityBottom - cavityTop);
+            ctx.fillStyle = '#fff';
+            ctx.fillText("Saída Laser", rightMirrorX - 30, cavityTop - 10);
+
+            // Átomos
+            atoms.forEach(atom => {
+                ctx.beginPath();
+                ctx.arc(atom.x, atom.y, atom.radius, 0, Math.PI * 2);
+                ctx.fillStyle = atom.excited ? '#ff4757' : '#2f3542'; 
+                ctx.fill();
+                ctx.strokeStyle = atom.excited ? '#ff6b81' : '#57606f';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+
+            // Fótons
+            photons.forEach(p => {
+                ctx.lineWidth = 2;
+
+                if (p.type === 'laser') {
+                    ctx.beginPath();
+                    ctx.strokeStyle = p.color;
+                    let length = 15;
+                    let startX = p.vx > 0 ? p.x - length : p.x;
+                    for(let i = 0; i <= length; i++) {
+                        let currentX = startX + i;
+                        let currentY = p.y + Math.sin(currentX * 0.5) * 4;
+                        if(i === 0) ctx.moveTo(currentX, currentY);
+                        else ctx.lineTo(currentX, currentY);
+                    }
+                    ctx.stroke();
+                } else if (p.type === 'wasted') {
+                    // Setas mais nítidas e visíveis
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; // Aumentado para 0.7 de opacidade
+                    ctx.lineWidth = 1.5;
+                    ctx.moveTo(p.x, p.y);
+                    let endX = p.x + p.vx * 3;
+                    let endY = p.y + p.vy * 3;
+                    ctx.lineTo(endX, endY);
+                    let angle = Math.atan2(p.vy, p.vx);
+                    ctx.lineTo(endX - 4 * Math.cos(angle - Math.PI/6), endY - 4 * Math.sin(angle - Math.PI/6));
+                    ctx.moveTo(endX, endY);
+                    ctx.lineTo(endX - 4 * Math.cos(angle + Math.PI/6), endY - 4 * Math.sin(angle + Math.PI/6));
+                    ctx.stroke();
+                }
+            });
+
+            updateUI();
+        }
+
+        function updateUI() {
+            let excitedCount = atoms.filter(a => a.excited).length;
+            document.getElementById('excitedCount').innerText = excitedCount;
+            
+            let statusEl = document.getElementById('inversionStatusLabel');
+            if (excitedCount > atoms.length / 2) {
+                statusEl.innerHTML = "<strong>Inversão Atingida:</strong> <span class='laser-on'>SIM</span>";
+            } else {
+                statusEl.innerHTML = "<strong>Inversão Atingida:</strong> NÃO";
+            }
+        }
+
+        function loop() {
+            if (!isPaused) {
+                updatePhysics();
+                render();
+            }
+            requestAnimationFrame(loop);
+        }
+
+        initAtoms();
+        loop();
+    </script>
+</body>
+</html>
