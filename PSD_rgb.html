@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simulador de Pixels - OpenCV</title>
+
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 30px;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    h1 {
+      margin-bottom: 5px;
+    }
+
+    .descricao {
+      max-width: 900px;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+
+    .container {
+      display: flex;
+      gap: 30px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .painel-imagem {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+
+    canvas {
+      border: 4px solid black;
+      image-rendering: pixelated;
+      cursor: crosshair;
+      background: white;
+    }
+
+    .painel-controle {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+      min-width: 330px;
+    }
+
+    .campo {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    input[type="number"] {
+      width: 80px;
+      padding: 6px;
+      font-size: 15px;
+    }
+
+    select {
+      padding: 6px;
+      font-size: 15px;
+    }
+
+    button {
+      padding: 9px 14px;
+      margin: 4px 4px 4px 0;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #222;
+      color: white;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background: #444;
+    }
+
+    .info-pixel {
+      margin-top: 15px;
+      padding: 12px;
+      background: #eee;
+      border-radius: 8px;
+      font-family: Consolas, monospace;
+    }
+
+    .amostra-cor {
+      width: 50px;
+      height: 50px;
+      border: 2px solid black;
+      margin-top: 8px;
+    }
+
+    .codigo-opencv {
+      margin-top: 20px;
+      padding: 12px;
+      background: #111;
+      color: #eee;
+      border-radius: 8px;
+      font-family: Consolas, monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+
+    .matriz {
+      margin-top: 25px;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+      max-width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      border-collapse: collapse;
+      font-size: 12px;
+      font-family: Consolas, monospace;
+    }
+
+    td, th {
+      border: 1px solid #ccc;
+      padding: 4px 6px;
+      text-align: center;
+      min-width: 55px;
+    }
+
+    th {
+      background: #ddd;
+    }
+
+    .selecionado {
+      outline: 3px solid red;
+      outline-offset: -3px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Simulador de Imagem Digital por Pixels</h1>
+
+  <div class="descricao">
+    Esta página representa uma imagem digital como uma matriz de pixels.
+    A orientação das coordenadas segue a mesma lógica usada em OpenCV com NumPy:
+    <strong>x</strong> representa a coluna, crescendo da esquerda para a direita;
+    <strong>y</strong> representa a linha, crescendo de cima para baixo.
+    Assim, o pixel de coordenada <strong>(x, y)</strong> é acessado em Python como
+    <strong>imagem[y, x]</strong>.
+  </div>
+
+  <div class="container">
+
+    <div class="painel-imagem">
+      <canvas id="canvas" width="480" height="480"></canvas>
+
+      <div class="info-pixel" id="infoPixel">
+        Pixel selecionado: x = 0, y = 0
+      </div>
+
+      <div class="amostra-cor" id="amostraCor"></div>
+    </div>
+
+    <div class="painel-controle">
+
+      <div class="campo">
+        <label for="modoImagem">Modo da imagem</label>
+        <select id="modoImagem">
+          <option value="colorida">Colorida RGB</option>
+          <option value="cinza">Preto e branco / escala de cinza</option>
+        </select>
+      </div>
+
+      <div class="campo">
+        <label>Selecionar pixel</label>
+        x:
+        <input type="number" id="inputX" min="0" max="15" value="0">
+        y:
+        <input type="number" id="inputY" min="0" max="15" value="0">
+      </div>
+
+      <div id="controlesRGB">
+        <div class="campo">
+          <label>Valor R, vermelho, de 0 a 255</label>
+          <input type="number" id="inputR" min="0" max="255" value="255">
+        </div>
+
+        <div class="campo">
+          <label>Valor G, verde, de 0 a 255</label>
+          <input type="number" id="inputG" min="0" max="255" value="255">
+        </div>
+
+        <div class="campo">
+          <label>Valor B, azul, de 0 a 255</label>
+          <input type="number" id="inputB" min="0" max="255" value="255">
+        </div>
+      </div>
+
+      <div id="controlesCinza" style="display: none;">
+        <div class="campo">
+          <label>Intensidade do pixel, de 0 a 255</label>
+          <input type="number" id="inputCinza" min="0" max="255" value="255">
+        </div>
+      </div>
+
+      <button onclick="aplicarValorPixel()">Alterar pixel selecionado</button>
+      <button onclick="limparImagem()">Limpar imagem</button>
+      <button onclick="imagemAleatoria()">Gerar imagem aleatória</button>
+
+      <div class="codigo-opencv" id="codigoOpenCV"></div>
+
+    </div>
+  </div>
+
+  <div class="matriz">
+    <h2>Matriz de pixels</h2>
+    <p>
+      Em modo colorido, cada célula mostra <strong>[R, G, B]</strong>.
+      Em modo preto e branco, cada célula mostra apenas um valor de intensidade entre
+      <strong>0</strong> e <strong>255</strong>.
+    </p>
+    <div id="tabelaPixels"></div>
+  </div>
+
+  <script>
+    const larguraImagem = 16;
+    const alturaImagem = 16;
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const tamanhoPixelTela = canvas.width / larguraImagem;
+
+    let pixelSelecionadoX = 0;
+    let pixelSelecionadoY = 0;
+
+    let modoImagem = "colorida";
+
+    let imagem = [];
+
+    function criarImagemInicial() {
+      imagem = [];
+
+      for (let y = 0; y < alturaImagem; y++) {
+        let linha = [];
+
+        for (let x = 0; x < larguraImagem; x++) {
+          linha.push({
+            r: 255,
+            g: 255,
+            b: 255
+          });
+        }
+
+        imagem.push(linha);
+      }
+    }
+
+    function limitarValor(valor, minimo, maximo) {
+      valor = Number(valor);
+
+      if (isNaN(valor)) {
+        return minimo;
+      }
+
+      if (valor < minimo) {
+        return minimo;
+      }
+
+      if (valor > maximo) {
+        return maximo;
+      }
+
+      return Math.round(valor);
+    }
+
+    function desenharImagem() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let y = 0; y < alturaImagem; y++) {
+        for (let x = 0; x < larguraImagem; x++) {
+          const p = imagem[y][x];
+
+          ctx.fillStyle = `rgb(${p.r}, ${p.g}, ${p.b})`;
+
+          ctx.fillRect(
+            x * tamanhoPixelTela,
+            y * tamanhoPixelTela,
+            tamanhoPixelTela,
+            tamanhoPixelTela
+          );
+
+          ctx.strokeStyle = "#cccccc";
+          ctx.lineWidth = 1;
+
+          ctx.strokeRect(
+            x * tamanhoPixelTela,
+            y * tamanhoPixelTela,
+            tamanhoPixelTela,
+            tamanhoPixelTela
+          );
+        }
+      }
+
+      desenharPixelSelecionado();
+    }
+
+    function desenharPixelSelecionado() {
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 4;
+
+      ctx.strokeRect(
+        pixelSelecionadoX * tamanhoPixelTela,
+        pixelSelecionadoY * tamanhoPixelTela,
+        tamanhoPixelTela,
+        tamanhoPixelTela
+      );
+    }
+
+    function atualizarInputsComPixelSelecionado() {
+      const p = imagem[pixelSelecionadoY][pixelSelecionadoX];
+
+      document.getElementById("inputX").value = pixelSelecionadoX;
+      document.getElementById("inputY").value = pixelSelecionadoY;
+
+      document.getElementById("inputR").value = p.r;
+      document.getElementById("inputG").value = p.g;
+      document.getElementById("inputB").value = p.b;
+
+      const valorCinza = Math.round((p.r + p.g + p.b) / 3);
+      document.getElementById("inputCinza").value = valorCinza;
+    }
+
+    function atualizarInfoPixel() {
+      const p = imagem[pixelSelecionadoY][pixelSelecionadoX];
+
+      const info = document.getElementById("infoPixel");
+      const amostra = document.getElementById("amostraCor");
+
+      if (modoImagem === "colorida") {
+        info.innerHTML =
+          `Pixel selecionado: x = ${pixelSelecionadoX}, y = ${pixelSelecionadoY}<br>` +
+          `Valor RGB = [${p.r}, ${p.g}, ${p.b}]`;
+      } else {
+        const cinza = Math.round((p.r + p.g + p.b) / 3);
+
+        info.innerHTML =
+          `Pixel selecionado: x = ${pixelSelecionadoX}, y = ${pixelSelecionadoY}<br>` +
+          `Intensidade = ${cinza}`;
+      }
+
+      amostra.style.backgroundColor = `rgb(${p.r}, ${p.g}, ${p.b})`;
+
+      atualizarCodigoOpenCV();
+    }
+
+    function atualizarCodigoOpenCV() {
+      const p = imagem[pixelSelecionadoY][pixelSelecionadoX];
+      const codigo = document.getElementById("codigoOpenCV");
+
+      if (modoImagem === "colorida") {
+        codigo.innerHTML =
+`Equivalente conceitual em OpenCV/NumPy:
+
+# coordenada escolhida pelo usuário:
+x = ${pixelSelecionadoX}
+y = ${pixelSelecionadoY}
+
+# acesso ao pixel:
+imagem[y, x]
+
+# neste simulador usamos RGB:
+imagem[${pixelSelecionadoY}, ${pixelSelecionadoX}] = [${p.r}, ${p.g}, ${p.b}]
+
+Observação:
+no cv2.imread(), o OpenCV normalmente usa BGR:
+imagem[${pixelSelecionadoY}, ${pixelSelecionadoX}] = [B, G, R]`;
+      } else {
+        const cinza = Math.round((p.r + p.g + p.b) / 3);
+
+        codigo.innerHTML =
+`Equivalente conceitual em OpenCV/NumPy:
+
+# coordenada escolhida pelo usuário:
+x = ${pixelSelecionadoX}
+y = ${pixelSelecionadoY}
+
+# acesso ao pixel:
+imagem[y, x]
+
+# imagem em escala de cinza:
+imagem[${pixelSelecionadoY}, ${pixelSelecionadoX}] = ${cinza}`;
+      }
+    }
+
+    function atualizarTabelaPixels() {
+      const divTabela = document.getElementById("tabelaPixels");
+
+      let html = "<table>";
+
+      html += "<tr>";
+      html += "<th>y \\ x</th>";
+
+      for (let x = 0; x < larguraImagem; x++) {
+        html += `<th>${x}</th>`;
+      }
+
+      html += "</tr>";
+
+      for (let y = 0; y < alturaImagem; y++) {
+        html += `<tr><th>${y}</th>`;
+
+        for (let x = 0; x < larguraImagem; x++) {
+          const p = imagem[y][x];
+
+          const corFundo = `rgb(${p.r}, ${p.g}, ${p.b})`;
+          const luminancia = 0.299 * p.r + 0.587 * p.g + 0.114 * p.b;
+          const corTexto = luminancia < 128 ? "white" : "black";
+
+          let texto;
+
+          if (modoImagem === "colorida") {
+            texto = `[${p.r},${p.g},${p.b}]`;
+          } else {
+            texto = Math.round((p.r + p.g + p.b) / 3);
+          }
+
+          const selecionado =
+            x === pixelSelecionadoX && y === pixelSelecionadoY
+              ? "outline: 3px solid red; outline-offset: -3px;"
+              : "";
+
+          html +=
+            `<td style="background:${corFundo}; color:${corTexto}; ${selecionado}">` +
+            texto +
+            "</td>";
+        }
+
+        html += "</tr>";
+      }
+
+      html += "</table>";
+
+      divTabela.innerHTML = html;
+    }
+
+    function atualizarTudo() {
+      desenharImagem();
+      atualizarInputsComPixelSelecionado();
+      atualizarInfoPixel();
+      atualizarTabelaPixels();
+    }
+
+    function selecionarPixel(x, y) {
+      pixelSelecionadoX = limitarValor(x, 0, larguraImagem - 1);
+      pixelSelecionadoY = limitarValor(y, 0, alturaImagem - 1);
+
+      atualizarTudo();
+    }
+
+    function aplicarValorPixel() {
+      const x = limitarValor(
+        document.getElementById("inputX").value,
+        0,
+        larguraImagem - 1
+      );
+
+      const y = limitarValor(
+        document.getElementById("inputY").value,
+        0,
+        alturaImagem - 1
+      );
+
+      pixelSelecionadoX = x;
+      pixelSelecionadoY = y;
+
+      if (modoImagem === "colorida") {
+        const r = limitarValor(document.getElementById("inputR").value, 0, 255);
+        const g = limitarValor(document.getElementById("inputG").value, 0, 255);
+        const b = limitarValor(document.getElementById("inputB").value, 0, 255);
+
+        imagem[y][x] = {
+          r: r,
+          g: g,
+          b: b
+        };
+      } else {
+        const cinza = limitarValor(
+          document.getElementById("inputCinza").value,
+          0,
+          255
+        );
+
+        imagem[y][x] = {
+          r: cinza,
+          g: cinza,
+          b: cinza
+        };
+      }
+
+      atualizarTudo();
+    }
+
+    function limparImagem() {
+      for (let y = 0; y < alturaImagem; y++) {
+        for (let x = 0; x < larguraImagem; x++) {
+          imagem[y][x] = {
+            r: 255,
+            g: 255,
+            b: 255
+          };
+        }
+      }
+
+      atualizarTudo();
+    }
+
+    function imagemAleatoria() {
+      for (let y = 0; y < alturaImagem; y++) {
+        for (let x = 0; x < larguraImagem; x++) {
+          if (modoImagem === "colorida") {
+            imagem[y][x] = {
+              r: Math.floor(Math.random() * 256),
+              g: Math.floor(Math.random() * 256),
+              b: Math.floor(Math.random() * 256)
+            };
+          } else {
+            const cinza = Math.floor(Math.random() * 256);
+
+            imagem[y][x] = {
+              r: cinza,
+              g: cinza,
+              b: cinza
+            };
+          }
+        }
+      }
+
+      atualizarTudo();
+    }
+
+    canvas.addEventListener("click", function(event) {
+      const retangulo = canvas.getBoundingClientRect();
+
+      const mouseX = event.clientX - retangulo.left;
+      const mouseY = event.clientY - retangulo.top;
+
+      const x = Math.floor(mouseX / tamanhoPixelTela);
+      const y = Math.floor(mouseY / tamanhoPixelTela);
+
+      selecionarPixel(x, y);
+    });
+
+    document.getElementById("inputX").addEventListener("change", function() {
+      selecionarPixel(this.value, pixelSelecionadoY);
+    });
+
+    document.getElementById("inputY").addEventListener("change", function() {
+      selecionarPixel(pixelSelecionadoX, this.value);
+    });
+
+    document.getElementById("modoImagem").addEventListener("change", function() {
+      modoImagem = this.value;
+
+      if (modoImagem === "colorida") {
+        document.getElementById("controlesRGB").style.display = "block";
+        document.getElementById("controlesCinza").style.display = "none";
+      } else {
+        document.getElementById("controlesRGB").style.display = "none";
+        document.getElementById("controlesCinza").style.display = "block";
+
+        for (let y = 0; y < alturaImagem; y++) {
+          for (let x = 0; x < larguraImagem; x++) {
+            const p = imagem[y][x];
+            const cinza = Math.round((p.r + p.g + p.b) / 3);
+
+            imagem[y][x] = {
+              r: cinza,
+              g: cinza,
+              b: cinza
+            };
+          }
+        }
+      }
+
+      atualizarTudo();
+    });
+
+    criarImagemInicial();
+    atualizarTudo();
+  </script>
+
+</body>
+</html>
