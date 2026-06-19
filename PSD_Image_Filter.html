@@ -1,0 +1,1100 @@
+html = r"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Animação de Filtro 3×3 em Imagem 100×100</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --accent2: #16a34a;
+      --danger: #dc2626;
+      --grid: #cbd5e1;
+      --dark: #0f172a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    header {
+      padding: 22px 28px;
+      background: linear-gradient(135deg, #111827, #1e3a8a);
+      color: white;
+    }
+
+    header h1 {
+      margin: 0 0 8px 0;
+      font-size: 1.6rem;
+      font-weight: 800;
+    }
+
+    header p {
+      margin: 0;
+      max-width: 980px;
+      color: #dbeafe;
+      line-height: 1.45;
+    }
+
+    main {
+      padding: 20px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 16px;
+      background: var(--panel);
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control label {
+      font-size: 0.83rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    select,
+    input[type="range"],
+    input[type="file"],
+    button {
+      width: 100%;
+    }
+
+    select,
+    input[type="file"] {
+      padding: 9px 10px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--accent);
+      color: white;
+      font-weight: 750;
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.12s ease;
+    }
+
+    button:hover {
+      filter: brightness(1.05);
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button.secondary {
+      background: #475569;
+    }
+
+    button.green {
+      background: var(--accent2);
+    }
+
+    button.red {
+      background: var(--danger);
+    }
+
+    .span2 { grid-column: span 2; }
+    .span3 { grid-column: span 3; }
+    .span4 { grid-column: span 4; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.25fr 0.9fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .panel h2 {
+      font-size: 1.05rem;
+      margin: 0 0 12px 0;
+    }
+
+    .canvases {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .canvasBox {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .canvasBox h3 {
+      margin: 0 0 8px 0;
+      font-size: 0.95rem;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+      background: #fff;
+      border: 1px solid #0f172a;
+      border-radius: 8px;
+      max-width: 100%;
+    }
+
+    #srcCanvas,
+    #outCanvas,
+    #progressCanvas {
+      width: 300px;
+      height: 300px;
+    }
+
+    .readouts {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .metric {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .metric .label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .metric .value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.95rem;
+      color: var(--dark);
+    }
+
+    .rightgrid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    .kernelWrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    .kernel td,
+    .patch td,
+    .product td {
+      border: 1px solid var(--grid);
+      text-align: center;
+      padding: 9px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      min-width: 44px;
+      background: #fff;
+    }
+
+    .kernel td {
+      background: #eff6ff;
+      font-weight: 800;
+    }
+
+    .patch td.centerCell {
+      background: #fef9c3;
+      outline: 3px solid #f59e0b;
+      outline-offset: -3px;
+    }
+
+    .product td {
+      background: #f0fdf4;
+    }
+
+    .formula {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      font-size: 0.88rem;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+      padding: 5px 9px;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid #334155;
+      display: inline-block;
+    }
+
+    .yellow { background: #fef08a; }
+    .blue { background: #bfdbfe; }
+    .greenish { background: #bbf7d0; }
+    .redish { background: #fecaca; }
+
+    .note {
+      color: var(--muted);
+      line-height: 1.45;
+      margin-top: 12px;
+      font-size: 0.92rem;
+    }
+
+    .barOuter {
+      margin-top: 12px;
+      height: 14px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+    }
+
+    .barInner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2563eb, #16a34a);
+      transition: width 0.1s linear;
+    }
+
+    .small {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 1120px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+
+      .span2,
+      .span3,
+      .span4 {
+        grid-column: span 3;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .canvases {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .span2,
+      .span3,
+      .span4 {
+        grid-column: span 1;
+      }
+
+      .readouts {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .kernelWrap {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Animação didática: filtro 3×3 aplicado a uma imagem 100×100</h1>
+  <p>
+    A imagem é processada pixel a pixel. Em cada posição, uma vizinhança 3×3 é multiplicada pelo kernel 3×3.
+    O resultado numérico é gravado na imagem de saída, mostrando progressivamente como o filtro constrói a nova imagem.
+  </p>
+</header>
+
+<main>
+  <section class="controls">
+    <div class="control span3">
+      <label for="preset">Filtro pré-configurado</label>
+      <select id="preset"></select>
+    </div>
+
+    <div class="control span2">
+      <label for="speed">Velocidade</label>
+      <input id="speed" type="range" min="1" max="2000" value="220" />
+      <span class="small"><span id="speedLabel">220</span> pixels/s</span>
+    </div>
+
+    <div class="control span2">
+      <label for="displayMode">Visualização da saída</label>
+      <select id="displayMode">
+        <option value="auto">Autoescala 0–255</option>
+        <option value="clip">Clipping 0–255</option>
+        <option value="abs">Módulo |valor|</option>
+        <option value="signed">Sinal: 128 + valor</option>
+      </select>
+    </div>
+
+    <div class="control span2">
+      <label for="imageMode">Imagem de entrada</label>
+      <select id="imageMode">
+        <option value="synthetic">Imagem sintética</option>
+        <option value="gradient">Gradiente + bordas</option>
+        <option value="noise">Ruído + formas</option>
+      </select>
+    </div>
+
+    <div class="control span3">
+      <label for="upload">Ou carregar imagem</label>
+      <input id="upload" type="file" accept="image/*" />
+    </div>
+
+    <div class="control span2">
+      <button id="startBtn" class="green">Iniciar</button>
+    </div>
+
+    <div class="control span2">
+      <button id="pauseBtn" class="secondary">Pausar</button>
+    </div>
+
+    <div class="control span2">
+      <button id="stepBtn">1 passo</button>
+    </div>
+
+    <div class="control span2">
+      <button id="resetBtn" class="red">Reiniciar</button>
+    </div>
+
+    <div class="control span2">
+      <button id="randomBtn" class="secondary">Nova imagem</button>
+    </div>
+  </section>
+
+  <section class="layout">
+    <div class="panel">
+      <h2>Imagem original, posição atual e imagem filtrada</h2>
+
+      <div class="canvases">
+        <div class="canvasBox">
+          <h3>Entrada 100×100</h3>
+          <canvas id="srcCanvas" width="100" height="100"></canvas>
+        </div>
+
+        <div class="canvasBox">
+          <h3>Varredura do kernel</h3>
+          <canvas id="progressCanvas" width="100" height="100"></canvas>
+        </div>
+
+        <div class="canvasBox">
+          <h3>Saída sendo construída</h3>
+          <canvas id="outCanvas" width="100" height="100"></canvas>
+        </div>
+      </div>
+
+      <div class="readouts">
+        <div class="metric">
+          <div class="label">Pixel atual</div>
+          <div class="value" id="posReadout">(x=1, y=1)</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">Índice linear</div>
+          <div class="value" id="idxReadout">0 / 9604</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">Valor bruto filtrado</div>
+          <div class="value" id="rawReadout">0</div>
+        </div>
+
+        <div class="metric">
+          <div class="label">Valor exibido</div>
+          <div class="value" id="shownReadout">0</div>
+        </div>
+      </div>
+
+      <div class="barOuter">
+        <div class="barInner" id="progressBar"></div>
+      </div>
+
+      <p class="note">
+        Para simplificar a visualização, a imagem é convertida para escala de cinza. A varredura é feita da esquerda para a direita e de cima para baixo.
+        As bordas externas são preservadas em preto na saída, e o kernel é aplicado nos pixels internos, de x=1 a x=98 e y=1 a y=98.
+      </p>
+
+      <div class="legend">
+        <span class="tag"><span class="swatch yellow"></span>pixel central</span>
+        <span class="tag"><span class="swatch blue"></span>janela 3×3 na imagem</span>
+        <span class="tag"><span class="swatch greenish"></span>multiplicações pixel × kernel</span>
+        <span class="tag"><span class="swatch redish"></span>pixel recém-calculado</span>
+      </div>
+    </div>
+
+    <div class="rightgrid">
+      <div class="panel">
+        <h2>Kernel 3×3 e vizinhança local</h2>
+
+        <div class="kernelWrap">
+          <div>
+            <h3 class="small">Kernel selecionado</h3>
+            <table class="kernel" id="kernelTable"></table>
+          </div>
+
+          <div>
+            <h3 class="small">Vizinhança 3×3 da imagem</h3>
+            <table class="patch" id="patchTable"></table>
+          </div>
+        </div>
+
+        <h3 class="small" style="margin-top: 14px;">Produtos pixel × kernel</h3>
+        <table class="product" id="productTable"></table>
+
+        <div class="formula" id="formulaBox"></div>
+
+        <p class="note">
+          A operação usada aqui é a mesma interpretação prática de muitos filtros digitais: para cada pixel, toma-se a vizinhança 3×3,
+          multiplica-se cada valor pelo coeficiente correspondente do kernel e soma-se tudo. Em filtros derivativos e laplacianos, o valor bruto pode ser negativo;
+          por isso a forma de exibição pode ser alterada em “Visualização da saída”.
+        </p>
+      </div>
+
+      <div class="panel">
+        <h2>O que cada preset evidencia</h2>
+        <div id="presetDescription" class="note"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const W = 100;
+  const H = 100;
+  const TOTAL = (W - 2) * (H - 2);
+
+  const srcCanvas = document.getElementById("srcCanvas");
+  const outCanvas = document.getElementById("outCanvas");
+  const progressCanvas = document.getElementById("progressCanvas");
+  const srcCtx = srcCanvas.getContext("2d");
+  const outCtx = outCanvas.getContext("2d");
+  const progressCtx = progressCanvas.getContext("2d");
+
+  const presetSelect = document.getElementById("preset");
+  const speedInput = document.getElementById("speed");
+  const speedLabel = document.getElementById("speedLabel");
+  const displayModeSelect = document.getElementById("displayMode");
+  const imageModeSelect = document.getElementById("imageMode");
+  const uploadInput = document.getElementById("upload");
+
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const stepBtn = document.getElementById("stepBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const randomBtn = document.getElementById("randomBtn");
+
+  const kernelTable = document.getElementById("kernelTable");
+  const patchTable = document.getElementById("patchTable");
+  const productTable = document.getElementById("productTable");
+  const formulaBox = document.getElementById("formulaBox");
+  const presetDescription = document.getElementById("presetDescription");
+
+  const posReadout = document.getElementById("posReadout");
+  const idxReadout = document.getElementById("idxReadout");
+  const rawReadout = document.getElementById("rawReadout");
+  const shownReadout = document.getElementById("shownReadout");
+  const progressBar = document.getElementById("progressBar");
+
+  const presets = {
+    identidade: {
+      name: "Identidade",
+      kernel: [
+        [0, 0, 0],
+        [0, 1, 0],
+        [0, 0, 0]
+      ],
+      divisor: 1,
+      bias: 0,
+      description: "Filtro neutro. O pixel de saída é igual ao pixel central da imagem de entrada. É útil para comparar a operação com outros filtros."
+    },
+    media: {
+      name: "Média 3×3 / suavização",
+      kernel: [
+        [1, 1, 1],
+        [1, 1, 1],
+        [1, 1, 1]
+      ],
+      divisor: 9,
+      bias: 0,
+      description: "Filtro passa-baixas. Substitui cada pixel pela média da vizinhança 3×3, reduzindo ruído e suavizando bordas."
+    },
+    gauss: {
+      name: "Gaussiano aproximado 3×3",
+      kernel: [
+        [1, 2, 1],
+        [2, 4, 2],
+        [1, 2, 1]
+      ],
+      divisor: 16,
+      bias: 0,
+      description: "Suavização ponderada. O pixel central tem maior peso, e os vizinhos contribuem menos. Aproxima uma filtragem gaussiana discreta."
+    },
+    laplaciano4: {
+      name: "Laplaciano 4-vizinhos",
+      kernel: [
+        [0, -1, 0],
+        [-1, 4, -1],
+        [0, -1, 0]
+      ],
+      divisor: 1,
+      bias: 0,
+      description: "Filtro de segunda derivada espacial. Realça regiões onde há mudança brusca de intensidade, isto é, bordas e detalhes finos."
+    },
+    laplaciano8: {
+      name: "Laplaciano 8-vizinhos",
+      kernel: [
+        [-1, -1, -1],
+        [-1, 8, -1],
+        [-1, -1, -1]
+      ],
+      divisor: 1,
+      bias: 0,
+      description: "Laplaciano considerando os oito vizinhos ao redor do pixel central. Produz resposta forte em contornos e detalhes de alta frequência."
+    },
+    derivativoX: {
+      name: "Derivativo horizontal d/dx",
+      kernel: [
+        [-1, 0, 1],
+        [-1, 0, 1],
+        [-1, 0, 1]
+      ],
+      divisor: 1,
+      bias: 0,
+      description: "Aproxima a derivada na direção x. Responde fortemente a bordas verticais, pois detecta variações da esquerda para a direita."
+    },
+    derivativoY: {
+      name: "Derivativo vertical d/dy",
+      kernel: [
+        [-1, -1, -1],
+        [0, 0, 0],
+        [1, 1, 1]
+      ],
+      divisor: 1,
+      bias: 0,
+      description: "Aproxima a derivada na direção y. Responde fortemente a bordas horizontais, pois detecta variações de cima para baixo."
+    },
+    sobelX: {
+      name: "Sobel X",
+      kernel: [
+        [-1, 0, 1],
+        [-2, 0, 2],
+        [-1, 0, 1]
+      ],
+      divisor: 1,
+      bias: 0,
+      description: "Filtro derivativo com suavização embutida. Realça bordas verticais e é menos sensível a ruído do que o derivativo simples."
+    },
+    sobelY: {
+      name: "Sobel Y",
+      kernel: [
+        [-1, -2, -1],
+        [0, 0, 0],
+        [1, 2, 1]
+      ],
+      divisor: 1,
+      bias: 0,
+      description: "Filtro derivativo com suavização embutida. Realça bordas horizontais e é menos sensível a ruído do que o derivativo simples."
+    },
+    sharpen: {
+      name: "Realce / sharpen",
+      kernel: [
+        [0, -1, 0],
+        [-1, 5, -1],
+        [0, -1, 0]
+      ],
+      divisor: 1,
+      bias: 0,
+      description: "Realça detalhes mantendo parte da imagem original. Pode aumentar nitidez e também amplificar ruído."
+    }
+  };
+
+  let input = new Float32Array(W * H);
+  let outputRaw = new Float32Array(W * H);
+  let outputShown = new Uint8ClampedArray(W * H);
+  let rawMin = 0;
+  let rawMax = 255;
+  let current = 0;
+  let running = false;
+  let accumulator = 0;
+  let lastTime = performance.now();
+  let animationHandle = null;
+  let randomSeed = 1;
+
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function idx(x, y) {
+    return y * W + x;
+  }
+
+  function currentXY() {
+    const y = Math.floor(current / (W - 2)) + 1;
+    const x = (current % (W - 2)) + 1;
+    return { x, y };
+  }
+
+  function createImageDataFromGray(gray) {
+    const img = new ImageData(W, H);
+    for (let i = 0; i < W * H; i++) {
+      const v = clamp(Math.round(gray[i]), 0, 255);
+      const j = i * 4;
+      img.data[j] = v;
+      img.data[j + 1] = v;
+      img.data[j + 2] = v;
+      img.data[j + 3] = 255;
+    }
+    return img;
+  }
+
+  function drawGray(ctx, gray) {
+    ctx.putImageData(createImageDataFromGray(gray), 0, 0);
+  }
+
+  function drawProgress() {
+    drawGray(progressCtx, input);
+    const { x, y } = currentXY();
+
+    progressCtx.save();
+    progressCtx.lineWidth = 1;
+    progressCtx.strokeStyle = "rgba(37, 99, 235, 1)";
+    progressCtx.fillStyle = "rgba(37, 99, 235, 0.25)";
+    progressCtx.fillRect(x - 1, y - 1, 3, 3);
+    progressCtx.strokeRect(x - 1, y - 1, 3, 3);
+
+    progressCtx.strokeStyle = "rgba(245, 158, 11, 1)";
+    progressCtx.lineWidth = 1;
+    progressCtx.strokeRect(x, y, 1, 1);
+
+    progressCtx.restore();
+  }
+
+  function drawOutput() {
+    const img = new ImageData(W, H);
+    for (let i = 0; i < W * H; i++) {
+      const v = outputShown[i] || 0;
+      const j = i * 4;
+      img.data[j] = v;
+      img.data[j + 1] = v;
+      img.data[j + 2] = v;
+      img.data[j + 3] = 255;
+    }
+
+    outCtx.putImageData(img, 0, 0);
+
+    if (current > 0 && current <= TOTAL) {
+      const n = current - 1;
+      const y = Math.floor(n / (W - 2)) + 1;
+      const x = (n % (W - 2)) + 1;
+      outCtx.save();
+      outCtx.fillStyle = "rgba(220, 38, 38, 0.55)";
+      outCtx.fillRect(x, y, 1, 1);
+      outCtx.restore();
+    }
+  }
+
+  function generateSynthetic(mode = imageModeSelect.value) {
+    input.fill(0);
+    randomSeed++;
+
+    function pseudoRandom(i) {
+      const x = Math.sin(i * 12.9898 + randomSeed * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    }
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        let v = 0;
+
+        if (mode === "gradient") {
+          v = 30 + 1.4 * x + 0.55 * y;
+          if (x > 52) v += 45;
+          if (y > 58) v -= 35;
+        } else if (mode === "noise") {
+          v = 110 + 55 * pseudoRandom(idx(x, y));
+          if ((x - 36) ** 2 + (y - 42) ** 2 < 20 ** 2) v += 65;
+          if (x > 61 && x < 86 && y > 18 && y < 72) v -= 55;
+        } else {
+          v = 25 + 1.2 * x + 0.65 * y;
+          if ((x - 32) ** 2 + (y - 32) ** 2 < 18 ** 2) v = 220;
+          if (x > 58 && x < 84 && y > 16 && y < 45) v = 70;
+          if (Math.abs(y - (0.65 * x + 25)) < 2) v = 245;
+          if ((x - 68) ** 2 + (y - 74) ** 2 < 14 ** 2) v = 35;
+          v += 12 * Math.sin(x / 5) + 8 * Math.cos(y / 7);
+        }
+
+        input[idx(x, y)] = clamp(v, 0, 255);
+      }
+    }
+
+    drawGray(srcCtx, input);
+    resetProcessing();
+  }
+
+  function loadImageFile(file) {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      const tmp = document.createElement("canvas");
+      tmp.width = W;
+      tmp.height = H;
+      const tctx = tmp.getContext("2d");
+
+      tctx.fillStyle = "white";
+      tctx.fillRect(0, 0, W, H);
+
+      const scale = Math.min(W / image.width, H / image.height);
+      const dw = image.width * scale;
+      const dh = image.height * scale;
+      const dx = (W - dw) / 2;
+      const dy = (H - dh) / 2;
+
+      tctx.drawImage(image, dx, dy, dw, dh);
+      const data = tctx.getImageData(0, 0, W, H).data;
+
+      for (let i = 0; i < W * H; i++) {
+        const j = i * 4;
+        input[i] = 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2];
+      }
+
+      drawGray(srcCtx, input);
+      resetProcessing();
+      URL.revokeObjectURL(url);
+    };
+
+    image.src = url;
+  }
+
+  function getPreset() {
+    return presets[presetSelect.value];
+  }
+
+  function computeRawAt(x, y) {
+    const p = getPreset();
+    const k = p.kernel;
+    let sum = 0;
+
+    for (let ky = -1; ky <= 1; ky++) {
+      for (let kx = -1; kx <= 1; kx++) {
+        const pixel = input[idx(x + kx, y + ky)];
+        const coeff = k[ky + 1][kx + 1];
+        sum += pixel * coeff;
+      }
+    }
+
+    return sum / p.divisor + p.bias;
+  }
+
+  function precomputeRawRange() {
+    rawMin = Infinity;
+    rawMax = -Infinity;
+
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const v = computeRawAt(x, y);
+        if (v < rawMin) rawMin = v;
+        if (v > rawMax) rawMax = v;
+      }
+    }
+
+    if (!Number.isFinite(rawMin) || !Number.isFinite(rawMax) || rawMin === rawMax) {
+      rawMin = 0;
+      rawMax = 255;
+    }
+  }
+
+  function displayValue(raw) {
+    const mode = displayModeSelect.value;
+
+    if (mode === "clip") {
+      return clamp(Math.round(raw), 0, 255);
+    }
+
+    if (mode === "abs") {
+      return clamp(Math.round(Math.abs(raw)), 0, 255);
+    }
+
+    if (mode === "signed") {
+      return clamp(Math.round(128 + raw), 0, 255);
+    }
+
+    return clamp(Math.round(255 * (raw - rawMin) / (rawMax - rawMin)), 0, 255);
+  }
+
+  function resetProcessing() {
+    running = false;
+    accumulator = 0;
+    current = 0;
+    outputRaw.fill(0);
+    outputShown.fill(0);
+    precomputeRawRange();
+    drawOutput();
+    drawProgress();
+    updateTablesAndReadouts();
+  }
+
+  function processOnePixel() {
+    if (current >= TOTAL) {
+      running = false;
+      return false;
+    }
+
+    const { x, y } = currentXY();
+    const raw = computeRawAt(x, y);
+    const shown = displayValue(raw);
+
+    outputRaw[idx(x, y)] = raw;
+    outputShown[idx(x, y)] = shown;
+    current++;
+
+    return true;
+  }
+
+  function processMany(n) {
+    for (let i = 0; i < n; i++) {
+      if (!processOnePixel()) break;
+    }
+
+    drawOutput();
+    drawProgress();
+    updateTablesAndReadouts();
+  }
+
+  function animate(now) {
+    const dt = Math.max(0, now - lastTime) / 1000;
+    lastTime = now;
+
+    if (running) {
+      const pixelsPerSecond = Number(speedInput.value);
+      accumulator += dt * pixelsPerSecond;
+      const steps = Math.floor(accumulator);
+      accumulator -= steps;
+
+      if (steps > 0) processMany(steps);
+      if (current >= TOTAL) running = false;
+    }
+
+    animationHandle = requestAnimationFrame(animate);
+  }
+
+  function formatNumber(v) {
+    if (Math.abs(v) >= 100) return Math.round(v).toString();
+    if (Math.abs(v) >= 10) return v.toFixed(1);
+    return v.toFixed(2);
+  }
+
+  function buildTable(el, values, center = false) {
+    let html = "";
+    for (let r = 0; r < 3; r++) {
+      html += "<tr>";
+      for (let c = 0; c < 3; c++) {
+        const cls = center && r === 1 && c === 1 ? " class='centerCell'" : "";
+        html += `<td${cls}>${formatNumber(values[r][c])}</td>`;
+      }
+      html += "</tr>";
+    }
+    el.innerHTML = html;
+  }
+
+  function updateKernelTable() {
+    buildTable(kernelTable, getPreset().kernel);
+    presetDescription.innerHTML = `<strong>${getPreset().name}</strong><br>${getPreset().description}`;
+  }
+
+  function updateTablesAndReadouts() {
+    const { x, y } = currentXY();
+    const safeX = clamp(x, 1, 98);
+    const safeY = clamp(y, 1, 98);
+    const p = getPreset();
+
+    const patch = [];
+    const products = [];
+    const terms = [];
+    let sum = 0;
+
+    for (let ky = -1; ky <= 1; ky++) {
+      const prow = [];
+      const qrow = [];
+
+      for (let kx = -1; kx <= 1; kx++) {
+        const pix = input[idx(safeX + kx, safeY + ky)];
+        const coeff = p.kernel[ky + 1][kx + 1];
+        const prod = pix * coeff;
+        prow.push(pix);
+        qrow.push(prod);
+        terms.push(`${formatNumber(pix)}×(${formatNumber(coeff)})`);
+        sum += prod;
+      }
+
+      patch.push(prow);
+      products.push(qrow);
+    }
+
+    buildTable(patchTable, patch, true);
+    buildTable(productTable, products);
+
+    const raw = sum / p.divisor + p.bias;
+    const shown = displayValue(raw);
+
+    formulaBox.textContent =
+`posição atual: x=${safeX}, y=${safeY}
+
+soma = ${terms.join(" + ")}
+soma = ${formatNumber(sum)}
+
+saída bruta = soma / divisor + bias
+saída bruta = ${formatNumber(sum)} / ${formatNumber(p.divisor)} + ${formatNumber(p.bias)}
+saída bruta = ${formatNumber(raw)}
+
+valor exibido = ${Math.round(shown)}   modo: ${displayModeSelect.options[displayModeSelect.selectedIndex].text}`;
+
+    posReadout.textContent = `(x=${safeX}, y=${safeY})`;
+    idxReadout.textContent = `${Math.min(current, TOTAL)} / ${TOTAL}`;
+    rawReadout.textContent = formatNumber(raw);
+    shownReadout.textContent = Math.round(shown).toString();
+    progressBar.style.width = `${100 * Math.min(current, TOTAL) / TOTAL}%`;
+  }
+
+  function populatePresets() {
+    for (const key of Object.keys(presets)) {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = presets[key].name;
+      presetSelect.appendChild(opt);
+    }
+    presetSelect.value = "laplaciano4";
+  }
+
+  presetSelect.addEventListener("change", () => {
+    updateKernelTable();
+    resetProcessing();
+  });
+
+  speedInput.addEventListener("input", () => {
+    speedLabel.textContent = speedInput.value;
+  });
+
+  displayModeSelect.addEventListener("change", () => {
+    resetProcessing();
+  });
+
+  imageModeSelect.addEventListener("change", () => {
+    generateSynthetic(imageModeSelect.value);
+  });
+
+  uploadInput.addEventListener("change", (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (file) loadImageFile(file);
+  });
+
+  startBtn.addEventListener("click", () => {
+    if (current >= TOTAL) resetProcessing();
+    running = true;
+    lastTime = performance.now();
+  });
+
+  pauseBtn.addEventListener("click", () => {
+    running = false;
+  });
+
+  stepBtn.addEventListener("click", () => {
+    running = false;
+    processMany(1);
+  });
+
+  resetBtn.addEventListener("click", () => {
+    resetProcessing();
+  });
+
+  randomBtn.addEventListener("click", () => {
+    generateSynthetic(imageModeSelect.value);
+  });
+
+  populatePresets();
+  updateKernelTable();
+  generateSynthetic("synthetic");
+  speedLabel.textContent = speedInput.value;
+  lastTime = performance.now();
+  animationHandle = requestAnimationFrame(animate);
+</script>
+</body>
+</html>
+"""
+
+path = Path("/mnt/data/animacao_filtro_kernel_3x3_imagem_100x100.html")
+path.write_text(html, encoding="utf-8")
+path
