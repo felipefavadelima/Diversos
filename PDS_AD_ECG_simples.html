@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador A/D - Sinal de ECG (8 Bits)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background-color: #2d2d2d;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 850px;
+            width: 100%;
+        }
+        canvas {
+            background-color: #000;
+            border: 1px solid #444;
+            border-radius: 5px;
+            margin-top: 15px;
+            width: 100%;
+        }
+        .controls {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #3d3d3d;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 15px;
+        }
+        select {
+            padding: 8px;
+            background-color: #555;
+            color: white;
+            border: 1px solid #777;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .info-panel {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #aaa;
+            line-height: 1.5;
+        }
+        .legend {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .color-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Conversor A/D - Monitoramento de ECG</h2>
+    <p>Resolução fixa: <strong>8 Bits</strong> (256 níveis). Vref: <strong>5.0 V</strong>.</p>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="fsSelect">Frequência de Amostragem (fs):</label>
+            <select id="fsSelect">
+                <option value="10">10 Hz</option>
+                <option value="20">20 Hz</option>
+                <option value="100" selected>100 Hz</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="color-box" style="background: #33cc33;"></div> Sinal Contínuo (Analógico)</div>
+        <div class="legend-item"><div class="color-box" style="background: #ff3333;"></div> Amostras Quantizadas (Pontos Discretos)</div>
+    </div>
+
+    <canvas id="ecgCanvas" width="800" height="350"></canvas>
+
+    <div class="info-panel">
+        <strong>O que observar:</strong> Alterne entre 100 Hz, 20 Hz e 10 Hz. Sem as linhas conectando os pontos, fica ainda mais claro o que o sistema digital realmente "enxerga": apenas pontos isolados no tempo. Em 10 Hz e 20 Hz, observe como o pico do batimento frequentemente passa em branco, caindo no espaço vazio entre uma amostra e outra.
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('ecgCanvas');
+    const ctx = canvas.getContext('2d');
+    const fsSelect = document.getElementById('fsSelect');
+
+    const V_REF = 5.0;
+    const BITS = 8;
+    const LEVELS = Math.pow(2, BITS) - 1; 
+    const SIMULATION_TIME = 2.0; 
+
+    function generateECGPoint(t) {
+        let timeInBeat = t % 1.0; 
+        let voltage = 0;
+
+        voltage += 0.25 * Math.exp(-Math.pow((timeInBeat - 0.2) / 0.03, 2));
+        voltage -= 0.25 * Math.exp(-Math.pow((timeInBeat - 0.35) / 0.01, 2));
+        voltage += 1.8 * Math.exp(-Math.pow((timeInBeat - 0.38) / 0.01, 2));
+        voltage -= 0.4 * Math.exp(-Math.pow((timeInBeat - 0.41) / 0.015, 2));
+        voltage += 0.4 * Math.exp(-Math.pow((timeInBeat - 0.6) / 0.06, 2));
+
+        let mappedVoltage = (voltage + 0.5) * 1.5; 
+        return Math.max(0, Math.min(V_REF, mappedVoltage));
+    }
+
+    function quantize(voltage) {
+        let intValue = Math.round((voltage / V_REF) * LEVELS);
+        return (intValue / LEVELS) * V_REF; 
+    }
+
+    function drawGrid() {
+        ctx.strokeStyle = '#223322'; 
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for(let v = 0; v <= V_REF; v += 1) {
+            let y = canvas.height - (v / V_REF) * canvas.height;
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            if(v > 0) ctx.fillText(v + 'V', 5, y - 5);
+        }
+        for(let t = 0; t <= SIMULATION_TIME; t += 0.2) {
+            let x = (t / SIMULATION_TIME) * canvas.width;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+        }
+        ctx.stroke();
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#666';
+        ctx.font = '12px Arial';
+        drawGrid();
+
+        let fs = parseFloat(fsSelect.value);
+        let sampleInterval = 1.0 / fs;
+
+        // 1. Desenhar Sinal Contínuo (Analógico)
+        ctx.strokeStyle = '#33cc33';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = 0; x < canvas.width; x++) {
+            let t = (x / canvas.width) * SIMULATION_TIME;
+            let v = generateECGPoint(t);
+            let y = canvas.height - (v / V_REF) * canvas.height;
+            
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // 2. Calcular e Desenhar Amostras Quantizadas (Apenas Pontos)
+        ctx.fillStyle = '#ff3333';
+        
+        for (let t = 0; t <= SIMULATION_TIME; t += sampleInterval) {
+            let realV = generateECGPoint(t);
+            let digitalV = quantize(realV); 
+            
+            let x = (t / SIMULATION_TIME) * canvas.width;
+            let y = canvas.height - (digitalV / V_REF) * canvas.height;
+
+            // Desenhar apenas o ponto da amostra
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2); // Aumentei o raio para 4 para destacar melhor os pontos isolados
+            ctx.fill();
+        }
+    }
+
+    // Eventos
+    fsSelect.addEventListener('change', render);
+
+    // Iniciar
+    render();
+</script>
+
+</body>
+</html>
