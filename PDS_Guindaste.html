@@ -259,7 +259,7 @@
 <div class="hud">
   <div class="card">
     <div class="title">Transporte de carga pesada</div>
-    <div class="subtitle">Leve a carga, inicialmente parada em A, até B sem controle anti-sway.</div>
+    <div class="subtitle">Retire a carga de A e encaixe-a em B. Use os botões ou as setas do teclado.</div>
   </div>
   <div class="card status">
     <div class="metric">Tempo<strong id="timer">0.0 s</strong></div>
@@ -275,7 +275,7 @@
 </div>
 
 <div class="message" id="message">
-  <h2>Carga posicionada</h2>
+  <h2 id="messageTitle">Carga posicionada</h2>
   <p id="result"></p>
   <button id="restart">Jogar novamente</button>
 </div>
@@ -286,6 +286,7 @@
   const ctx = canvas.getContext('2d');
   const timerEl = document.getElementById('timer');
   const messageEl = document.getElementById('message');
+  const messageTitleEl = document.getElementById('messageTitle');
   const resultEl = document.getElementById('result');
   const restartBtn = document.getElementById('restart');
   const keyEls = [...document.querySelectorAll('.key')];
@@ -319,6 +320,68 @@
     angularDamping: 0.055
   };
 
+  const geometry = {
+    startX: 2.1,
+    targetX: 12.15,
+    loadHalfWidthPx: 66,
+    loadTopOffsetPx: -6,
+    loadBottomOffsetPx: 36,
+    obstacleWidthPx: 24,
+    obstacleHeightPx: 128,
+    targetHalfGapPx: 92,
+    desiredLoadEndpointAboveGroundPx: 54
+  };
+
+  function sceneGeometry() {
+    const g = world();
+    const sx = g.scaleX;
+    const sy = g.scaleY;
+    const hookY = g.railY + 7;
+    const desiredLoadY = g.groundY - geometry.desiredLoadEndpointAboveGroundPx;
+    const startScreenX = g.left + geometry.startX * sx;
+    const targetScreenX = g.left + geometry.targetX * sx;
+    const wallTop = g.groundY - geometry.obstacleHeightPx;
+
+    return {
+      g, sx, sy, hookY, desiredLoadY, startScreenX, targetScreenX, wallTop,
+      leftWall: {
+        x: targetScreenX - geometry.targetHalfGapPx - geometry.obstacleWidthPx,
+        y: wallTop,
+        w: geometry.obstacleWidthPx,
+        h: geometry.obstacleHeightPx
+      },
+      rightWall: {
+        x: targetScreenX + geometry.targetHalfGapPx,
+        y: wallTop,
+        w: geometry.obstacleWidthPx,
+        h: geometry.obstacleHeightPx
+      }
+    };
+  }
+
+  function loadScreenState(scene = sceneGeometry()) {
+    const x = scene.g.left + state.trolleyX * scene.sx
+      + state.ropeLength * Math.sin(state.angle) * scene.sx;
+    const y = scene.hookY
+      + state.ropeLength * Math.cos(state.angle) * scene.sy;
+
+    return {
+      x,
+      y,
+      left: x - geometry.loadHalfWidthPx,
+      right: x + geometry.loadHalfWidthPx,
+      top: y + geometry.loadTopOffsetPx,
+      bottom: y + geometry.loadBottomOffsetPx
+    };
+  }
+
+  function rectanglesOverlap(a, b) {
+    return a.left < b.x + b.w &&
+           a.right > b.x &&
+           a.top < b.y + b.h &&
+           a.bottom > b.y;
+  }
+
   function resize() {
     W = Math.round(window.visualViewport?.width || innerWidth);
     H = Math.round(window.visualViewport?.height || innerHeight);
@@ -332,25 +395,31 @@
   }
 
   function world() {
-    const left = Math.max(90, W * 0.09);
-    const right = Math.min(W - 90, W * 0.91);
-    const railY = Math.max(145, H * 0.22);
-    const groundY = H - Math.max(95, H * 0.15);
-    const scale = Math.min((right-left)/15, (groundY-railY)/9);
-    return { left, right, railY, groundY, scale };
+    const horizontalMargin = W < 700 ? 22 : Math.max(70, W * 0.07);
+    const left = horizontalMargin;
+    const right = W - horizontalMargin;
+    const railY = Math.max(W < 700 ? 118 : 145, H * 0.20);
+    const groundY = H - Math.max(W < 700 ? 102 : 95, H * 0.15);
+    const scaleX = (right - left) / 15;
+    const scaleY = Math.max(20, (groundY - railY) / 9);
+    return { left, right, railY, groundY, scaleX, scaleY };
   }
 
   function reset() {
-    const g = world();
-    state.trolleyX = 2.1;
+    const scene = sceneGeometry();
+    state.trolleyX = geometry.startX;
     state.trolleyV = 0;
-    state.ropeLength = 7.0;
+    state.ropeLength = Math.max(
+      physics.minRope,
+      Math.min(physics.maxRope, (scene.desiredLoadY - scene.hookY) / scene.sy)
+    );
     state.ropeV = 0;
     state.angle = 0;
     state.angleV = 0;
     state.startTime = performance.now();
     state.finished = false;
     state.settleTime = 0;
+    messageTitleEl.textContent = 'Carga posicionada';
     messageEl.classList.remove('show');
   }
 
@@ -394,18 +463,34 @@
     state.angleV += angleAcc * dt;
     state.angle += state.angleV * dt;
 
-    const targetX = 12.15;
-    const targetY = 7.0;
-    const loadX = state.trolleyX + L * Math.sin(state.angle);
-    const loadY = L * Math.cos(state.angle);
+    const scene = sceneGeometry();
+    const load = loadScreenState(scene);
 
-    const positionError = Math.hypot(loadX - targetX, loadY - targetY);
-    const calmEnough = Math.abs(state.angle) < 0.055 && Math.abs(state.angleV) < 0.10 && Math.abs(state.trolleyV) < 0.13;
-    const insideTarget = positionError < 0.55;
+    if (rectanglesOverlap(load, scene.leftWall) || rectanglesOverlap(load, scene.rightWall)) {
+      fail('A carga colidiu com um dos obstáculos laterais de B.');
+      return;
+    }
+
+    const positionErrorPx = Math.hypot(
+      load.x - scene.targetScreenX,
+      load.y - scene.desiredLoadY
+    );
+    const calmEnough =
+      Math.abs(state.angle) < 0.045 &&
+      Math.abs(state.angleV) < 0.085 &&
+      Math.abs(state.trolleyV) < 0.11 &&
+      Math.abs(state.ropeV) < 0.05;
+
+    const horizontallyInside =
+      load.left > scene.leftWall.x + scene.leftWall.w &&
+      load.right < scene.rightWall.x;
+
+    const verticallyPlaced = Math.abs(load.y - scene.desiredLoadY) < 15;
+    const insideTarget = horizontallyInside && verticallyPlaced && positionErrorPx < 18;
 
     if (insideTarget && calmEnough) {
       state.settleTime += dt;
-      if (state.settleTime > 0.9) finish();
+      if (state.settleTime > 0.85) finish();
     } else {
       state.settleTime = 0;
     }
@@ -416,7 +501,16 @@
   function finish() {
     state.finished = true;
     const elapsed = ((performance.now() - state.startTime) / 1000).toFixed(1);
-    resultEl.textContent = `Você concluiu o transporte em ${elapsed} segundos. O desafio principal foi dissipar o balanço apenas por meio da movimentação manual do carro.`;
+    messageTitleEl.textContent = 'Carga posicionada';
+    resultEl.textContent = `Você concluiu o transporte em ${elapsed} segundos sem tocar nos obstáculos.`;
+    messageEl.classList.add('show');
+  }
+
+  function fail(reason) {
+    if (state.finished) return;
+    state.finished = true;
+    messageTitleEl.textContent = 'Colisão';
+    resultEl.textContent = `${reason} Reinicie e tente controlar melhor o balanço da carga.`;
     messageEl.classList.add('show');
   }
 
@@ -428,8 +522,9 @@
   }
 
   function render() {
-    const g = world();
-    const s = g.scale;
+    const scene = sceneGeometry();
+    const g = scene.g;
+    const sx = scene.sx;
 
     ctx.clearRect(0, 0, W, H);
 
@@ -451,7 +546,7 @@
     }
 
     // crane mast and jib
-    const mastX = g.right - s * 0.8;
+    const mastX = g.right - sx * 0.8;
     ctx.strokeStyle = '#b47a0a';
     ctx.lineWidth = 5;
     ctx.strokeRect(mastX, g.railY - 20, 42, g.groundY - g.railY + 20);
@@ -474,7 +569,7 @@
       ctx.stroke();
     }
 
-    const toScreenX = x => g.left + x * s;
+    const toScreenX = x => g.left + x * sx;
     const trolleyScreenX = toScreenX(state.trolleyX);
 
     // trolley
@@ -487,9 +582,10 @@
 
     // load geometry
     const hookX = trolleyScreenX;
-    const hookY = g.railY + 7;
-    const loadX = hookX + state.ropeLength * s * Math.sin(state.angle);
-    const loadY = hookY + state.ropeLength * s * Math.cos(state.angle);
+    const hookY = scene.hookY;
+    const currentLoad = loadScreenState(scene);
+    const loadX = currentLoad.x;
+    const loadY = currentLoad.y;
 
     ctx.strokeStyle = '#3c444a';
     ctx.lineWidth = 2.2;
@@ -528,32 +624,72 @@
     }
     ctx.restore();
 
-    // start and target zones
-    const startX = toScreenX(2.1);
-    const targetX = toScreenX(12.15);
-    const zoneY = g.groundY - 26;
+    // Exact starting point A and constrained target B.
+    const startX = scene.startScreenX;
+    const targetX = scene.targetScreenX;
+    const platformY = scene.desiredLoadY + geometry.loadBottomOffsetPx + 4;
 
     ctx.save();
     ctx.setLineDash([7, 7]);
     ctx.lineWidth = 2;
 
-    ctx.strokeStyle = 'rgba(194,65,59,.8)';
-    ctx.strokeRect(startX - 72, zoneY - 36, 144, 36);
-    ctx.fillStyle = 'rgba(194,65,59,.08)';
-    ctx.fillRect(startX - 72, zoneY - 36, 144, 36);
+    ctx.strokeStyle = 'rgba(194,65,59,.82)';
+    ctx.strokeRect(
+      startX - geometry.loadHalfWidthPx - 8,
+      scene.desiredLoadY + geometry.loadTopOffsetPx - 8,
+      geometry.loadHalfWidthPx * 2 + 16,
+      geometry.loadBottomOffsetPx - geometry.loadTopOffsetPx + 16
+    );
+    ctx.fillStyle = 'rgba(194,65,59,.07)';
+    ctx.fillRect(
+      startX - geometry.loadHalfWidthPx - 8,
+      scene.desiredLoadY + geometry.loadTopOffsetPx - 8,
+      geometry.loadHalfWidthPx * 2 + 16,
+      geometry.loadBottomOffsetPx - geometry.loadTopOffsetPx + 16
+    );
 
     ctx.strokeStyle = 'rgba(45,138,87,.9)';
-    ctx.strokeRect(targetX - 78, zoneY - 36, 156, 36);
-    ctx.fillStyle = 'rgba(45,138,87,.10)';
-    ctx.fillRect(targetX - 78, zoneY - 36, 156, 36);
+    ctx.strokeRect(
+      targetX - geometry.targetHalfGapPx,
+      scene.desiredLoadY + geometry.loadTopOffsetPx - 8,
+      geometry.targetHalfGapPx * 2,
+      geometry.loadBottomOffsetPx - geometry.loadTopOffsetPx + 16
+    );
+    ctx.fillStyle = 'rgba(45,138,87,.08)';
+    ctx.fillRect(
+      targetX - geometry.targetHalfGapPx,
+      scene.desiredLoadY + geometry.loadTopOffsetPx - 8,
+      geometry.targetHalfGapPx * 2,
+      geometry.loadBottomOffsetPx - geometry.loadTopOffsetPx + 16
+    );
     ctx.restore();
+
+    // Platforms.
+    ctx.fillStyle = '#8f989e';
+    ctx.fillRect(startX - 82, platformY, 164, 10);
+    ctx.fillRect(targetX - geometry.targetHalfGapPx, platformY, geometry.targetHalfGapPx * 2, 10);
+
+    // Lateral collision obstacles at B.
+    const wallGradient = ctx.createLinearGradient(0, scene.wallTop, 0, g.groundY);
+    wallGradient.addColorStop(0, '#9a4b3d');
+    wallGradient.addColorStop(1, '#71352e');
+    ctx.fillStyle = wallGradient;
+    ctx.fillRect(scene.leftWall.x, scene.leftWall.y, scene.leftWall.w, scene.leftWall.h);
+    ctx.fillRect(scene.rightWall.x, scene.rightWall.y, scene.rightWall.w, scene.rightWall.h);
+
+    ctx.fillStyle = 'rgba(255,255,255,.18)';
+    for (const wall of [scene.leftWall, scene.rightWall]) {
+      for (let y = wall.y + 12; y < wall.y + wall.h; y += 22) {
+        ctx.fillRect(wall.x + 4, y, wall.w - 8, 4);
+      }
+    }
 
     ctx.font = '700 15px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#b43f39';
-    ctx.fillText('A', startX, zoneY - 47);
+    ctx.fillText('A', startX, scene.desiredLoadY + geometry.loadTopOffsetPx - 17);
     ctx.fillStyle = '#28784e';
-    ctx.fillText('B', targetX, zoneY - 47);
+    ctx.fillText('B', targetX, scene.wallTop - 12);
 
     // sway indicator
     const sway = Math.min(1, Math.abs(state.angle) / 0.35);
@@ -578,19 +714,32 @@
     requestAnimationFrame(loop);
   }
 
+  function normalizeControlKey(key) {
+    const lower = key.toLowerCase();
+    const map = { a: 'ArrowLeft', d: 'ArrowRight', w: 'ArrowUp', s: 'ArrowDown' };
+    return map[lower] || key;
+  }
+
+  function refreshKeyIndicators() {
+    keyEls.forEach(el => el.classList.toggle('active', Boolean(keys[el.dataset.key])));
+  }
+
   addEventListener('keydown', e => {
-    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','a','d','w','s'].includes(e.key)) {
+    const controlKey = normalizeControlKey(e.key);
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(controlKey)) {
       e.preventDefault();
-      keys[e.key] = true;
-      keyEls.forEach(el => el.classList.toggle('active', el.dataset.key === e.key));
+      keys[controlKey] = true;
+      refreshKeyIndicators();
     }
   });
 
   addEventListener('keyup', e => {
-    keys[e.key] = false;
-    keyEls.forEach(el => {
-      if (el.dataset.key === e.key) el.classList.remove('active');
-    });
+    const controlKey = normalizeControlKey(e.key);
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(controlKey)) {
+      e.preventDefault();
+      keys[controlKey] = false;
+      refreshKeyIndicators();
+    }
   });
 
   // Touch/mouse support
