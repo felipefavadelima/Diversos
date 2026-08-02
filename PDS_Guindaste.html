@@ -232,23 +232,26 @@
     }
 
     .controls {
-      left: auto;
-      right: 10px;
-      bottom: max(8px, env(safe-area-inset-bottom));
-      transform: none;
+      left: 50%;
+      right: auto;
+      bottom: max(7px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
       width: auto;
-      padding: 8px;
-      gap: 8px;
+      max-width: calc(100vw - 24px);
+      padding: 7px 9px;
+      gap: 7px;
+      border-radius: 16px;
     }
 
     .key {
-      width: 50px;
-      height: 50px;
+      width: 48px;
+      height: 48px;
       font-size: 20px;
+      border-radius: 13px;
     }
 
     .divider {
-      height: 34px;
+      height: 32px;
     }
   }
 </style>
@@ -316,45 +319,86 @@
     trolleyDrag: 1.75,
     hoistSpeed: 2.0,
     minRope: 2.7,
-    maxRope: 8.4,
+    maxRope: 9.2,
     angularDamping: 0.055
   };
 
   const geometry = {
     startX: 2.1,
-    targetX: 12.15,
-    loadHalfWidthPx: 66,
-    loadTopOffsetPx: -6,
-    loadBottomOffsetPx: 36,
-    obstacleWidthPx: 24,
-    obstacleHeightPx: 128,
-    targetHalfGapPx: 92,
-    desiredLoadEndpointAboveGroundPx: 54
+    targetXDesktop: 12.15,
+    targetXPortrait: 11.45,
+    baseLoadHalfWidth: 66,
+    baseLoadTopOffset: -6,
+    baseLoadBottomOffset: 36,
+    baseObstacleWidth: 22,
+    baseClearance: 28,
+    baseWallExtraTop: 30
   };
+
+  function responsiveObjectScale() {
+    // The visual objects scale from the most restrictive viewport dimension.
+    // This prevents oversized obstacles in landscape and an excessively narrow
+    // opening in portrait mode.
+    const widthScale = W / 900;
+    const heightScale = H / 650;
+    return Math.max(0.62, Math.min(1, widthScale, heightScale));
+  }
 
   function sceneGeometry() {
     const g = world();
     const sx = g.scaleX;
     const sy = g.scaleY;
+    const k = responsiveObjectScale();
+
+    const loadHalfWidth = geometry.baseLoadHalfWidth * k;
+    const loadTopOffset = geometry.baseLoadTopOffset * k;
+    const loadBottomOffset = geometry.baseLoadBottomOffset * k;
+    const loadWidth = 2 * loadHalfWidth;
+    const loadHeight = loadBottomOffset - loadTopOffset;
+
+    const clearance = Math.max(18, geometry.baseClearance * k);
+    const targetHalfGap = loadHalfWidth + clearance;
+    const obstacleWidth = Math.max(14, geometry.baseObstacleWidth * k);
+    const platformThickness = Math.max(8, 10 * k);
+
+    const portrait = H > W;
+    const targetWorldX = portrait
+      ? geometry.targetXPortrait
+      : geometry.targetXDesktop;
+
     const hookY = g.railY + 7;
-    const desiredLoadY = g.groundY - geometry.desiredLoadEndpointAboveGroundPx;
+    const desiredLoadY =
+      g.groundY - loadBottomOffset - platformThickness - 6;
+    const platformY = desiredLoadY + loadBottomOffset + 4;
+
+    // The walls rise only slightly above the top of the load. Their height is
+    // therefore proportional to the object, not to the full screen.
+    const wallExtraTop = Math.max(22, geometry.baseWallExtraTop * k);
+    const wallTop = platformY - loadHeight - wallExtraTop;
+    const wallBottom = platformY + platformThickness;
+    const obstacleHeight = wallBottom - wallTop;
+
     const startScreenX = g.left + geometry.startX * sx;
-    const targetScreenX = g.left + geometry.targetX * sx;
-    const wallTop = g.groundY - geometry.obstacleHeightPx;
+    const targetScreenX = g.left + targetWorldX * sx;
 
     return {
-      g, sx, sy, hookY, desiredLoadY, startScreenX, targetScreenX, wallTop,
+      g, sx, sy, k, hookY, desiredLoadY, platformY,
+      startScreenX, targetScreenX, targetWorldX,
+      loadHalfWidth, loadWidth, loadHeight,
+      loadTopOffset, loadBottomOffset,
+      targetHalfGap, obstacleWidth,
+      platformThickness, wallTop, wallBottom,
       leftWall: {
-        x: targetScreenX - geometry.targetHalfGapPx - geometry.obstacleWidthPx,
+        x: targetScreenX - targetHalfGap - obstacleWidth,
         y: wallTop,
-        w: geometry.obstacleWidthPx,
-        h: geometry.obstacleHeightPx
+        w: obstacleWidth,
+        h: obstacleHeight
       },
       rightWall: {
-        x: targetScreenX + geometry.targetHalfGapPx,
+        x: targetScreenX + targetHalfGap,
         y: wallTop,
-        w: geometry.obstacleWidthPx,
-        h: geometry.obstacleHeightPx
+        w: obstacleWidth,
+        h: obstacleHeight
       }
     };
   }
@@ -368,10 +412,10 @@
     return {
       x,
       y,
-      left: x - geometry.loadHalfWidthPx,
-      right: x + geometry.loadHalfWidthPx,
-      top: y + geometry.loadTopOffsetPx,
-      bottom: y + geometry.loadBottomOffsetPx
+      left: x - scene.loadHalfWidth,
+      right: x + scene.loadHalfWidth,
+      top: y + scene.loadTopOffset,
+      bottom: y + scene.loadBottomOffset
     };
   }
 
@@ -395,13 +439,30 @@
   }
 
   function world() {
-    const horizontalMargin = W < 700 ? 22 : Math.max(70, W * 0.07);
+    const portrait = H > W;
+    const compactLandscape = !portrait && H < 560;
+
+    const horizontalMargin = portrait
+      ? Math.max(18, W * 0.035)
+      : Math.max(52, W * 0.055);
+
     const left = horizontalMargin;
     const right = W - horizontalMargin;
-    const railY = Math.max(W < 700 ? 118 : 145, H * 0.20);
-    const groundY = H - Math.max(W < 700 ? 102 : 95, H * 0.15);
+
+    const railY = compactLandscape
+      ? Math.max(104, H * 0.25)
+      : Math.max(portrait ? 150 : 138, H * 0.20);
+
+    const controlReserve = compactLandscape
+      ? 82
+      : portrait
+        ? Math.max(118, H * 0.115)
+        : 100;
+
+    const groundY = H - controlReserve;
     const scaleX = (right - left) / 15;
     const scaleY = Math.max(20, (groundY - railY) / 9);
+
     return { left, right, railY, groundY, scaleX, scaleY };
   }
 
@@ -485,8 +546,14 @@
       load.left > scene.leftWall.x + scene.leftWall.w &&
       load.right < scene.rightWall.x;
 
-    const verticallyPlaced = Math.abs(load.y - scene.desiredLoadY) < 15;
-    const insideTarget = horizontallyInside && verticallyPlaced && positionErrorPx < 18;
+    const verticalTolerance = Math.max(10, 15 * scene.k);
+    const positionTolerance = Math.max(12, 18 * scene.k);
+    const verticallyPlaced =
+      Math.abs(load.y - scene.desiredLoadY) < verticalTolerance;
+    const insideTarget =
+      horizontallyInside &&
+      verticallyPlaced &&
+      positionErrorPx < positionTolerance;
 
     if (insideTarget && calmEnough) {
       state.settleTime += dt;
@@ -587,39 +654,71 @@
     const loadX = currentLoad.x;
     const loadY = currentLoad.y;
 
+    const loadTop = loadY + scene.loadTopOffset;
+    const slingApexY = loadTop - 27 * scene.k;
+    const slingHalfWidth = scene.loadHalfWidth * 0.67;
+
     ctx.strokeStyle = '#3c444a';
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = Math.max(1.5, 2.2 * scene.k);
     ctx.beginPath();
     ctx.moveTo(hookX, hookY);
-    ctx.lineTo(loadX, loadY - 35);
+    ctx.lineTo(loadX, slingApexY);
     ctx.stroke();
 
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1.4, 2 * scene.k);
     ctx.beginPath();
-    ctx.moveTo(loadX, loadY - 35);
-    ctx.lineTo(loadX - 42, loadY - 2);
-    ctx.moveTo(loadX, loadY - 35);
-    ctx.lineTo(loadX + 42, loadY - 2);
+    ctx.moveTo(loadX, slingApexY);
+    ctx.lineTo(loadX - slingHalfWidth, loadTop + 4 * scene.k);
+    ctx.moveTo(loadX, slingApexY);
+    ctx.lineTo(loadX + slingHalfWidth, loadTop + 4 * scene.k);
     ctx.stroke();
 
     // shadow
     const shadowScale = Math.max(.35, 1 - (g.groundY - loadY)/500);
     ctx.fillStyle = 'rgba(24,30,34,.14)';
     ctx.beginPath();
-    ctx.ellipse(loadX, g.groundY + 4, 74 * shadowScale, 17 * shadowScale, 0, 0, Math.PI*2);
+    ctx.ellipse(
+      loadX,
+      g.groundY + 4,
+      scene.loadHalfWidth * 1.12 * shadowScale,
+      17 * scene.k * shadowScale,
+      0, 0, Math.PI*2
+    );
     ctx.fill();
 
     // load
     ctx.save();
-    ctx.translate(loadX, loadY + 12);
+    ctx.translate(loadX, loadY);
     ctx.rotate(state.angle * 0.18);
-    drawRoundedRect(-66, -18, 132, 42, 5, '#70787d', '#50585d');
+    drawRoundedRect(
+      -scene.loadHalfWidth,
+      scene.loadTopOffset,
+      scene.loadWidth,
+      scene.loadHeight,
+      Math.max(3, 5 * scene.k),
+      '#70787d',
+      '#50585d'
+    );
+
     ctx.fillStyle = 'rgba(255,255,255,.12)';
-    ctx.fillRect(-56, -10, 112, 7);
+    ctx.fillRect(
+      -scene.loadHalfWidth * 0.84,
+      scene.loadTopOffset + 8 * scene.k,
+      scene.loadWidth * 0.84,
+      Math.max(4, 7 * scene.k)
+    );
+
     ctx.fillStyle = 'rgba(45,50,54,.25)';
-    for (let i = -48; i <= 48; i += 24) {
+    const boltRadius = Math.max(2.5, 4 * scene.k);
+    for (let q = -2; q <= 2; q++) {
       ctx.beginPath();
-      ctx.arc(i, 8 + ((i/24)%2)*4, 4, 0, Math.PI*2);
+      ctx.arc(
+        q * scene.loadHalfWidth * 0.36,
+        scene.loadBottomOffset - 16 * scene.k + (Math.abs(q) % 2) * 3 * scene.k,
+        boltRadius,
+        0,
+        Math.PI * 2
+      );
       ctx.fill();
     }
     ctx.restore();
@@ -627,75 +726,119 @@
     // Exact starting point A and constrained target B.
     const startX = scene.startScreenX;
     const targetX = scene.targetScreenX;
-    const platformY = scene.desiredLoadY + geometry.loadBottomOffsetPx + 4;
+    const zonePadding = Math.max(6, 8 * scene.k);
 
     ctx.save();
     ctx.setLineDash([7, 7]);
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1.5, 2 * scene.k);
 
     ctx.strokeStyle = 'rgba(194,65,59,.82)';
     ctx.strokeRect(
-      startX - geometry.loadHalfWidthPx - 8,
-      scene.desiredLoadY + geometry.loadTopOffsetPx - 8,
-      geometry.loadHalfWidthPx * 2 + 16,
-      geometry.loadBottomOffsetPx - geometry.loadTopOffsetPx + 16
+      startX - scene.loadHalfWidth - zonePadding,
+      scene.desiredLoadY + scene.loadTopOffset - zonePadding,
+      scene.loadWidth + 2 * zonePadding,
+      scene.loadHeight + 2 * zonePadding
     );
     ctx.fillStyle = 'rgba(194,65,59,.07)';
     ctx.fillRect(
-      startX - geometry.loadHalfWidthPx - 8,
-      scene.desiredLoadY + geometry.loadTopOffsetPx - 8,
-      geometry.loadHalfWidthPx * 2 + 16,
-      geometry.loadBottomOffsetPx - geometry.loadTopOffsetPx + 16
+      startX - scene.loadHalfWidth - zonePadding,
+      scene.desiredLoadY + scene.loadTopOffset - zonePadding,
+      scene.loadWidth + 2 * zonePadding,
+      scene.loadHeight + 2 * zonePadding
     );
 
     ctx.strokeStyle = 'rgba(45,138,87,.9)';
     ctx.strokeRect(
-      targetX - geometry.targetHalfGapPx,
-      scene.desiredLoadY + geometry.loadTopOffsetPx - 8,
-      geometry.targetHalfGapPx * 2,
-      geometry.loadBottomOffsetPx - geometry.loadTopOffsetPx + 16
+      targetX - scene.targetHalfGap,
+      scene.desiredLoadY + scene.loadTopOffset - zonePadding,
+      scene.targetHalfGap * 2,
+      scene.loadHeight + 2 * zonePadding
     );
     ctx.fillStyle = 'rgba(45,138,87,.08)';
     ctx.fillRect(
-      targetX - geometry.targetHalfGapPx,
-      scene.desiredLoadY + geometry.loadTopOffsetPx - 8,
-      geometry.targetHalfGapPx * 2,
-      geometry.loadBottomOffsetPx - geometry.loadTopOffsetPx + 16
+      targetX - scene.targetHalfGap,
+      scene.desiredLoadY + scene.loadTopOffset - zonePadding,
+      scene.targetHalfGap * 2,
+      scene.loadHeight + 2 * zonePadding
     );
     ctx.restore();
 
     // Platforms.
     ctx.fillStyle = '#8f989e';
-    ctx.fillRect(startX - 82, platformY, 164, 10);
-    ctx.fillRect(targetX - geometry.targetHalfGapPx, platformY, geometry.targetHalfGapPx * 2, 10);
+    ctx.fillRect(
+      startX - scene.loadHalfWidth - 12 * scene.k,
+      scene.platformY,
+      scene.loadWidth + 24 * scene.k,
+      scene.platformThickness
+    );
+    ctx.fillRect(
+      targetX - scene.targetHalfGap,
+      scene.platformY,
+      scene.targetHalfGap * 2,
+      scene.platformThickness
+    );
 
     // Lateral collision obstacles at B.
-    const wallGradient = ctx.createLinearGradient(0, scene.wallTop, 0, g.groundY);
+    const wallGradient = ctx.createLinearGradient(
+      0,
+      scene.wallTop,
+      0,
+      scene.wallBottom
+    );
     wallGradient.addColorStop(0, '#9a4b3d');
     wallGradient.addColorStop(1, '#71352e');
     ctx.fillStyle = wallGradient;
-    ctx.fillRect(scene.leftWall.x, scene.leftWall.y, scene.leftWall.w, scene.leftWall.h);
-    ctx.fillRect(scene.rightWall.x, scene.rightWall.y, scene.rightWall.w, scene.rightWall.h);
+    ctx.fillRect(
+      scene.leftWall.x,
+      scene.leftWall.y,
+      scene.leftWall.w,
+      scene.leftWall.h
+    );
+    ctx.fillRect(
+      scene.rightWall.x,
+      scene.rightWall.y,
+      scene.rightWall.w,
+      scene.rightWall.h
+    );
 
     ctx.fillStyle = 'rgba(255,255,255,.18)';
+    const stripeStep = Math.max(14, 22 * scene.k);
     for (const wall of [scene.leftWall, scene.rightWall]) {
-      for (let y = wall.y + 12; y < wall.y + wall.h; y += 22) {
-        ctx.fillRect(wall.x + 4, y, wall.w - 8, 4);
+      for (
+        let y = wall.y + 10 * scene.k;
+        y < wall.y + wall.h;
+        y += stripeStep
+      ) {
+        ctx.fillRect(
+          wall.x + 3 * scene.k,
+          y,
+          wall.w - 6 * scene.k,
+          Math.max(2, 4 * scene.k)
+        );
       }
     }
 
-    ctx.font = '700 15px Inter, system-ui, sans-serif';
+    ctx.font = `${Math.max(12, 15 * scene.k)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#b43f39';
-    ctx.fillText('A', startX, scene.desiredLoadY + geometry.loadTopOffsetPx - 17);
+    ctx.fillText(
+      'A',
+      startX,
+      scene.desiredLoadY + scene.loadTopOffset - 14 * scene.k
+    );
     ctx.fillStyle = '#28784e';
-    ctx.fillText('B', targetX, scene.wallTop - 12);
+    ctx.fillText(
+      'B',
+      targetX,
+      scene.wallTop - 10 * scene.k
+    );
 
     // sway indicator
     const sway = Math.min(1, Math.abs(state.angle) / 0.35);
-    const barW = 150;
-    const bx = W - 24 - barW;
-    const by = 128;
+    const compactLandscape = H < 560 && W > H;
+    const barW = Math.min(150, W * 0.28);
+    const bx = compactLandscape ? (W - barW) / 2 : W - 24 - barW;
+    const by = compactLandscape ? 88 : 128;
     ctx.fillStyle = 'rgba(255,255,255,.78)';
     drawRoundedRect(bx, by, barW, 10, 5, 'rgba(255,255,255,.78)');
     drawRoundedRect(bx, by, barW * sway, 10, 5, sway < .35 ? '#2d8a57' : sway < .7 ? '#d28b10' : '#c2413b');
