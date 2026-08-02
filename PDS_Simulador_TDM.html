@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulador TDM - 3 Canais Simultâneos</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h2 {
+            margin-bottom: 5px;
+        }
+        p {
+            margin-top: 0;
+            color: #666;
+            max-width: 650px;
+            text-align: center;
+        }
+        .controls {
+            background: #fff;
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        canvas {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input[type=range] {
+            width: 250px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Simulador de Multiplexação (TDM) - 3 Canais Simultâneos</h2>
+    <p>Acompanhe os três sinais simultaneamente. Ajuste a velocidade para ver como a amostragem afeta de forma diferente as ondas lentas e rápidas.</p>
+
+    <div class="controls">
+        <label for="speedControl">Velocidade de Rotação do Comutador:</label>
+        <input type="range" id="speedControl" min="0.01" max="0.8" step="0.01" value="0.02">
+    </div>
+
+    <!-- Canvas para os Comutadores Rotativos -->
+    <canvas id="mechanicsCanvas" width="700" height="250"></canvas>
+    
+    <!-- Canvas para os Gráficos das Ondas -->
+    <canvas id="wavesCanvas" width="700" height="450"></canvas>
+
+    <script>
+        // Configurações e Variáveis de Estado
+        const numChannels = 3;
+        const channelAngle = (2 * Math.PI) / numChannels;
+        let currentAngle = 0;
+        let time = 0;
+        
+        // Elementos do DOM
+        const speedControl = document.getElementById('speedControl');
+        const mechCanvas = document.getElementById('mechanicsCanvas');
+        const mechCtx = mechCanvas.getContext('2d');
+        const wavesCanvas = document.getElementById('wavesCanvas');
+        const wavesCtx = wavesCanvas.getContext('2d');
+
+        // Buffers para desenhar os gráficos 
+        const historySize = 700;
+        const txHistories = [
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0)
+        ];
+        const rxHistories = [
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0)
+        ];
+
+        function drawMechanics(activeChannel) {
+            mechCtx.clearRect(0, 0, mechCanvas.width, mechCanvas.height);
+
+            const centerX1 = 150;
+            const centerY = 125;
+            const centerX2 = 550;
+            const radius = 60;
+
+            // Desenha a linha de transmissão central
+            mechCtx.beginPath();
+            mechCtx.moveTo(centerX1, centerY);
+            mechCtx.lineTo(centerX2, centerY);
+            mechCtx.strokeStyle = '#333';
+            mechCtx.lineWidth = 2;
+            mechCtx.stroke();
+
+            // Função auxiliar para desenhar um comutador
+            function drawCommutator(cx, cy, title) {
+                mechCtx.beginPath();
+                mechCtx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                mechCtx.fillStyle = '#eee';
+                mechCtx.fill();
+                mechCtx.strokeStyle = '#999';
+                mechCtx.lineWidth = 4;
+                mechCtx.stroke();
+
+                for(let i = 0; i < numChannels; i++) {
+                    const startA = i * channelAngle;
+                    const endA = (i + 1) * channelAngle;
+                    
+                    mechCtx.beginPath();
+                    mechCtx.arc(cx, cy, radius, startA, endA);
+                    
+                    if(i === activeChannel) {
+                        mechCtx.strokeStyle = '#ff3333';
+                        mechCtx.lineWidth = 8;
+                    } else {
+                        mechCtx.strokeStyle = '#333';
+                        mechCtx.lineWidth = 2;
+                    }
+                    mechCtx.stroke();
+                    
+                    const textAngle = startA + (channelAngle / 2);
+                    const textX = cx + (radius + 15) * Math.cos(textAngle);
+                    const textY = cy + (radius + 15) * Math.sin(textAngle);
+                    mechCtx.fillStyle = '#666';
+                    mechCtx.font = '12px Arial';
+                    mechCtx.textAlign = 'center';
+                    mechCtx.textBaseline = 'middle';
+                    mechCtx.fillText("CH " + (i+1), textX, textY);
+                }
+
+                mechCtx.beginPath();
+                mechCtx.moveTo(cx, cy);
+                mechCtx.lineTo(cx + (radius-5) * Math.cos(currentAngle), cy + (radius-5) * Math.sin(currentAngle));
+                mechCtx.strokeStyle = '#0066cc';
+                mechCtx.lineWidth = 6;
+                mechCtx.lineCap = 'round';
+                mechCtx.stroke();
+
+                mechCtx.fillStyle = '#333';
+                mechCtx.font = '16px Arial';
+                mechCtx.textAlign = 'center';
+                mechCtx.fillText(title, cx, cy + radius + 40);
+            }
+
+            drawCommutator(centerX1, centerY, "Transmissor");
+            drawCommutator(centerX2, centerY, "Receptor");
+        }
+
+        function drawWaves() {
+            wavesCtx.clearRect(0, 0, wavesCanvas.width, wavesCanvas.height);
+            
+            const sectionHeight = wavesCanvas.height / numChannels;
+            const amp = (sectionHeight / 2) - 20; 
+
+            for(let ch = 0; ch < numChannels; ch++) {
+                const midY = (ch * sectionHeight) + (sectionHeight / 2);
+
+                if (ch < numChannels - 1) {
+                    wavesCtx.beginPath();
+                    wavesCtx.moveTo(0, (ch + 1) * sectionHeight);
+                    wavesCtx.lineTo(wavesCanvas.width, (ch + 1) * sectionHeight);
+                    wavesCtx.strokeStyle = '#eee';
+                    wavesCtx.lineWidth = 2;
+                    wavesCtx.stroke();
+                }
+
+                wavesCtx.beginPath();
+                wavesCtx.moveTo(0, midY);
+                wavesCtx.lineTo(wavesCanvas.width, midY);
+                wavesCtx.strokeStyle = '#ddd';
+                wavesCtx.lineWidth = 1;
+                wavesCtx.stroke();
+
+                wavesCtx.beginPath();
+                for(let i = 0; i < historySize; i++) {
+                    const y = midY - (txHistories[ch][i] * amp);
+                    if(i === 0) wavesCtx.moveTo(i, y);
+                    else wavesCtx.lineTo(i, y);
+                }
+                wavesCtx.strokeStyle = 'rgba(0, 102, 204, 0.4)';
+                wavesCtx.lineWidth = 3;
+                wavesCtx.stroke();
+
+                wavesCtx.beginPath();
+                for(let i = 0; i < historySize; i++) {
+                    const y = midY - (rxHistories[ch][i] * amp);
+                    if(i === 0) wavesCtx.moveTo(i, y);
+                    else wavesCtx.lineTo(i, y);
+                }
+                wavesCtx.strokeStyle = '#cc0000';
+                wavesCtx.lineWidth = 2;
+                wavesCtx.stroke();
+
+                const textNames = [
+                    "Senoide Muito Lenta",
+                    "Senoide Média",
+                    "Senoide Rápida"
+                ];
+                wavesCtx.fillStyle = '#333';
+                wavesCtx.font = 'bold 12px Arial';
+                wavesCtx.textAlign = 'left';
+                wavesCtx.fillText(`Canal ${ch + 1}: ${textNames[ch]}`, 10, (ch * sectionHeight) + 20);
+            }
+        }
+
+        function update() {
+            const speed = parseFloat(speedControl.value);
+            currentAngle = (currentAngle + speed) % (2 * Math.PI);
+            time += 1;
+
+            // Geração dos sinais com as novas frequências solicitadas
+            const currentTxSignals = [
+                Math.sin(time * 0.01),  // CH 1: Muito Lenta
+                Math.sin(time * 0.05),  // CH 2: Média
+                Math.sin(time * 0.20)   // CH 3: Rápida
+            ];
+
+            let normAngle = currentAngle;
+            if (normAngle < 0) normAngle += 2 * Math.PI;
+            const activePhysicalChannel = Math.floor(normAngle / channelAngle);
+
+            for(let ch = 0; ch < numChannels; ch++) {
+                const currentRx = (activePhysicalChannel === ch) ? currentTxSignals[ch] : 0;
+                
+                txHistories[ch].push(currentTxSignals[ch]);
+                txHistories[ch].shift();
+                
+                rxHistories[ch].push(currentRx);
+                rxHistories[ch].shift();
+            }
+
+            drawMechanics(activePhysicalChannel);
+            drawWaves();
+
+            requestAnimationFrame(update);
+        }
+
+        update();
+    </script>
+</body>
+</html>
