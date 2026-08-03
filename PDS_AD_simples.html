@@ -51,12 +51,6 @@
             flex: 1;
             min-width: 140px;
         }
-        .control-group.checkbox-group {
-            flex-direction: row;
-            align-items: center;
-            gap: 10px;
-            justify-content: center;
-        }
         input[type=range], select {
             width: 100%;
             padding: 5px;
@@ -146,7 +140,7 @@
 <body>
 
     <h2>Simulador de Conversor A/D</h2>
-    <p>Onda de Entrada: Senoide de 10 Hz (0V a 5V). Ajuste a frequência de amostragem, a resolução e os ciclos para observar a conversão digital.</p>
+    <p>Onda de Entrada: Senoide de 10 Hz (0V a 5V). Ajuste os parâmetros para observar a conversão digital e a reconstrução do sinal.</p>
 
     <div class="controls">
         <div class="control-group">
@@ -169,11 +163,17 @@
                 <option value="20">20 Ciclos</option>
             </select>
         </div>
-        <div class="control-group checkbox-group" style="margin-top: 15px;">
-            <input type="checkbox" id="splineControl" style="width: 18px; height: 18px; cursor: pointer;">
-            <label for="splineControl" style="cursor: pointer;">Interpolação Spline</label>
+        <div class="control-group">
+            <label for="interpSelect">Interpolação:</label>
+            <select id="interpSelect">
+                <option value="none" selected>Desligada</option>
+                <option value="linear">Linear</option>
+                <option value="spline">Spline</option>
+                <option value="sinc">Passa-baixas Ideal (Sinc)</option>
+            </select>
         </div>
         <div class="control-group">
+            <label>&nbsp;</label>
             <button id="playPauseBtn">Pausar</button>
         </div>
     </div>
@@ -181,7 +181,7 @@
     <div class="legend">
         <div class="legend-item"><div class="color-box" style="background: rgba(0, 102, 204, 0.5);"></div> Onda Analógica</div>
         <div class="legend-item"><div class="color-box" style="background: #cc0000; border-radius: 50%;"></div> Valor Convertido</div>
-        <div class="legend-item"><div class="color-box" style="background: #ff9900;"></div> Sinal Reconstruído (Spline)</div>
+        <div class="legend-item"><div class="color-box" style="background: #ff9900;"></div> Sinal Reconstruído</div>
     </div>
 
     <canvas id="adcCanvas" width="800" height="300"></canvas>
@@ -207,7 +207,7 @@
         const fsValue = document.getElementById('fsValue');
         const bitSelect = document.getElementById('bitSelect');
         const cycleSelect = document.getElementById('cycleSelect');
-        const splineControl = document.getElementById('splineControl');
+        const interpSelect = document.getElementById('interpSelect');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const canvas = document.getElementById('adcCanvas');
         const ctx = canvas.getContext('2d');
@@ -216,7 +216,6 @@
         const FREQ_SIGNAL = 10; 
         const V_REF = 5.0; 
         
-        // Define o tempo inicial da janela baseado no padrão (10 ciclos)
         let windowTime = 10 / FREQ_SIGNAL; 
 
         let animationTime = 0;
@@ -239,7 +238,7 @@
             }
         });
 
-        splineControl.addEventListener('change', () => {
+        interpSelect.addEventListener('change', () => {
             if (!isPlaying) drawGraph(); 
         });
 
@@ -261,6 +260,85 @@
         bitSelect.addEventListener('change', resetSimulation);
         cycleSelect.addEventListener('change', resetSimulation);
 
+        function sincNormalized(x) {
+            // sinc normalizada: sinc(x) = sin(pi*x)/(pi*x)
+            if (Math.abs(x) < 1e-12) return 1;
+            return Math.sin(Math.PI * x) / (Math.PI * x);
+        }
+
+        function getCompleteSampleSet(fs, bits) {
+            // Gera toda a janela de amostras de forma determinística.
+            // Isso evita que a reconstrução sinc dependa da velocidade da animação.
+            const maxDigital = (1 << bits) - 1;
+            const Ts = 1 / fs;
+            const count = Math.floor(windowTime * fs + 1e-9);
+            const data = [];
+
+            for (let n = 0; n <= count; n++) {
+                const t = n * Ts;
+                if (t > windowTime + 1e-12) break;
+                const v = 2.5 + 2.5 * Math.sin(2 * Math.PI * FREQ_SIGNAL * t);
+                const digitalValue = Math.max(0, Math.min(maxDigital,
+                    Math.round((v / V_REF) * maxDigital)));
+                const quantizedVoltage = (digitalValue / maxDigital) * V_REF;
+                data.push({ t, v, vq: quantizedVoltage, d: digitalValue });
+            }
+            return data;
+        }
+
+        function buildPeriodicSpectrum(baseSamples) {
+            // Interpolação ideal em uma janela periódica: a soma infinita de sincs
+            // periódicas é equivalente à série de Fourier discreta das amostras.
+            // O ponto final t = T não é incluído, pois é equivalente a t = 0.
+            const periodicSamples = baseSamples.filter(
+                sample => sample.t < windowTime - 1e-12
+            );
+            const N = periodicSamples.length;
+            const spectrum = [];
+
+            if (N === 0) return { N: 0, spectrum: [] };
+
+            for (let k = 0; k < N; k++) {
+                let re = 0;
+                let im = 0;
+                for (let n = 0; n < N; n++) {
+                    const angle = -2 * Math.PI * k * n / N;
+                    const value = periodicSamples[n].vq;
+                    re += value * Math.cos(angle);
+                    im += value * Math.sin(angle);
+                }
+                spectrum.push({ re: re / N, im: im / N });
+            }
+
+            return { N, spectrum };
+        }
+
+        function reconstructPeriodicSinc(t, periodicModel) {
+            const { N, spectrum } = periodicModel;
+            if (N === 0) return 0;
+
+            const tau = t / windowTime;
+            let value = spectrum[0].re;
+            const maxPositive = Math.floor((N - 1) / 2);
+
+            // Pares de frequências positivas e negativas, combinados em forma real.
+            for (let k = 1; k <= maxPositive; k++) {
+                const angle = 2 * Math.PI * k * tau;
+                value += 2 * (
+                    spectrum[k].re * Math.cos(angle) -
+                    spectrum[k].im * Math.sin(angle)
+                );
+            }
+
+            // Para N par, o bin de Nyquist não possui par distinto.
+            if (N % 2 === 0) {
+                const kNyquist = N / 2;
+                value += spectrum[kNyquist].re * Math.cos(Math.PI * N * tau);
+            }
+
+            return value;
+        }
+
         function drawGraph() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
@@ -269,6 +347,9 @@
             const plotH = canvas.height - padding * 2;
             const bits = parseInt(bitSelect.value);
             const maxDigital = (1 << bits) - 1; 
+            const fs = parseInt(fsControl.value);
+            const completeSamples = getCompleteSampleSet(fs, bits);
+            const periodicSincModel = buildPeriodicSpectrum(completeSamples);
 
             const getX = (t) => padding + (t / windowTime) * plotW;
             const getY = (v) => padding + plotH - (v / V_REF) * plotH;
@@ -313,8 +394,20 @@
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            // 3. Interpolação Spline (Se habilitado)
-            if (splineControl.checked && samplesData.length > 1) {
+            // 3. Interpolação de Reconstrução
+            const interpType = interpSelect.value;
+
+            if (interpType === 'linear' && samplesData.length > 1) {
+                ctx.beginPath();
+                ctx.strokeStyle = '#ff9900';
+                ctx.lineWidth = 2;
+                ctx.moveTo(getX(samplesData[0].t), getY(samplesData[0].vq));
+                for(let i = 1; i < samplesData.length; i++) {
+                    ctx.lineTo(getX(samplesData[i].t), getY(samplesData[i].vq));
+                }
+                ctx.stroke();
+            } 
+            else if (interpType === 'spline' && samplesData.length > 1) {
                 ctx.beginPath();
                 ctx.strokeStyle = '#ff9900';
                 ctx.lineWidth = 2;
@@ -322,7 +415,7 @@
                 const points = samplesData.map(s => ({ x: getX(s.t), y: getY(s.vq) }));
                 ctx.moveTo(points[0].x, points[0].y);
                 
-                const tension = 0.5; // Ajuste da curvatura do spline
+                const tension = 0.5;
                 
                 for (let i = 0; i < points.length - 1; i++) {
                     let p0 = i > 0 ? points[i - 1] : points[0];
@@ -338,6 +431,31 @@
                     ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
                 }
                 ctx.stroke();
+            }
+            else if (interpType === 'sinc' && completeSamples.length > 0) {
+                ctx.beginPath();
+                ctx.strokeStyle = '#ff9900';
+                ctx.lineWidth = 2;
+
+                const visibleUntil = isPlaying ? animationTime : windowTime;
+                let started = false;
+
+                for (let i = 0; i <= plotW; i++) {
+                    const tPixel = (i / plotW) * windowTime;
+                    if (tPixel > visibleUntil + 1e-12) break;
+
+                    const vRecon = reconstructPeriodicSinc(tPixel, periodicSincModel);
+                    const x = getX(tPixel);
+                    const y = getY(vRecon);
+
+                    if (!started) {
+                        ctx.moveTo(x, y);
+                        started = true;
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                if (started) ctx.stroke();
             }
 
             // 4. Pontos Amostrados (Quantizados)
@@ -376,7 +494,7 @@
 
         function update() {
             if (isPlaying) {
-                const step = windowTime / 300; // Velocidade ajustada da varredura
+                const step = windowTime / 300; 
                 animationTime += step; 
                 
                 if (animationTime >= windowTime) {
@@ -388,28 +506,31 @@
                 const maxDigital = (1 << bits) - 1; 
                 const Ts = 1 / fs;
 
-                const currentSampleIndex = Math.floor(animationTime / Ts);
+                const currentSampleIndex = Math.floor((animationTime + 1e-12) / Ts);
 
-                if (currentSampleIndex > lastSampleIndex) {
-                    let sampleTime = currentSampleIndex * Ts;
-                    
-                    if (sampleTime <= windowTime) {
-                        let v = 2.5 + 2.5 * Math.sin(2 * Math.PI * FREQ_SIGNAL * sampleTime);
-                        
-                        let digitalValue = Math.round((v / V_REF) * maxDigital);
-                        let quantizedVoltage = (digitalValue / maxDigital) * V_REF;
-                        
+                // Adiciona todas as amostras atravessadas pelo passo de animação.
+                // O código anterior adicionava apenas a última e podia pular amostras.
+                while (lastSampleIndex < currentSampleIndex) {
+                    const nextSampleIndex = lastSampleIndex + 1;
+                    const sampleTime = nextSampleIndex * Ts;
+
+                    if (sampleTime <= windowTime + 1e-12) {
+                        const v = 2.5 + 2.5 * Math.sin(2 * Math.PI * FREQ_SIGNAL * sampleTime);
+                        const digitalValue = Math.max(0, Math.min(maxDigital,
+                            Math.round((v / V_REF) * maxDigital)));
+                        const quantizedVoltage = (digitalValue / maxDigital) * V_REF;
+
                         samplesData.push({
                             t: sampleTime,
-                            v: v,
+                            v,
                             vq: quantizedVoltage,
                             d: digitalValue
                         });
 
                         addTableRow(sampleTime, v, quantizedVoltage, digitalValue, bits);
                     }
-                    
-                    lastSampleIndex = currentSampleIndex;
+
+                    lastSampleIndex = nextSampleIndex;
                 }
 
                 drawGraph();
@@ -417,7 +538,6 @@
             requestAnimationFrame(update);
         }
 
-        // Inicializa a simulação
         update();
     </script>
 </body>
