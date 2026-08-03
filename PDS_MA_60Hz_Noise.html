@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animação: Filtro de Média Móvel com Spline</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-width: 900px;
+            width: 100%;
+        }
+        h2 {
+            margin-top: 0;
+            text-align: center;
+            color: #2c3e50;
+        }
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #ecf0f1;
+            border-radius: 6px;
+        }
+        .controls label {
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        .controls select {
+            padding: 8px 12px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            border-radius: 4px;
+            border: 1px solid #bdc3c7;
+            cursor: pointer;
+        }
+        canvas {
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .color-box {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+        .circle-box {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: 2px solid #0000ff;
+            background-color: transparent;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Animação do Filtro de Média Móvel (5 pts) com Interpolação Spline</h2>
+    
+    <div class="controls">
+        <label for="freqRuido">Frequência do Ruído:</label>
+        <select id="freqRuido">
+            <option value="100">100 Hz</option>
+            <option value="150">150 Hz</option>
+            <option value="200">200 Hz</option>
+        </select>
+    </div>
+
+    <canvas id="graficoCanvas" width="850" height="400"></canvas>
+
+    <div class="legend">
+        <div class="legend-item">
+            <div class="color-box" style="background-color: rgba(189, 195, 199, 0.6);"></div>
+            Sinal Contínuo
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background-color: #e74c3c; border-radius: 50%;"></div>
+            Amostras
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background-color: #2980b9; border-radius: 50%;"></div>
+            Sinal Filtrado (Spline)
+        </div>
+        <div class="legend-item">
+            <div class="circle-box"></div>
+            Amostras na Janela
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // PARÂMETROS DO SISTEMA
+    // ==========================================
+    const f_sinal = 60.0;
+    const offset = 2.5;
+    const amplitude_sinal = 1.5;
+    const amplitude_ruido = 0.5; // 1 Vpp
+    
+    const f_amostragem = 500.0;
+    const bits = 10;
+    const v_adc_min = 0.0;
+    const v_adc_max = 5.0;
+    const numero_codigos = Math.pow(2, bits);
+    
+    const numero_ciclos = 10;
+    const t_final = numero_ciclos / f_sinal;
+    
+    const janela_media = 5;
+
+    // ==========================================
+    // VARIÁVEIS GLOBAIS DA ANIMAÇÃO
+    // ==========================================
+    let f_ruido = 100.0;
+    let t_continuo = [];
+    let sinal_continuo = [];
+    let t_discreto = [];
+    let sinal_quantizado = [];
+    
+    let animIndex = janela_media - 1; 
+    let lastTime = 0;
+    const frameDelay = 100; // Velocidade da animação (ms)
+
+    const canvas = document.getElementById('graficoCanvas');
+    const ctx = canvas.getContext('2d');
+    const selectRuido = document.getElementById('freqRuido');
+
+    const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+    const plotWidth = canvas.width - margin.left - margin.right;
+    const plotHeight = canvas.height - margin.top - margin.bottom;
+
+    // ==========================================
+    // FUNÇÕES MATEMÁTICAS E GERAÇÃO DE DADOS
+    // ==========================================
+    function quantizar(valor) {
+        let limitado = Math.max(v_adc_min, Math.min(v_adc_max, valor));
+        let codigo = Math.round((limitado - v_adc_min) / (v_adc_max - v_adc_min) * (numero_codigos - 1));
+        return (codigo / (numero_codigos - 1)) * (v_adc_max - v_adc_min) + v_adc_min;
+    }
+
+    function gerarDados() {
+        t_continuo = [];
+        sinal_continuo = [];
+        t_discreto = [];
+        sinal_quantizado = [];
+
+        for (let i = 0; i <= 3000; i++) {
+            let t = (i / 3000) * t_final;
+            let s = offset + amplitude_sinal * Math.sin(2 * Math.PI * f_sinal * t);
+            let r = amplitude_ruido * Math.sin(2 * Math.PI * f_ruido * t);
+            t_continuo.push(t);
+            sinal_continuo.push(s + r);
+        }
+
+        let num_amostras = Math.floor(t_final * f_amostragem);
+        for (let i = 0; i <= num_amostras; i++) {
+            let t = i / f_amostragem;
+            if (t > t_final) break;
+            
+            let s = offset + amplitude_sinal * Math.sin(2 * Math.PI * f_sinal * t);
+            let r = amplitude_ruido * Math.sin(2 * Math.PI * f_ruido * t);
+            let amostra = s + r;
+            
+            t_discreto.push(t);
+            sinal_quantizado.push(quantizar(amostra));
+        }
+    }
+
+    // ==========================================
+    // FUNÇÕES DE MAPEAMENTO E DESENHO
+    // ==========================================
+    function mapX(t) {
+        return margin.left + (t / t_final) * plotWidth;
+    }
+
+    function mapY(v) {
+        return margin.top + plotHeight - ((v - v_adc_min) / (v_adc_max - v_adc_min)) * plotHeight;
+    }
+
+    function desenharGridEEixos() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = '#e0e0e0';
+        ctx.lineWidth = 1;
+        ctx.font = '12px Arial';
+        ctx.fillStyle = '#7f8c8d';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+
+        for (let v = 0; v <= 5; v++) {
+            let y = mapY(v);
+            ctx.beginPath();
+            ctx.moveTo(margin.left, y);
+            ctx.lineTo(canvas.width - margin.right, y);
+            ctx.stroke();
+            ctx.fillText(v + 'V', margin.left - 10, y);
+        }
+
+        ctx.strokeStyle = '#34495e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(margin.left, margin.top);
+        ctx.lineTo(margin.left, canvas.height - margin.bottom);
+        ctx.lineTo(canvas.width - margin.right, canvas.height - margin.bottom);
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.fillText('Tempo (' + (t_final*1000).toFixed(1) + ' ms)', canvas.width / 2, canvas.height - 10);
+    }
+
+    function desenharCenaBase() {
+        desenharGridEEixos();
+
+        ctx.strokeStyle = 'rgba(189, 195, 199, 0.6)'; 
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mapX(t_continuo[0]), mapY(sinal_continuo[0]));
+        for (let i = 1; i < t_continuo.length; i++) {
+            ctx.lineTo(mapX(t_continuo[i]), mapY(sinal_continuo[i]));
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#e74c3c';
+        for (let i = 0; i < t_discreto.length; i++) {
+            ctx.beginPath();
+            ctx.arc(mapX(t_discreto[i]), mapY(sinal_quantizado[i]), 3, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    }
+
+    // Função para desenhar a curva Spline (Catmull-Rom adaptada para Bézier)
+    function desenharSpline(pontos) {
+        if (pontos.length < 2) return;
+        
+        ctx.beginPath();
+        ctx.moveTo(pontos[0].x, pontos[0].y);
+        
+        let tensao = 1.0; // Controle de suavidade da curva
+
+        for (let i = 0; i < pontos.length - 1; i++) {
+            let p0 = (i > 0) ? pontos[i - 1] : pontos[0];
+            let p1 = pontos[i];
+            let p2 = pontos[i + 1];
+            let p3 = (i != pontos.length - 2) ? pontos[i + 2] : p2;
+
+            let cp1x = p1.x + (p2.x - p0.x) / 6 * tensao;
+            let cp1y = p1.y + (p2.y - p0.y) / 6 * tensao;
+
+            let cp2x = p2.x - (p3.x - p1.x) / 6 * tensao;
+            let cp2y = p2.y - (p3.y - p1.y) / 6 * tensao;
+
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
+        ctx.stroke();
+    }
+
+    function desenharAnimacaoMovel() {
+        desenharCenaBase();
+
+        let pontosFiltrados = [];
+        ctx.fillStyle = '#2980b9'; 
+        ctx.strokeStyle = '#2980b9';
+        ctx.lineWidth = 2;
+
+        // Calcular os pontos da média móvel
+        for (let i = janela_media - 1; i <= animIndex; i++) {
+            let soma = 0;
+            for (let j = 0; j < janela_media; j++) {
+                soma += sinal_quantizado[i - j];
+            }
+            let media = soma / janela_media;
+            
+            let x = mapX(t_discreto[i]);
+            let y = mapY(media);
+            pontosFiltrados.push({x: x, y: y});
+        }
+
+        // Desenhar a linha Spline suave conectando os pontos filtrados
+        desenharSpline(pontosFiltrados);
+
+        // Desenhar os pontos em cima da linha
+        for (let i = 0; i < pontosFiltrados.length; i++) {
+            ctx.beginPath();
+            ctx.arc(pontosFiltrados[i].x, pontosFiltrados[i].y, 4, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        if (animIndex < t_discreto.length) {
+            let idx_inicio = animIndex - janela_media + 1;
+            let x_inicio = mapX(t_discreto[idx_inicio]) - 5;
+            let x_fim = mapX(t_discreto[animIndex]) + 5;
+            let largura = x_fim - x_inicio;
+
+            ctx.fillStyle = 'rgba(241, 196, 15, 0.3)'; 
+            ctx.fillRect(x_inicio, margin.top, largura, plotHeight);
+            
+            // Circulando os pontos da janela em AZUL FORTE
+            ctx.strokeStyle = '#0000ff';
+            ctx.lineWidth = 2;
+            for(let j=0; j < janela_media; j++){
+                ctx.beginPath();
+                ctx.arc(mapX(t_discreto[animIndex - j]), mapY(sinal_quantizado[animIndex - j]), 6, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+        }
+    }
+
+    // ==========================================
+    // LOOP DE ANIMAÇÃO
+    // ==========================================
+    function loop(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        
+        let delta = timestamp - lastTime;
+
+        if (delta > frameDelay) {
+            animIndex++;
+            
+            if (animIndex >= t_discreto.length + 5) {
+                animIndex = janela_media - 1;
+            }
+            lastTime = timestamp;
+        }
+
+        if(animIndex < t_discreto.length) {
+            desenharAnimacaoMovel();
+        } else if (animIndex >= t_discreto.length) {
+            let temp = animIndex;
+            animIndex = t_discreto.length - 1;
+            desenharAnimacaoMovel();
+            animIndex = temp;
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    // ==========================================
+    // EVENTOS DO USUÁRIO
+    // ==========================================
+    selectRuido.addEventListener('change', function(e) {
+        f_ruido = parseFloat(e.target.value);
+        
+        gerarDados();
+        animIndex = janela_media - 1; 
+    });
+
+    gerarDados();
+    requestAnimationFrame(loop);
+
+</script>
+
+</body>
+</html>
