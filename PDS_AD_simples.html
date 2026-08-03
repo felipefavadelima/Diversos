@@ -41,7 +41,7 @@
             align-items: center;
             justify-content: center;
             width: 100%;
-            max-width: 700px;
+            max-width: 800px;
             box-sizing: border-box;
         }
         .control-group {
@@ -49,7 +49,13 @@
             flex-direction: column;
             gap: 5px;
             flex: 1;
-            min-width: 200px;
+            min-width: 140px;
+        }
+        .control-group.checkbox-group {
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
         }
         input[type=range], select {
             width: 100%;
@@ -77,17 +83,16 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             margin-bottom: 20px;
             width: 100%;
-            max-width: 700px;
-            height: auto; /* Mantém a proporção no celular */
+            max-width: 800px;
+            height: auto;
         }
         
-        /* Estilos da Tabela */
         .table-container {
             width: 100%;
-            max-width: 700px;
+            max-width: 800px;
             max-height: 250px;
             overflow-y: auto;
-            overflow-x: auto; /* Permite scroll horizontal em celulares se necessário */
+            overflow-x: auto;
             background: #fff;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -97,7 +102,7 @@
             width: 100%;
             border-collapse: collapse;
             text-align: center;
-            min-width: 400px; /* Garante que a tabela não fique espremida demais */
+            min-width: 400px;
         }
         thead {
             background-color: #0066cc;
@@ -141,23 +146,34 @@
 <body>
 
     <h2>Simulador de Conversor A/D</h2>
-    <p>Onda de Entrada: Senoide de 10 Hz (0V a 5V). Ajuste a frequência de amostragem e a resolução para observar a conversão digital.</p>
+    <p>Onda de Entrada: Senoide de 10 Hz (0V a 5V). Ajuste a frequência de amostragem, a resolução e os ciclos para observar a conversão digital.</p>
 
     <div class="controls">
         <div class="control-group">
-            <label for="fsControl">Frequência (Hz): <span id="fsValue" class="value-display">50</span></label>
-            <input type="range" id="fsControl" min="1" max="100" step="1" value="50">
+            <label for="fsControl">Frequência (Hz): <span id="fsValue" class="value-display">100</span></label>
+            <input type="range" id="fsControl" min="1" max="100" step="1" value="100">
         </div>
         <div class="control-group">
             <label for="bitSelect">Resolução:</label>
             <select id="bitSelect">
                 <option value="2">2 Bits (4 Níveis)</option>
                 <option value="4">4 Bits (16 Níveis)</option>
-                <option value="8">8 Bits (256 Níveis)</option>
+                <option value="8" selected>8 Bits (256 Níveis)</option>
             </select>
         </div>
         <div class="control-group">
-            <label>&nbsp;</label> <!-- Espaçador para alinhar com os outros campos -->
+            <label for="cycleSelect">Ciclos:</label>
+            <select id="cycleSelect">
+                <option value="2">2 Ciclos</option>
+                <option value="10" selected>10 Ciclos</option>
+                <option value="20">20 Ciclos</option>
+            </select>
+        </div>
+        <div class="control-group checkbox-group" style="margin-top: 15px;">
+            <input type="checkbox" id="splineControl" style="width: 18px; height: 18px; cursor: pointer;">
+            <label for="splineControl" style="cursor: pointer;">Interpolação Spline</label>
+        </div>
+        <div class="control-group">
             <button id="playPauseBtn">Pausar</button>
         </div>
     </div>
@@ -165,12 +181,11 @@
     <div class="legend">
         <div class="legend-item"><div class="color-box" style="background: rgba(0, 102, 204, 0.5);"></div> Onda Analógica</div>
         <div class="legend-item"><div class="color-box" style="background: #cc0000; border-radius: 50%;"></div> Valor Convertido</div>
+        <div class="legend-item"><div class="color-box" style="background: #ff9900;"></div> Sinal Reconstruído (Spline)</div>
     </div>
 
-    <!-- Gráfico -->
-    <canvas id="adcCanvas" width="700" height="300"></canvas>
+    <canvas id="adcCanvas" width="800" height="300"></canvas>
     
-    <!-- Tabela de Dados -->
     <div class="table-container">
         <table id="dataTable">
             <thead>
@@ -183,38 +198,36 @@
                 </tr>
             </thead>
             <tbody>
-                <!-- Linhas inseridas via JS -->
             </tbody>
         </table>
     </div>
 
     <script>
-        // Elementos DOM
         const fsControl = document.getElementById('fsControl');
         const fsValue = document.getElementById('fsValue');
         const bitSelect = document.getElementById('bitSelect');
+        const cycleSelect = document.getElementById('cycleSelect');
+        const splineControl = document.getElementById('splineControl');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const canvas = document.getElementById('adcCanvas');
         const ctx = canvas.getContext('2d');
         const tbody = document.querySelector('#dataTable tbody');
 
-        // Constantes do Sistema
         const FREQ_SIGNAL = 10; 
-        const WINDOW_TIME = 0.2; 
         const V_REF = 5.0; 
+        
+        // Define o tempo inicial da janela baseado no padrão (10 ciclos)
+        let windowTime = 10 / FREQ_SIGNAL; 
 
-        // Variáveis de Animação
         let animationTime = 0;
         let lastSampleIndex = -1;
         let samplesData = []; 
         let isPlaying = true;
 
-        // Atualiza display do slider
         fsControl.addEventListener('input', () => {
             fsValue.textContent = fsControl.value;
         });
 
-        // Toggle Play/Pause
         playPauseBtn.addEventListener('click', () => {
             isPlaying = !isPlaying;
             if (isPlaying) {
@@ -226,18 +239,27 @@
             }
         });
 
+        splineControl.addEventListener('change', () => {
+            if (!isPlaying) drawGraph(); 
+        });
+
         function resetSimulation() {
             animationTime = 0;
             lastSampleIndex = -1;
             samplesData = [];
             tbody.innerHTML = ''; 
+            
+            const ciclos = parseInt(cycleSelect.value);
+            windowTime = ciclos / FREQ_SIGNAL; 
+
             if (!isPlaying) {
-                drawGraph(); // Força redesenhar mesmo pausado se mudar parâmetro
+                drawGraph(); 
             }
         }
         
         fsControl.addEventListener('change', resetSimulation);
         bitSelect.addEventListener('change', resetSimulation);
+        cycleSelect.addEventListener('change', resetSimulation);
 
         function drawGraph() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -248,10 +270,10 @@
             const bits = parseInt(bitSelect.value);
             const maxDigital = (1 << bits) - 1; 
 
-            const getX = (t) => padding + (t / WINDOW_TIME) * plotW;
+            const getX = (t) => padding + (t / windowTime) * plotW;
             const getY = (v) => padding + plotH - (v / V_REF) * plotH;
 
-            // --- 1. DESENHA GRID E EIXOS ---
+            // 1. Eixos e Grid
             ctx.strokeStyle = '#eee';
             ctx.lineWidth = 1;
             
@@ -275,12 +297,14 @@
             ctx.fillText("0V", padding - 5, padding + plotH + 5);
             ctx.textAlign = 'center';
             ctx.fillText("0 ms", padding, padding + plotH + 20);
-            ctx.fillText("200 ms", padding + plotW, padding + plotH + 20);
+            
+            const endMs = (windowTime * 1000).toFixed(0);
+            ctx.fillText(endMs + " ms", padding + plotW, padding + plotH + 20);
 
-            // --- 2. DESENHA ONDA SENOIDAL ORIGINAL ---
+            // 2. Onda Analógica Original
             ctx.beginPath();
             for(let i = 0; i <= plotW; i++) {
-                let t = (i / plotW) * WINDOW_TIME;
+                let t = (i / plotW) * windowTime;
                 let v = 2.5 + 2.5 * Math.sin(2 * Math.PI * FREQ_SIGNAL * t);
                 if (i === 0) ctx.moveTo(getX(t), getY(v));
                 else ctx.lineTo(getX(t), getY(v));
@@ -289,7 +313,34 @@
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            // --- 3. DESENHA AMOSTRAS ---
+            // 3. Interpolação Spline (Se habilitado)
+            if (splineControl.checked && samplesData.length > 1) {
+                ctx.beginPath();
+                ctx.strokeStyle = '#ff9900';
+                ctx.lineWidth = 2;
+                
+                const points = samplesData.map(s => ({ x: getX(s.t), y: getY(s.vq) }));
+                ctx.moveTo(points[0].x, points[0].y);
+                
+                const tension = 0.5; // Ajuste da curvatura do spline
+                
+                for (let i = 0; i < points.length - 1; i++) {
+                    let p0 = i > 0 ? points[i - 1] : points[0];
+                    let p1 = points[i];
+                    let p2 = points[i + 1];
+                    let p3 = i != points.length - 2 ? points[i + 2] : p2;
+
+                    let cp1x = p1.x + (p2.x - p0.x) / 6 * tension;
+                    let cp1y = p1.y + (p2.y - p0.y) / 6 * tension;
+                    let cp2x = p2.x - (p3.x - p1.x) / 6 * tension;
+                    let cp2y = p2.y - (p3.y - p1.y) / 6 * tension;
+
+                    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+                }
+                ctx.stroke();
+            }
+
+            // 4. Pontos Amostrados (Quantizados)
             if (samplesData.length > 0) {
                 for(let s of samplesData) {
                     ctx.beginPath();
@@ -299,7 +350,7 @@
                 }
             }
 
-            // --- 4. DESENHA O "SCANNER" (Linha Vertical do Tempo) ---
+            // 5. Linha de Varredura (Tempo atual)
             ctx.beginPath();
             ctx.moveTo(getX(animationTime), padding);
             ctx.lineTo(getX(animationTime), padding + plotH);
@@ -325,9 +376,10 @@
 
         function update() {
             if (isPlaying) {
-                animationTime += 0.001; 
+                const step = windowTime / 300; // Velocidade ajustada da varredura
+                animationTime += step; 
                 
-                if (animationTime >= WINDOW_TIME) {
+                if (animationTime >= windowTime) {
                     resetSimulation();
                 }
 
@@ -341,7 +393,7 @@
                 if (currentSampleIndex > lastSampleIndex) {
                     let sampleTime = currentSampleIndex * Ts;
                     
-                    if (sampleTime <= WINDOW_TIME) {
+                    if (sampleTime <= windowTime) {
                         let v = 2.5 + 2.5 * Math.sin(2 * Math.PI * FREQ_SIGNAL * sampleTime);
                         
                         let digitalValue = Math.round((v / V_REF) * maxDigital);
@@ -365,7 +417,7 @@
             requestAnimationFrame(update);
         }
 
-        // Inicia a animação
+        // Inicializa a simulação
         update();
     </script>
 </body>
