@@ -2,7 +2,11 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="amostragem.webmanifest">
     <title>Amostragem - Múltiplas Entradas com Voz</title>
     <style>
         :root {
@@ -137,6 +141,38 @@
         }
         input:checked + .slider-toggle { background-color: #E5E5EA; }
         input:checked + .slider-toggle:before { transform: translateX(36px); }
+
+
+        /* Modo de navegação móvel: ativado somente quando o fullscreen não estiver disponível/for negado. */
+        html.mobile-navigable {
+            overflow: auto;
+            overscroll-behavior: auto;
+        }
+        body.mobile-navigable {
+            display: block;
+            width: 100%;
+            height: auto;
+            min-height: 100dvh;
+            overflow: visible;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: auto;
+            touch-action: pan-x pan-y pinch-zoom;
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        body.mobile-navigable .container {
+            width: max(960px, 100vw);
+            max-width: none;
+            min-width: 960px;
+            height: auto;
+            aspect-ratio: 16 / 9;
+            margin: 0;
+        }
+        body.mobile-navigable input,
+        body.mobile-navigable select,
+        body.mobile-navigable .graph-container {
+            touch-action: manipulation;
+        }
     </style>
 </head>
 <body>
@@ -235,23 +271,86 @@
 <script>
 
     // --- TELA CHEIA NO PRIMEIRO TOQUE/CLIQUE ---
-    // Navegadores exigem uma ação do usuário para permitir Fullscreen API.
-    async function enterFullscreenOnFirstInteraction() {
-        const el = document.documentElement;
-        try {
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                if (el.requestFullscreen) {
-                    await el.requestFullscreen();
-                } else if (el.webkitRequestFullscreen) {
-                    el.webkitRequestFullscreen();
-                }
-            }
-        } catch (e) {
-            // Alguns navegadores móveis podem bloquear fullscreen mesmo após interação.
+    // Chrome/Firefox Android e Safari/iPad: Fullscreen API após gesto do usuário.
+    // iPhone: quando executado como Web App da Tela de Início, a UI do navegador já fica oculta.
+    let fullscreenInteractionHandled = false;
+
+    function isNativeFullscreen() {
+        return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+
+    function isMobileLike() {
+        return window.matchMedia('(max-width: 1000px)').matches ||
+               window.matchMedia('(pointer: coarse)').matches ||
+               ('ontouchstart' in window);
+    }
+
+    function setMobileNavigationMode(enabled) {
+        if (!isMobileLike()) return;
+        document.documentElement.classList.toggle('mobile-navigable', enabled);
+        document.body.classList.toggle('mobile-navigable', enabled);
+        if (enabled) {
+            // Começa pela região esquerda da interface e deixa o usuário navegar livremente.
+            requestAnimationFrame(() => window.scrollTo({ left: 0, top: 0, behavior: 'auto' }));
         }
     }
 
+    function syncMobileNavigationMode() {
+        if (!isMobileLike()) return;
+        if (isNativeFullscreen()) {
+            setMobileNavigationMode(false);
+        } else if (fullscreenInteractionHandled) {
+            setMobileNavigationMode(true);
+        }
+    }
+
+    async function enterFullscreenOnFirstInteraction() {
+        if (fullscreenInteractionHandled) return;
+        fullscreenInteractionHandled = true;
+
+        const el = document.documentElement;
+        if (isNativeFullscreen()) {
+            setMobileNavigationMode(false);
+            return;
+        }
+
+        let requested = false;
+        try {
+            if (el.requestFullscreen) {
+                requested = true;
+                try {
+                    await el.requestFullscreen({ navigationUI: 'hide' });
+                } catch (_) {
+                    await el.requestFullscreen();
+                }
+            } else if (el.webkitRequestFullscreen) {
+                requested = true;
+                el.webkitRequestFullscreen();
+            }
+        } catch (_) {
+            // A navegação móvel abaixo assume automaticamente quando o navegador negar fullscreen.
+        }
+
+        // APIs WebKit antigas podem não retornar Promise; aguarda o estado estabilizar.
+        setTimeout(() => {
+            if (isNativeFullscreen()) {
+                setMobileNavigationMode(false);
+            } else {
+                setMobileNavigationMode(true);
+                // Em Safari móvel, isto ainda pode recolher parcialmente a barra dinâmica.
+                if (!requested) window.scrollTo(0, 1);
+            }
+        }, 180);
+    }
+
+    // Se o usuário sair do fullscreen, a interface passa imediatamente a ser navegável no celular.
+    document.addEventListener('fullscreenchange', syncMobileNavigationMode);
+    document.addEventListener('webkitfullscreenchange', syncMobileNavigationMode);
+
+    // Cobertura ampla de gesto do usuário em navegadores móveis.
     document.addEventListener('pointerdown', enterFullscreenOnFirstInteraction, { once: true, capture: true });
+    document.addEventListener('touchend', enterFullscreenOnFirstInteraction, { once: true, capture: true, passive: true });
+    document.addEventListener('click', enterFullscreenOnFirstInteraction, { once: true, capture: true });
 
     // Áudio real da fala “Olá” — mesma fonte PCM16/WAV usada em ola_fala_pds_filtro.
     // Nenhum elemento visual, CSS ou estrutura HTML foi alterado.
@@ -459,11 +558,21 @@
 
     function selectGraph(type) {
         if (!isStarted) unlockAudio();
-        activeSource = type;
-        
+
+        const clickedActiveGraph = (activeSource === type);
+
         document.getElementById('orig-box').classList.remove('active');
         document.getElementById('samp-box').classList.remove('active');
         document.getElementById('filt-box').classList.remove('active');
+
+        // Segundo toque/clique no gráfico que já está tocando: desliga o áudio.
+        if (clickedActiveGraph) {
+            activeSource = null;
+            updateAudioGains();
+            return;
+        }
+
+        activeSource = type;
         document.getElementById(`${type}-box`).classList.add('active');
 
         if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
