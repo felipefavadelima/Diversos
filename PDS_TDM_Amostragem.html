@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Amostragem - Múltiplas Entradas com Voz</title>
+    <style>
+        :root {
+            --bg: #F8F9FA;
+            --surface: #FFFFFF;
+            --orig-color: #FF453A; /* Vermelho Original */
+            --samp-color: #007AFF; /* Azul Amostrado */
+            --filt-color: #FF00FF; /* Magenta Filtrado */
+            --text-main: #333333;
+            --text-sec: #8E8E93;
+            --grid: #F0F0F5;
+            --active-glow: #34C759; /* Verde de seleção */
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: system-ui, sans-serif; }
+
+        body {
+            background-color: #333; 
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden;
+        }
+
+        /* Container Principal 16:9 */
+        .container {
+            position: relative;
+            width: 100vw;
+            max-width: 1600px;
+            aspect-ratio: 16 / 9;
+            background-color: var(--bg);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        /* Camada de Linhas e Setas SVG */
+        .svg-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;
+        }
+        .svg-line { stroke: #000; stroke-width: 2; fill: none; }
+        .svg-arrow { fill: #000; }
+
+        /* Controles Deslizantes */
+        .controls {
+            position: absolute; top: 8%; left: 4%; width: 24%; height: 35%;
+            display: flex; flex-direction: column; justify-content: space-around;
+            z-index: 2;
+        }
+        
+        .slider-row { display: flex; align-items: center; gap: 15px; }
+        .icon-box {
+            width: 45px; height: 45px; background: #F0F0F5; border-radius: 12px;
+            display: flex; justify-content: center; align-items: center; font-size: 22px;
+        }
+        .slider-wrap { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+        .slider-label { font-size: 14px; font-weight: 600; color: var(--text-sec); display: flex; justify-content: space-between; }
+        .slider-val { font-weight: bold; color: var(--text-main); }
+        
+        input[type=range] {
+            width: 100%; height: 6px; border-radius: 3px; appearance: none; background: #E5E5EA; outline: none; cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            appearance: none; width: 20px; height: 20px; border-radius: 50%;
+            background: #FFF; border: 2px solid #D1D1D6; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* Gráficos Compartilhados */
+        .graph-container {
+            position: absolute; background: var(--surface); border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); z-index: 2;
+            cursor: pointer; border: 4px solid transparent; transition: all 0.2s ease;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .graph-container:hover { transform: scale(1.02); }
+        .graph-container.active { border-color: var(--active-glow); box-shadow: 0 8px 25px rgba(52,199,89,0.3); }
+        
+        /* Textos Internos dos Gráficos */
+        .graph-label-type { position: absolute; top: 12px; left: 15px; font-size: 18px; font-weight: 800; z-index: 3; }
+        .graph-label-desc { position: absolute; top: 35px; left: 15px; font-size: 13px; font-weight: 600; color: var(--text-sec); z-index: 3; }
+        .graph-label-domain { 
+            position: absolute; top: 12px; right: 15px; font-size: 13px; font-weight: 700; color: var(--text-sec); 
+            background: rgba(240,240,245,0.85); padding: 4px 10px; border-radius: 8px; z-index: 3; backdrop-filter: blur(2px);
+        }
+
+        canvas { width: 100%; height: 100%; display: block; margin-top: 15px;} 
+
+        /* Posições dos Gráficos */
+        #orig-box { top: 48%; left: 4%; width: 24%; height: 45%; }
+        #samp-box { top: 6%; left: 36%; width: 24%; height: 45%; }
+        #filt-box { top: 6%; left: 68%; width: 24%; height: 45%; }
+
+        /* Diagrama da Chave (Meio Inferior) */
+        #switch-anim {
+            position: absolute; top: 64%; left: 39%; width: 18%; height: 12%; z-index: 2;
+        }
+
+        /* Bloco do Filtro LP (Direita Inferior) */
+        .lp-block {
+            position: absolute; top: 58%; left: 69%; width: 18%; height: 20%;
+            border: 2px solid #000; background: transparent; z-index: 2;
+            display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: bold; color: #000;
+        }
+        .lp-icon { position: absolute; top: 15%; left: 10%; width: 80%; height: 70%; stroke: #000; stroke-width: 2; fill: none; }
+
+        /* Seletor de Entrada (Dropdown Moderno Centralizado embaixo) */
+        #input-select-container {
+            position: absolute; bottom: 8%; left: 36%; z-index: 2;
+            display: flex; align-items: center; gap: 10px;
+            background: #FFFFFF; padding: 6px 15px; border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 2px solid #E5E5EA;
+        }
+        .select-label { font-size: 15px; font-weight: 600; color: var(--text-main); }
+        select {
+            appearance: none; background: #F8F9FA; border: 1px solid #D1D1D6;
+            color: var(--text-main); padding: 8px 12px; border-radius: 10px;
+            font-size: 14px; font-weight: bold; outline: none; cursor: pointer;
+        }
+
+        /* Toggles de Domínio */
+        #domain-toggle-group {
+            position: absolute; bottom: 8%; right: 4%; z-index: 2; display: flex; align-items: center; gap: 15px;
+        }
+        .toggle-label { font-size: 16px; font-weight: 600; color: var(--text-main); }
+
+        .switch { position: relative; display: inline-block; width: 70px; height: 34px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider-toggle {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #E5E5EA; transition: .4s; border-radius: 34px; border: 2px solid #D1D1D6;
+        }
+        .slider-toggle:before {
+            position: absolute; content: ""; height: 26px; width: 26px; left: 2px; bottom: 2px;
+            background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        input:checked + .slider-toggle { background-color: #E5E5EA; }
+        input:checked + .slider-toggle:before { transform: translateX(36px); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <!-- Linhas e Setas de Conexão -->
+        <svg class="svg-layer">
+            <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" class="svg-arrow" />
+                </marker>
+            </defs>
+            <line x1="28%" y1="70%" x2="39%" y2="70%" class="svg-line" />
+            <line x1="57%" y1="70%" x2="69%" y2="70%" class="svg-line" />
+            <line x1="48%" y1="63%" x2="48%" y2="52%" class="svg-line" marker-end="url(#arrow)" />
+            <line x1="78%" y1="57%" x2="78%" y2="52%" class="svg-line" marker-end="url(#arrow)" />
+        </svg>
+
+        <!-- Controles Deslizantes -->
+        <div class="controls">
+            <div class="slider-row">
+                <div class="icon-box">⏱️</div>
+                <div class="slider-wrap">
+                    <div class="slider-label"><span>Freq. Amostragem</span> <span class="slider-val" id="fs-val">3500Hz</span></div>
+                    <input type="range" id="fs-slider" min="100" max="6000" value="3500" step="50">
+                </div>
+            </div>
+            <div class="slider-row">
+                <div class="icon-box">⎍</div>
+                <div class="slider-wrap">
+                    <div class="slider-label"><span>Duty Cycle</span> <span class="slider-val" id="duty-val">50%</span></div>
+                    <input type="range" id="duty-slider" min="0.02" max="1" value="0.5" step="0.01">
+                </div>
+            </div>
+            <div class="slider-row">
+                <div class="icon-box">📉</div>
+                <div class="slider-wrap">
+                    <div class="slider-label"><span>Corte Passa-Baixas</span> <span class="slider-val" id="fc-val">3600Hz</span></div>
+                    <input type="range" id="fc-slider" min="50" max="6000" value="3600" step="50">
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráficos Clicáveis -->
+        <div class="graph-container" id="orig-box" onclick="selectGraph('orig')">
+            <div class="graph-label-type" style="color: var(--orig-color);">Original</div>
+            <div class="graph-label-desc" id="graph-desc-orig">500Hz</div>
+            <div class="graph-label-domain domain-text">Tempo</div>
+            <canvas id="canvas-orig"></canvas>
+        </div>
+
+        <div class="graph-container" id="samp-box" onclick="selectGraph('samp')">
+            <div class="graph-label-type" style="color: var(--samp-color);">Amostrado</div>
+            <div class="graph-label-domain domain-text">Tempo</div>
+            <canvas id="canvas-samp"></canvas>
+        </div>
+
+        <div class="graph-container" id="filt-box" onclick="selectGraph('filt')">
+            <div class="graph-label-type" style="color: var(--filt-color);">Filtrado</div>
+            <div class="graph-label-domain domain-text">Tempo</div>
+            <canvas id="canvas-filt"></canvas>
+        </div>
+
+        <!-- Diagramas Centrais -->
+        <div id="switch-anim"><canvas id="canvas-switch"></canvas></div>
+
+        <div class="lp-block">
+            <svg class="lp-icon"><path d="M 5 50 L 5 20 L 50 20 L 50 80 L 95 80" /></svg>
+            LP
+        </div>
+
+        <!-- Seletor de Tipo de Onda (Dropdown) -->
+        <div id="input-select-container">
+            <span class="select-label">Sinal de Entrada:</span>
+            <select id="input-select">
+                <option value="1">1 - 500Hz</option>
+                <option value="2">2 - 300Hz + 500Hz</option>
+                <option value="3">3 - Ruído filtrado</option>
+                <option value="4">4 - Voz falando Olá</option>
+            </select>
+        </div>
+
+        <!-- Toggle Domínio -->
+        <div class="toggle-group" id="domain-toggle-group">
+            <span class="toggle-label">Domínio Tempo</span>
+            <label class="switch">
+                <input type="checkbox" id="domain-toggle">
+                <span class="slider-toggle"></span>
+            </label>
+            <span class="toggle-label">Domínio Frequência</span>
+        </div>
+
+    </div>
+
+<script>
+    // Áudio real da fala “Olá” — mesma fonte PCM16/WAV usada em ola_fala_pds_filtro.
+    // Nenhum elemento visual, CSS ou estrutura HTML foi alterado.
+    const VOICE_WAV_BASE64 = "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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+    let voiceSamples = null;
+    let voiceSampleRate = 22050;
+    let voiceFiltered = null;
+    let voiceProcessKey = '';
+    let voiceAudioTime = 0;
+
+    function voiceB64ToArrayBuffer(b64) {
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes.buffer;
+    }
+
+    function voiceParsePCM16Wav(buffer) {
+        const dv = new DataView(buffer);
+        const sr = dv.getUint32(24, true);
+        const channels = dv.getUint16(22, true);
+        const bits = dv.getUint16(34, true);
+        if (bits !== 16) throw new Error('O áudio de voz deve ser PCM de 16 bits.');
+
+        let p = 12, dataOffset = -1, dataSize = 0;
+        while (p < dv.byteLength - 8) {
+            const id = String.fromCharCode(dv.getUint8(p), dv.getUint8(p+1), dv.getUint8(p+2), dv.getUint8(p+3));
+            const sz = dv.getUint32(p + 4, true);
+            if (id === 'data') { dataOffset = p + 8; dataSize = sz; break; }
+            p += 8 + sz + (sz & 1);
+        }
+        if (dataOffset < 0) throw new Error('Bloco data não encontrado no WAV.');
+
+        const frames = Math.floor(dataSize / (2 * channels));
+        const out = new Float32Array(frames);
+        let off = dataOffset;
+        for (let i = 0; i < frames; i++) {
+            let sum = 0;
+            for (let c = 0; c < channels; c++) {
+                sum += dv.getInt16(off, true) / 32768;
+                off += 2;
+            }
+            out[i] = sum / channels;
+        }
+        return { samples: out, sampleRate: sr };
+    }
+
+    function voiceNextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
+
+    function voiceFFT(re, im, inverse = false) {
+        const n = re.length;
+        for (let i = 1, j = 0; i < n; i++) {
+            let bit = n >> 1;
+            for (; j & bit; bit >>= 1) j ^= bit;
+            j ^= bit;
+            if (i < j) {
+                [re[i], re[j]] = [re[j], re[i]];
+                [im[i], im[j]] = [im[j], im[i]];
+            }
+        }
+        for (let len = 2; len <= n; len <<= 1) {
+            const ang = 2 * Math.PI / len * (inverse ? 1 : -1);
+            const wlenR = Math.cos(ang), wlenI = Math.sin(ang);
+            for (let i = 0; i < n; i += len) {
+                let wr = 1, wi = 0;
+                for (let j = 0; j < len / 2; j++) {
+                    const uR = re[i+j], uI = im[i+j];
+                    const vR = re[i+j+len/2] * wr - im[i+j+len/2] * wi;
+                    const vI = re[i+j+len/2] * wi + im[i+j+len/2] * wr;
+                    re[i+j] = uR + vR; im[i+j] = uI + vI;
+                    re[i+j+len/2] = uR - vR; im[i+j+len/2] = uI - vI;
+                    const nwr = wr * wlenR - wi * wlenI;
+                    wi = wr * wlenI + wi * wlenR;
+                    wr = nwr;
+                }
+            }
+        }
+        if (inverse) {
+            for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+        }
+    }
+
+    function voiceInit() {
+        if (voiceSamples) return;
+        const parsed = voiceParsePCM16Wav(voiceB64ToArrayBuffer(VOICE_WAV_BASE64));
+        voiceSamples = parsed.samples;
+        voiceSampleRate = parsed.sampleRate;
+    }
+
+    function voiceValueAt(data, t) {
+        if (!data || data.length === 0) return 0;
+        const duration = data.length / voiceSampleRate;
+        let tt = t % duration;
+        if (tt < 0) tt += duration;
+        const pos = tt * voiceSampleRate;
+        const i0 = Math.floor(pos) % data.length;
+        const i1 = (i0 + 1) % data.length;
+        const a = pos - Math.floor(pos);
+        return data[i0] * (1 - a) + data[i1] * a;
+    }
+
+    function voiceEnsureFiltered() {
+        voiceInit();
+        const key = `${fs}|${duty}|${fc}`;
+        if (voiceFiltered && voiceProcessKey === key) return;
+
+        const N = voiceNextPow2(voiceSamples.length);
+        const re = new Float64Array(N);
+        const im = new Float64Array(N);
+
+        // Mantém exatamente a ideia da chave do Gemini: multiplicação pelo trem de pulsos 0/1.
+        for (let i = 0; i < voiceSamples.length; i++) {
+            const t = i / voiceSampleRate;
+            const phase = ((t * fs) % 1.0 + 1.0) % 1.0;
+            const isSamp = (phase <= duty / 2.0 || phase >= 1.0 - duty / 2.0);
+            re[i] = isSamp ? voiceSamples[i] : 0.0;
+        }
+
+        voiceFFT(re, im, false);
+        for (let k = 0; k < N; k++) {
+            const f = k <= N/2 ? k * voiceSampleRate / N : (k - N) * voiceSampleRate / N;
+            if (Math.abs(f) > fc) { re[k] = 0; im[k] = 0; }
+        }
+        voiceFFT(re, im, true);
+
+        voiceFiltered = new Float32Array(voiceSamples.length);
+        let peak = 0;
+        for (let i = 0; i < voiceFiltered.length; i++) {
+            voiceFiltered[i] = re[i];
+            peak = Math.max(peak, Math.abs(voiceFiltered[i]));
+        }
+        if (peak > 0.98) {
+            const g = 0.98 / peak;
+            for (let i = 0; i < voiceFiltered.length; i++) voiceFiltered[i] *= g;
+        }
+        voiceProcessKey = key;
+    }
+
+    voiceInit();
+
+    // Parâmetros Globais
+    let fs = 3500;
+    let duty = 0.5;
+    let fc = 3600;
+    
+    let viewDomain = 'time'; // 'time' ou 'freq'
+    let inputType = '1'; // '1', '2', '3', '4'
+    let activeSource = null; 
+    
+    // Configuração do Ruído (Opção 3: decaimento linear de 0 a 500Hz)
+    const noiseComps = [];
+    for(let f = 10; f < 500; f += 10) {
+        let gain = 1.0 - (f / 500.0);
+        noiseComps.push({ f: f, A: gain * 0.2, phi: Math.random() * 2 * Math.PI });
+    }
+
+    // Áudio
+    let audioCtx, scriptNode;
+    let audioTime = 0;
+    let gainOrig, gainSamp, gainFilt;
+    let isStarted = false;
+
+    // Elementos DOM
+    const fsSlider = document.getElementById('fs-slider');
+    const dutySlider = document.getElementById('duty-slider');
+    const fcSlider = document.getElementById('fc-slider');
+    const domainToggle = document.getElementById('domain-toggle');
+    const inputSelect = document.getElementById('input-select');
+
+    const updateLabel = (id, val, suffix) => document.getElementById(id).innerText = `${val}${suffix}`;
+
+    fsSlider.oninput = (e) => { fs = parseFloat(e.target.value); updateLabel('fs-val', fs, 'Hz'); drawAll(); };
+    dutySlider.oninput = (e) => { duty = parseFloat(e.target.value); updateLabel('duty-val', Math.round(duty*100), '%'); drawAll(); };
+    fcSlider.oninput = (e) => { fc = parseFloat(e.target.value); updateLabel('fc-val', fc, 'Hz'); drawAll(); };
+    
+    domainToggle.onchange = (e) => {
+        viewDomain = e.target.checked ? 'freq' : 'time';
+        const domainStr = viewDomain === 'time' ? 'Tempo' : 'Frequência';
+        document.querySelectorAll('.domain-text').forEach(el => el.innerText = domainStr);
+        drawAll();
+    };
+
+    inputSelect.onchange = (e) => {
+        inputType = e.target.value;
+        const descriptions = {
+            '1': '500Hz',
+            '2': '300Hz + 500Hz',
+            '3': 'Ruído filtrado',
+            '4': 'Voz (Olá)'
+        };
+        document.getElementById('graph-desc-orig').innerText = descriptions[inputType];
+        drawAll();
+    };
+
+    // --- SELEÇÃO E ÁUDIO ---
+    function unlockAudio() {
+        if (!isStarted) {
+            initAudio();
+            if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            isStarted = true;
+        }
+    }
+    document.body.addEventListener('pointerdown', unlockAudio, { once: true });
+    document.body.addEventListener('touchstart', unlockAudio, { once: true });
+
+    function selectGraph(type) {
+        if (!isStarted) unlockAudio();
+        activeSource = type;
+        
+        document.getElementById('orig-box').classList.remove('active');
+        document.getElementById('samp-box').classList.remove('active');
+        document.getElementById('filt-box').classList.remove('active');
+        document.getElementById(`${type}-box`).classList.add('active');
+
+        if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        updateAudioGains();
+    }
+
+    function updateAudioGains() {
+        if(!audioCtx) return;
+        let t = audioCtx.currentTime;
+        
+        gainOrig.gain.setTargetAtTime(activeSource === 'orig' ? 1 : 0, t, 0.05);
+        gainSamp.gain.setTargetAtTime(activeSource === 'samp' ? 1 : 0, t, 0.05);
+        
+        let compGain = (1.0 / duty);
+        gainFilt.gain.setTargetAtTime(activeSource === 'filt' ? compGain : 0, t, 0.05);
+    }
+
+    // --- MATEMÁTICA DAS ENTRADAS ---
+    function getOriginalSignal(t) {
+        if (inputType === '1') {
+            return Math.sin(2 * Math.PI * 500 * t);
+        } else if (inputType === '2') {
+            let s500 = Math.sin(2 * Math.PI * 500 * t);
+            let s300 = 0.5 * Math.sin(2 * Math.PI * 300 * t);
+            return (s500 + s300) / 1.5;
+        } else if (inputType === '3') {
+            let val = 0;
+            for(let i=0; i < noiseComps.length; i++) {
+                val += noiseComps[i].A * Math.sin(2 * Math.PI * noiseComps[i].f * t + noiseComps[i].phi);
+            }
+            return val;
+        } else if (inputType === '4') {
+            // Voz de homem (fundamental 130Hz + harmônicos/formantes simulando tom vocal)
+            let f = 130;
+            let s = Math.sin(2 * Math.PI * f * t) + 
+                    0.5 * Math.sin(2 * Math.PI * (f*2) * t) + 
+                    0.4 * Math.sin(2 * Math.PI * 550 * t) + 
+                    0.2 * Math.sin(2 * Math.PI * 850 * t);
+            return s / 2.1;
+        }
+        return 0;
+    }
+
+    function calcIdealLpf(t) {
+        let val = 0;
+        
+        if (inputType === '1') {
+            let f0 = 500;
+            if (f0 <= fc) val += duty * Math.sin(2 * Math.PI * f0 * t);
+            let n = 1;
+            while (true) {
+                let f_up = n * fs + f0;
+                let f_down = n * fs - f0; 
+                let coef = (1 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
+                if (f_up <= fc) val += coef * Math.sin(2 * Math.PI * f_up * t);
+                if (Math.abs(f_down) <= fc) val -= coef * Math.sin(2 * Math.PI * f_down * t);
+                if (n * fs - f0 > fc) break; 
+                n++; if (n > 50) break; 
+            }
+        } else if (inputType === '2') {
+            const freqs = [300, 500];
+            const amps = [0.5/1.5, 1.0/1.5];
+            
+            for(let k=0; k<2; k++) {
+                let f0 = freqs[k];
+                let amp = amps[k];
+                if (f0 <= fc) val += duty * amp * Math.sin(2 * Math.PI * f0 * t);
+                let n = 1;
+                while (true) {
+                    let f_up = n * fs + f0;
+                    let f_down = n * fs - f0; 
+                    let coef = (1 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
+                    if (f_up <= fc) val += coef * amp * Math.sin(2 * Math.PI * f_up * t);
+                    if (Math.abs(f_down) <= fc) val -= coef * amp * Math.sin(2 * Math.PI * f_down * t);
+                    if (n * fs - f0 > fc) break; 
+                    n++; if (n > 50) break; 
+                }
+            }
+        } else if (inputType === '3') {
+            for(let i=0; i < noiseComps.length; i++) {
+                let comp = noiseComps[i];
+                if (comp.f <= fc) val += duty * comp.A * Math.sin(2 * Math.PI * comp.f * t + comp.phi);
+                let n = 1;
+                while (true) {
+                    let f_up = n * fs + comp.f;
+                    let f_down = n * fs - comp.f;
+                    let coef = (1 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
+                    if (f_up <= fc) val += coef * comp.A * Math.sin(2 * Math.PI * f_up * t + comp.phi);
+                    if (Math.abs(f_down) <= fc) val -= coef * comp.A * Math.sin(2 * Math.PI * f_down * t - comp.phi);
+                    if (n * fs - comp.f > fc) break;
+                    n++; if (n > 20) break; 
+                }
+            }
+        } else if (inputType === '4') {
+            const freqs = [130, 260, 550, 850];
+            const amps = [1/2.1, 0.5/2.1, 0.4/2.1, 0.2/2.1];
+            
+            for(let k=0; k<freqs.length; k++) {
+                let f0 = freqs[k];
+                let amp = amps[k];
+                if (f0 <= fc) val += duty * amp * Math.sin(2 * Math.PI * f0 * t);
+                let n = 1;
+                while (true) {
+                    let f_up = n * fs + f0;
+                    let f_down = n * fs - f0; 
+                    let coef = (1 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
+                    if (f_up <= fc) val += coef * amp * Math.sin(2 * Math.PI * f_up * t);
+                    if (Math.abs(f_down) <= fc) val -= coef * amp * Math.sin(2 * Math.PI * f_down * t);
+                    if (n * fs - f0 > fc) break; 
+                    n++; if (n > 50) break; 
+                }
+            }
+        }
+        return val;
+    }
+
+    // Processamento de Audio
+    function initAudio() {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        scriptNode = audioCtx.createScriptProcessor(2048, 1, 3);
+        
+        scriptNode.onaudioprocess = function(e) {
+            let outOrig = e.outputBuffer.getChannelData(0);
+            let outSamp = e.outputBuffer.getChannelData(1);
+            let outFilt = e.outputBuffer.getChannelData(2);
+            let dtAudio = 1.0 / audioCtx.sampleRate;
+            
+            if (inputType === '4') voiceEnsureFiltered();
+
+            for (let i = 0; i < outOrig.length; i++) {
+                let t = audioTime;
+                audioTime += dtAudio;
+
+                if (inputType === '4') {
+                    // Somente a fonte de áudio da opção “Olá” usa o WAV real.
+                    // Interface, gráficos e demais sinais permanecem como no Gemini original.
+                    let vt = voiceAudioTime;
+                    voiceAudioTime += dtAudio;
+                    let o = voiceValueAt(voiceSamples, vt);
+                    outOrig[i] = o * 0.3;
+
+                    let phase = ((vt * fs) % 1.0 + 1.0) % 1.0;
+                    let isSamp = (phase <= duty / 2.0 || phase >= 1.0 - duty / 2.0);
+                    outSamp[i] = isSamp ? o * 0.3 : 0.0;
+
+                    outFilt[i] = voiceValueAt(voiceFiltered, vt) * 0.3;
+                } else {
+                    let o = getOriginalSignal(t);
+                    outOrig[i] = o * 0.3; 
+                    
+                    let phase = ((t * fs) % 1.0 + 1.0) % 1.0;
+                    let isSamp = (phase <= duty / 2.0 || phase >= 1.0 - duty / 2.0);
+                    outSamp[i] = isSamp ? o * 0.3 : 0.0;
+                    
+                    outFilt[i] = calcIdealLpf(t) * 0.3;
+                }
+            }
+        };
+
+        let splitter = audioCtx.createChannelSplitter(3);
+        scriptNode.connect(splitter);
+
+        gainOrig = audioCtx.createGain(); gainOrig.gain.value = 0;
+        gainSamp = audioCtx.createGain(); gainSamp.gain.value = 0;
+        gainFilt = audioCtx.createGain(); gainFilt.gain.value = 0;
+
+        splitter.connect(gainOrig, 0);
+        splitter.connect(gainSamp, 1);
+        splitter.connect(gainFilt, 2);
+
+        gainOrig.connect(audioCtx.destination);
+        gainSamp.connect(audioCtx.destination);
+        gainFilt.connect(audioCtx.destination);
+    }
+
+    // --- MOTOR DE DESENHO (CANVAS) ---
+    function setupCanvas(id) {
+        const c = document.getElementById(id);
+        const w = c.parentElement.clientWidth; 
+        const h = c.parentElement.clientHeight;
+        c.width = w * window.devicePixelRatio;
+        c.height = h * window.devicePixelRatio;
+        return { ctx: c.getContext('2d'), w: c.width, h: c.height };
+    }
+
+    function drawGrid(ctx, w, h) {
+        ctx.strokeStyle = '#F0F0F5'; ctx.lineWidth = 1.5; ctx.beginPath();
+        ctx.moveTo(0, h/2); ctx.lineTo(w, h/2);
+        for(let i=1; i<10; i++) {
+            ctx.moveTo((w/10)*i, 0); ctx.lineTo((w/10)*i, h);
+            ctx.moveTo(0, (h/10)*i); ctx.lineTo(w, (h/10)*i);
+        }
+        ctx.stroke();
+    }
+
+    function drawTimeDomain(ctx, w, h, type, color) {
+        let baseFreq = (inputType === '4') ? 130 : 500;
+        const tWindow = inputType === '3' ? 0.01 : (2 / baseFreq); 
+        const pts = 2500; 
+        const dt = tWindow / pts;
+
+        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5 * window.devicePixelRatio; ctx.lineJoin = 'round';
+        
+        let maxOut = 0.001;
+        let yData = new Float32Array(pts);
+
+        for(let i = 0; i < pts; i++) {
+            let t = i * dt;
+            let o = getOriginalSignal(t);
+            
+            if (type === 'orig') {
+                yData[i] = o;
+            }
+            else if (type === 'samp') {
+                let phase = ((t * fs) % 1.0 + 1.0) % 1.0;
+                let isSamp = (phase <= duty / 2.0 || phase >= 1.0 - duty / 2.0);
+                yData[i] = isSamp ? o : 0.0;
+            }
+            else if (type === 'filt') {
+                yData[i] = calcIdealLpf(t);
+            }
+            
+            if(Math.abs(yData[i]) > maxOut) maxOut = Math.abs(yData[i]);
+        }
+
+        for(let i = 0; i < pts; i++) {
+            let val = yData[i];
+            val /= maxOut; 
+            
+            let x = (i / (pts-1)) * w;
+            let safeHeight = h * 0.7; 
+            let y = (h/2 + 10) - (val * (safeHeight/2) * 0.85);
+            
+            if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y); 
+        }
+        ctx.stroke();
+    }
+
+    function drawFreqDomain(ctx, w, h, type, color) {
+        const maxFreq = 6000; 
+        const fullRange = 2 * maxFreq;
+        
+        if (type === 'samp') {
+            let xStart = ((-fc + maxFreq) / fullRange) * w;
+            let xEnd = ((fc + maxFreq) / fullRange) * w;
+            
+            ctx.fillStyle = 'rgba(200, 200, 200, 0.25)'; 
+            ctx.fillRect(xStart, 0, xEnd - xStart, h);
+            
+            ctx.strokeStyle = 'rgba(150, 150, 150, 0.4)';
+            ctx.lineWidth = 1 * window.devicePixelRatio;
+            ctx.setLineDash([5 * window.devicePixelRatio, 5 * window.devicePixelRatio]);
+            ctx.beginPath();
+            ctx.moveTo(xStart, 0); ctx.lineTo(xStart, h);
+            ctx.moveTo(xEnd, 0); ctx.lineTo(xEnd, h);
+            ctx.stroke();
+            ctx.setLineDash([]); 
+        }
+
+        ctx.fillStyle = '#8E8E93';
+        ctx.font = `bold ${10 * window.devicePixelRatio}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        
+        const refs = [-4000, -2000, 0, 2000, 4000];
+        refs.forEach(f => {
+            let x = ((f + maxFreq) / fullRange) * w;
+            let text = f === 0 ? '0' : (f/1000) + 'k';
+            ctx.fillText(text, x, h/2 + (5 * window.devicePixelRatio));
+        });
+
+        let safeHeight = h * 0.7; 
+
+        if (inputType === '3') {
+            // Espectro Contínuo para o Ruído (Opção 3)
+            ctx.beginPath();
+            ctx.moveTo(0, h/2 + 10);
+            
+            for (let x_px = 0; x_px <= w; x_px++) {
+                let f = (x_px / w) * fullRange - maxFreq; 
+                let amp = 0;
+                
+                if (type === 'orig') {
+                    amp = Math.max(0, 1.0 - Math.abs(f)/500);
+                } else {
+                    for (let n = -10; n <= 10; n++) {
+                        let fn = f - n * fs;
+                        if (Math.abs(fn) < 500) { 
+                            let rawCoef = (n === 0) ? duty : Math.sin(n * Math.PI * duty) / (n * Math.PI);
+                            let localAmp = Math.max(0, 1.0 - Math.abs(fn)/500) * Math.abs(rawCoef);
+                            amp += localAmp;
+                        }
+                    }
+                    if (type === 'filt') {
+                        if (Math.abs(f) > fc) amp = 0;
+                        else amp = amp / duty; 
+                    }
+                }
+                
+                let y = (h/2 + 10) - (amp * (safeHeight/2) * 0.7);
+                ctx.lineTo(x_px, y);
+            }
+            
+            ctx.lineTo(w, h/2 + 10);
+            ctx.closePath();
+            
+            ctx.fillStyle = color + '80';
+            ctx.fill();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2 * window.devicePixelRatio;
+            ctx.stroke();
+
+        } else {
+            // Espectro Discreto para Senóides e Voz (Opções 1, 2 e 4)
+            ctx.strokeStyle = color; ctx.fillStyle = color;
+            ctx.lineWidth = 3 * window.devicePixelRatio;
+            let radius = 3 * window.devicePixelRatio;
+
+            const drawStem = (f, amp) => {
+                if (f < -maxFreq || f > maxFreq) return;
+                if (type === 'filt' && Math.abs(f) > fc) return; 
+                
+                let x = ((f + maxFreq) / fullRange) * w;
+                let y = (h/2 + 10) - (amp * (safeHeight/2) * 0.7); 
+                
+                ctx.beginPath(); ctx.moveTo(x, h/2 + 10); ctx.lineTo(x, y); ctx.stroke();
+                ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI*2); ctx.fill();
+            };
+
+            let freqsToDraw = [];
+            if (inputType === '1') freqsToDraw = [{f: 500, a: 1.0}];
+            if (inputType === '2') freqsToDraw = [{f: 300, a: 0.5/1.5}, {f: 500, a: 1.0/1.5}];
+            if (inputType === '4') freqsToDraw = [
+                {f: 130, a: 1.0/2.1}, 
+                {f: 260, a: 0.5/2.1}, 
+                {f: 550, a: 0.4/2.1}, 
+                {f: 850, a: 0.2/2.1}
+            ];
+
+            if (type === 'orig') {
+                freqsToDraw.forEach(item => {
+                    drawStem(item.f, item.a);
+                    drawStem(-item.f, item.a);
+                });
+            } else {
+                freqsToDraw.forEach(item => {
+                    let f0 = item.f;
+                    let baseAmp = item.a;
+                    for (let n = -15; n <= 15; n++) {
+                        let f_up = n * fs + f0;
+                        let f_down = n * fs - f0;
+                        
+                        let rawCoef = (n === 0) ? duty : Math.sin(n * Math.PI * duty) / (n * Math.PI);
+                        let amp = Math.abs(rawCoef) * baseAmp;
+                        if (type === 'filt') amp = amp / duty; 
+                        
+                        drawStem(f_up, amp);
+                        drawStem(f_down, amp);
+                    }
+                });
+            }
+        }
+    }
+
+    function drawAll() {
+        const colorOrig = '#FF453A';
+        const colorBlue = '#007AFF';
+        const colorMagenta = '#FF00FF';
+
+        const cOrig = setupCanvas('canvas-orig');
+        cOrig.ctx.clearRect(0,0, cOrig.w, cOrig.h); drawGrid(cOrig.ctx, cOrig.w, cOrig.h);
+        if(viewDomain === 'time') drawTimeDomain(cOrig.ctx, cOrig.w, cOrig.h, 'orig', colorOrig);
+        else drawFreqDomain(cOrig.ctx, cOrig.w, cOrig.h, 'orig', colorOrig);
+
+        const cSamp = setupCanvas('canvas-samp');
+        cSamp.ctx.clearRect(0,0, cSamp.w, cSamp.h); drawGrid(cSamp.ctx, cSamp.w, cSamp.h);
+        if(viewDomain === 'time') drawTimeDomain(cSamp.ctx, cSamp.w, cSamp.h, 'samp', colorBlue);
+        else drawFreqDomain(cSamp.ctx, cSamp.w, cSamp.h, 'samp', colorBlue);
+
+        const cFilt = setupCanvas('canvas-filt');
+        cFilt.ctx.clearRect(0,0, cFilt.w, cFilt.h); drawGrid(cFilt.ctx, cFilt.w, cFilt.h);
+        if(viewDomain === 'time') drawTimeDomain(cFilt.ctx, cFilt.w, cFilt.h, 'filt', colorMagenta);
+        else drawFreqDomain(cFilt.ctx, cFilt.w, cFilt.h, 'filt', colorMagenta);
+        
+        const cSw = document.getElementById('canvas-switch');
+        cSw.width = (cSw.parentElement.clientWidth || 100) * window.devicePixelRatio;
+        cSw.height = (cSw.parentElement.clientHeight || 100) * window.devicePixelRatio;
+    }
+
+    // --- ANIMAÇÃO DA CHAVE DO MEIO ---
+    function animateSwitch() {
+        const c = document.getElementById('canvas-switch');
+        const w = c.width; const h = c.height;
+        if (w > 0 && h > 0) {
+            const ctx = c.getContext('2d');
+            ctx.clearRect(0, 0, w, h);
+            
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 4 * window.devicePixelRatio; ctx.lineCap = 'round';
+            
+            const time = performance.now() / 1000;
+            const anim = (Math.sin(time * 3 * Math.PI * 2) + 1) / 2; // 3Hz
+            const tipY = h/2 - (anim * h * 0.4); 
+
+            ctx.beginPath();
+            ctx.moveTo(w*0.05, h/2); ctx.lineTo(w*0.35, h/2);
+            ctx.moveTo(w*0.35, h/2); ctx.lineTo(w*0.65, tipY);
+            ctx.moveTo(w*0.65, h/2); ctx.lineTo(w*0.95, h/2);
+            ctx.stroke();
+
+            ctx.fillStyle = '#000';
+            let radius = 4 * window.devicePixelRatio;
+            ctx.beginPath(); ctx.arc(w*0.35, h/2, radius, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(w*0.65, h/2, radius, 0, Math.PI*2); ctx.fill();
+        }
+        requestAnimationFrame(animateSwitch);
+    }
+
+    // --- INICIALIZAÇÃO ---
+    window.addEventListener('load', () => {
+        drawAll();
+        requestAnimationFrame(animateSwitch);
+    });
+    window.addEventListener('resize', drawAll);
+
+</script>
+</body>
+</html>
