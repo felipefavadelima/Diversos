@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="UTF-8">
+    <title>Simulador TDM - 3 Canais Simultâneos</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h2 {
+            margin-bottom: 5px;
+        }
+        p {
+            margin-top: 0;
+            color: #666;
+            max-width: 650px;
+            text-align: center;
+        }
+        .controls {
+            background: #fff;
+            padding: 18px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: min(920px, calc(100vw - 40px));
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .control-row {
+            display: grid;
+            grid-template-columns: max-content minmax(260px, 1fr) 150px;
+            align-items: center;
+            column-gap: 18px;
+        }
+        canvas {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        input[type=range] {
+            width: 100%;
+            margin: 0;
+        }
+        #lowPassButton {
+            font: inherit;
+            font-weight: bold;
+            padding: 7px 12px;
+            border: 1px solid #999;
+            border-radius: 6px;
+            background: #fff;
+            color: #333;
+            cursor: pointer;
+            width: 150px;
+            justify-self: start;
+        }
+        #cutoffRow {
+            display: none;
+        }
+        #cutoffRow.visible {
+            display: grid;
+        }
+        #cutoffValue {
+            width: 150px;
+            font-weight: bold;
+            font-variant-numeric: tabular-nums;
+            justify-self: start;
+            text-align: left;
+        }
+        @media (max-width: 760px) {
+            .controls {
+                width: min(680px, calc(100vw - 24px));
+                padding: 16px 18px;
+            }
+            .control-row {
+                grid-template-columns: 1fr;
+                row-gap: 8px;
+            }
+            #lowPassButton,
+            #cutoffValue {
+                width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Simulador de Multiplexação (TDM) - 3 Canais Simultâneos</h2>
+    <p>Acompanhe os três sinais simultaneamente. Ajuste a velocidade 
+para ver como a amostragem afeta de forma diferente as ondas lentas e 
+rápidas.</p>
+
+    <div class="controls">
+        <div class="control-row">
+            <label for="speedControl">Velocidade de Rotação do Comutador:</label>
+            <input type="range" id="speedControl" min="0.01" max="1.20" step="0.01" value="0.01">
+            <button id="lowPassButton" type="button">PB: DESLIGADO</button>
+        </div>
+        <div id="cutoffRow" class="control-row">
+            <label for="cutoffControl">Fc PB:</label>
+            <input type="range" id="cutoffControl" min="0.0001" max="0.1" step="0.0001" value="0.0040">
+            <span id="cutoffValue">0,0040</span>
+        </div>
+    </div>
+
+    <!-- Canvas para os Comutadores Rotativos -->
+    <canvas id="mechanicsCanvas" width="700" height="250"></canvas>
+    
+    <!-- Canvas para os Gráficos das Ondas -->
+    <canvas id="wavesCanvas" width="700" height="450"></canvas>
+
+    <script>
+        // Configurações e Variáveis de Estado
+        const numChannels = 3;
+        const channelAngle = (2 * Math.PI) / numChannels;
+        let currentAngle = 0;
+        // Fases dos três osciladores, mantidas em [0, 2π) para evitar
+        // perda de precisão numérica em execuções muito longas.
+        const signalPhases = [0, 0, 0];
+        const signalAngularFrequencies = [0.01, 0.05, 0.20]; // rad/amostra
+        
+        // Elementos do DOM
+        const speedControl = document.getElementById('speedControl');
+        const lowPassButton = document.getElementById('lowPassButton');
+        const cutoffRow = document.getElementById('cutoffRow');
+        const cutoffControl = document.getElementById('cutoffControl');
+        const cutoffValue = document.getElementById('cutoffValue');
+        const mechCanvas = document.getElementById('mechanicsCanvas');
+        const mechCtx = mechCanvas.getContext('2d');
+        const wavesCanvas = document.getElementById('wavesCanvas');
+        const wavesCtx = wavesCanvas.getContext('2d');
+
+        // Buffers para desenhar os gráficos 
+        const historySize = 700;
+        const txHistories = [
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0)
+        ];
+        const rxHistories = [
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0)
+        ];
+
+        // PB opcional aplicado apenas aos sinais de saída.
+        // Filtro passa-baixas REAL, causal, de 1ª ordem (um polo), equivalente
+        // à dinâmica de um circuito RC. A frequência de corte indicada no slider
+        // é o ponto digital de -3 dB, em ciclos por amostra (Nyquist = 0,5).
+        let lowPassEnabled = false;
+
+        const rawRxHistories = [
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0)
+        ];
+        const filteredRxHistories = [
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0),
+            new Array(historySize).fill(0)
+        ];
+
+        // Estado físico do filtro por canal: tensão de saída/capacitor da amostra anterior.
+        // O estado NÃO é reiniciado quando Fc muda, evitando saltos artificiais.
+        const lowPassStates = new Float64Array(numChannels);
+
+        lowPassButton.addEventListener('click', () => {
+            lowPassEnabled = !lowPassEnabled;
+            lowPassButton.textContent = lowPassEnabled ? 'PB: LIGADO' : 'PB: DESLIGADO';
+            cutoffRow.classList.toggle('visible', lowPassEnabled);
+        });
+
+        cutoffControl.addEventListener('input', () => {
+            cutoffValue.textContent = parseFloat(cutoffControl.value)
+                .toFixed(4)
+                .replace('.', ',');
+        });
+
+        function firstOrderLowPass(sample, ch) {
+            const fc = Math.max(0.000001, Math.min(0.499999, parseFloat(cutoffControl.value)));
+
+            // Um polo: H(z) = (1-r)/(1-r z^-1).
+            // r é escolhido para que |H(e^jw)| = 1/sqrt(2) exatamente em w = 2*pi*Fc.
+            // Isso preserva a interpretação direta do slider como frequência de corte (-3 dB).
+            const c = Math.cos(2 * Math.PI * fc);
+            const q = 2 - c;
+            const r = q - Math.sqrt(q * q - 1);
+            const alpha = 1 - r;
+
+            // Equação recursiva de um RC discreto causal.
+            // y[n] = y[n-1] + alpha * (x[n] - y[n-1])
+            const yPrev = lowPassStates[ch];
+            const y = yPrev + alpha * (sample - yPrev);
+            lowPassStates[ch] = y;
+            return y;
+        }
+
+        function drawMechanics(activeChannel) {
+            mechCtx.clearRect(0, 0, mechCanvas.width, mechCanvas.height);
+
+            const centerX1 = 150;
+            const centerY = 125;
+            const centerX2 = 550;
+            const radius = 60;
+
+            // Desenha a linha de transmissão central
+            mechCtx.beginPath();
+            mechCtx.moveTo(centerX1, centerY);
+            mechCtx.lineTo(centerX2, centerY);
+            mechCtx.strokeStyle = '#333';
+            mechCtx.lineWidth = 2;
+            mechCtx.stroke();
+
+            // Função auxiliar para desenhar um comutador
+            function drawCommutator(cx, cy, title) {
+                mechCtx.beginPath();
+                mechCtx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                mechCtx.fillStyle = '#eee';
+                mechCtx.fill();
+                mechCtx.strokeStyle = '#999';
+                mechCtx.lineWidth = 4;
+                mechCtx.stroke();
+
+                for(let i = 0; i < numChannels; i++) {
+                    const startA = i * channelAngle;
+                    const endA = (i + 1) * channelAngle;
+                    
+                    mechCtx.beginPath();
+                    mechCtx.arc(cx, cy, radius, startA, endA);
+                    
+                    if(i === activeChannel) {
+                        mechCtx.strokeStyle = '#ff3333';
+                        mechCtx.lineWidth = 8;
+                    } else {
+                        mechCtx.strokeStyle = '#333';
+                        mechCtx.lineWidth = 2;
+                    }
+                    mechCtx.stroke();
+                    
+                    const textAngle = startA + (channelAngle / 2);
+                    const textX = cx + (radius + 15) * Math.cos(textAngle);
+                    const textY = cy + (radius + 15) * Math.sin(textAngle);
+                    mechCtx.fillStyle = '#666';
+                    mechCtx.font = '12px Arial';
+                    mechCtx.textAlign = 'center';
+                    mechCtx.textBaseline = 'middle';
+                    mechCtx.fillText("CH " + (i+1), textX, textY);
+                }
+
+                mechCtx.beginPath();
+                mechCtx.moveTo(cx, cy);
+                mechCtx.lineTo(cx + (radius-5) * Math.cos(currentAngle), cy + (radius-5) * Math.sin(currentAngle));
+                mechCtx.strokeStyle = '#0066cc';
+                mechCtx.lineWidth = 6;
+                mechCtx.lineCap = 'round';
+                mechCtx.stroke();
+
+                mechCtx.fillStyle = '#333';
+                mechCtx.font = '16px Arial';
+                mechCtx.textAlign = 'center';
+                mechCtx.fillText(title, cx, cy + radius + 40);
+            }
+
+            drawCommutator(centerX1, centerY, "Transmissor");
+            drawCommutator(centerX2, centerY, "Receptor");
+        }
+
+        function drawWaves() {
+            wavesCtx.clearRect(0, 0, wavesCanvas.width, wavesCanvas.height);
+            
+            const sectionHeight = wavesCanvas.height / numChannels;
+            const amp = (sectionHeight / 2) - 20; 
+
+            for(let ch = 0; ch < numChannels; ch++) {
+                const midY = (ch * sectionHeight) + (sectionHeight / 2);
+
+                if (ch < numChannels - 1) {
+                    wavesCtx.beginPath();
+                    wavesCtx.moveTo(0, (ch + 1) * sectionHeight);
+                    wavesCtx.lineTo(wavesCanvas.width, (ch + 1) * sectionHeight);
+                    wavesCtx.strokeStyle = '#eee';
+                    wavesCtx.lineWidth = 2;
+                    wavesCtx.stroke();
+                }
+
+                wavesCtx.beginPath();
+                wavesCtx.moveTo(0, midY);
+                wavesCtx.lineTo(wavesCanvas.width, midY);
+                wavesCtx.strokeStyle = '#ddd';
+                wavesCtx.lineWidth = 1;
+                wavesCtx.stroke();
+
+                wavesCtx.beginPath();
+                for(let i = 0; i < historySize; i++) {
+                    const y = midY - (txHistories[ch][i] * amp);
+                    if(i === 0) wavesCtx.moveTo(i, y);
+                    else wavesCtx.lineTo(i, y);
+                }
+                wavesCtx.strokeStyle = 'rgba(0, 102, 204, 0.4)';
+                wavesCtx.lineWidth = 3;
+                wavesCtx.stroke();
+
+                const displayedRxHistory = lowPassEnabled
+                    ? filteredRxHistories[ch]
+                    : rawRxHistories[ch];
+
+                wavesCtx.beginPath();
+                let drawing = false;
+                for(let i = 0; i < historySize; i++) {
+                    const value = displayedRxHistory[i];
+                    if (!Number.isFinite(value)) {
+                        drawing = false;
+                        continue;
+                    }
+                    const y = midY - (value * amp);
+                    if(!drawing) {
+                        wavesCtx.moveTo(i, y);
+                        drawing = true;
+                    } else {
+                        wavesCtx.lineTo(i, y);
+                    }
+                }
+                wavesCtx.strokeStyle = '#cc0000';
+                wavesCtx.lineWidth = 2;
+                wavesCtx.stroke();
+
+                const textNames = [
+                    "Senoide Muito Lenta",
+                    "Senoide Média",
+                    "Senoide Rápida"
+                ];
+                wavesCtx.fillStyle = '#333';
+                wavesCtx.font = 'bold 12px Arial';
+                wavesCtx.textAlign = 'left';
+                wavesCtx.fillText(`Canal ${ch + 1}: ${textNames[ch]}`, 10, (ch * sectionHeight) + 20);
+            }
+        }
+
+        function update() {
+            const speed = parseFloat(speedControl.value);
+            currentAngle = (currentAngle + speed) % (2 * Math.PI);
+
+            // Geração dos sinais. As frequências são angulares digitais (rad/amostra).
+            const currentTxSignals = new Array(numChannels);
+            for (let ch = 0; ch < numChannels; ch++) {
+                signalPhases[ch] = (signalPhases[ch] + signalAngularFrequencies[ch]) % (2 * Math.PI);
+                currentTxSignals[ch] = Math.sin(signalPhases[ch]);
+            }
+
+            let normAngle = currentAngle;
+            if (normAngle < 0) normAngle += 2 * Math.PI;
+            const activePhysicalChannel = Math.floor(normAngle / channelAngle);
+
+            const currentRxSignals = new Float64Array(numChannels);
+            currentRxSignals[activePhysicalChannel] = currentTxSignals[activePhysicalChannel];
+
+            for(let ch = 0; ch < numChannels; ch++) {
+                const currentRx = currentRxSignals[ch];
+
+                txHistories[ch].push(currentTxSignals[ch]);
+                txHistories[ch].shift();
+
+                rawRxHistories[ch].push(currentRx);
+                rawRxHistories[ch].shift();
+
+                // O filtro é atualizado continuamente, mesmo quando PB está visualmente
+                // desligado. Assim, ao ligá-lo, a saída já representa o estado físico
+                // corrente do RC, sem um transitório artificial de inicialização.
+                const filteredRx = firstOrderLowPass(currentRx, ch);
+                filteredRxHistories[ch].push(filteredRx);
+                filteredRxHistories[ch].shift();
+            }
+
+            drawMechanics(activePhysicalChannel);
+            drawWaves();
+
+            requestAnimationFrame(update);
+        }
+
+        update();
+    </script>
+
+</body></html>
