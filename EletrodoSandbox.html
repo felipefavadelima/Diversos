@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sandbox de Eletrodos</title>
+<style>
+  :root{
+    --panel:#0d1b27;
+    --glow:#6fe7ff;
+    --green:#8fffc3;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 40%,#10283a 0,#07111a 55%,#03080d 100%);font-family:system-ui,sans-serif}
+  body{display:flex;align-items:center;justify-content:center;padding:14px}
+  .app{width:min(1500px,98vw);height:min(860px,96vh);display:grid;grid-template-columns:220px minmax(0,1fr) 320px;grid-template-rows:minmax(0,1fr) 145px;gap:14px;min-width:0;min-height:0;overflow:hidden}
+  .panel{background:linear-gradient(180deg,rgba(18,39,54,.92),rgba(8,20,30,.95));border:1px solid rgba(111,231,255,.18);border-radius:22px;box-shadow:0 16px 50px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(8px)}
+  .controls{grid-row:1 / 3;padding:14px;display:flex;flex-direction:column;gap:14px}
+  .materials{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px;border-radius:18px;background:rgba(255,255,255,.025)}
+  .mat{height:72px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:#0a1520;position:relative;cursor:pointer;transition:.2s;outline:none}
+  .mat::before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:28px;height:50px;border-radius:9px;box-shadow:inset 0 0 12px rgba(255,255,255,.18)}
+  .mat[data-m="agcl"]::before{background:linear-gradient(#dbe4e8 0 48%,#b9e4cf 48% 100%)}
+  .mat[data-m="cu"]::before{background:linear-gradient(90deg,#8f4e2f,#d99063,#8e4b30)}
+  .mat[data-m="steel"]::before{background:linear-gradient(90deg,#4c5962,#c9d1d6,#55616a)}
+  .mat.active{border-color:#8fffc3;box-shadow:0 0 0 1px #8fffc3,0 0 22px rgba(143,255,195,.25)}
+  .mat::after{content:attr(data-tip);position:absolute;left:50%;top:-10px;transform:translate(-50%,-100%) scale(.96);padding:6px 9px;border-radius:9px;background:rgba(3,10,15,.96);border:1px solid rgba(111,231,255,.28);color:#eaffff;font-size:12px;font-weight:650;letter-spacing:.01em;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:20;box-shadow:0 8px 20px rgba(0,0,0,.35)}
+  .mat:hover::after,.mat:focus-visible::after{opacity:1;transform:translate(-50%,-100%) scale(1)}
+  .pair{display:flex;flex-direction:column;gap:7px}
+  .pairDot{height:5px;border-radius:99px;background:linear-gradient(90deg,transparent,#6fe7ff,transparent);opacity:.45}
+  .sliders{display:flex;flex-direction:column;gap:11px;margin-top:auto}
+  .slideRow{display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:10px;padding:10px 8px;border-radius:17px;background:rgba(255,255,255,.025)}
+  .ico{width:38px;height:38px;display:grid;place-items:center}
+  .ico svg{width:30px;height:30px;stroke:#7bdcff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 8px rgba(123,220,255,.25))}
+  .sliderTag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(230,250,255,.78);min-width:26px;text-align:right}
+  input[type=range]{width:100%;appearance:none;height:8px;border-radius:99px;background:linear-gradient(90deg,#2d87ff,#62e9ff,#a8ffbe);outline:none}
+  input[type=range]::-webkit-slider-thumb{appearance:none;width:24px;height:24px;border-radius:50%;background:#dff8ff;border:4px solid #15394a;box-shadow:0 0 14px rgba(111,231,255,.6);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#dff8ff;border:4px solid #15394a;box-shadow:0 0 14px rgba(111,231,255,.6);cursor:pointer}
+  .bathWrap{position:relative;overflow:hidden;min-width:0;min-height:0}
+  .scope{display:block;background:transparent;border:0;box-shadow:none;min-width:0;min-height:0;overflow:hidden}
+  .scopeBox{width:100%;height:100%;overflow:hidden;position:relative;min-width:0;min-height:0}
+  .bottom{grid-column:2 / 3;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;padding:12px;min-width:0;min-height:0;overflow:hidden}
+  .mini{position:relative;overflow:hidden;min-width:0;min-height:0}
+  .bathWrap>canvas,.scopeBox>canvas,.mini>canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .plotInfo{position:absolute;left:14px;right:14px;top:10px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:5}
+  .plotLabel{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(228,246,252,.78)}
+  .plotValue{font-size:12px;font-variant-numeric:tabular-nums;color:#dffbff;text-shadow:0 0 10px rgba(111,231,255,.3)}
+  .valueStack{display:flex;align-items:center;gap:12px}
+  .deltaChange{font-size:10px;color:rgba(210,239,247,.62);font-variant-numeric:tabular-nums}
+  .mini .plotValue{color:#e8fdff}
+  .pulse{position:absolute;inset:auto 20px 16px 20px;height:4px;border-radius:99px;background:linear-gradient(90deg,transparent,#8fffc3,transparent);opacity:.35;box-shadow:0 0 18px #8fffc3}
+  @media(max-width:1050px){
+    .app{grid-template-columns:190px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 200px 135px}
+    .controls{grid-row:1 / 4}
+    .scope{grid-column:2;grid-row:2}
+    .bottom{grid-column:2;grid-row:3}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="panel controls">
+    <div class="pair">
+      <div class="materials" id="mats1">
+        <button class="mat active" data-m="agcl" data-tip="Ag/AgCl" aria-label="Ag/AgCl"></button>
+        <button class="mat" data-m="cu" data-tip="Cobre" aria-label="Cobre"></button>
+        <button class="mat" data-m="steel" data-tip="Inox" aria-label="Inox"></button>
+      </div>
+      <div class="pairDot"></div>
+    </div>
+
+    <div class="pair">
+      <div class="materials" id="mats2">
+        <button class="mat active" data-m="agcl" data-tip="Ag/AgCl" aria-label="Ag/AgCl"></button>
+        <button class="mat" data-m="cu" data-tip="Cobre" aria-label="Cobre"></button>
+        <button class="mat" data-m="steel" data-tip="Inox" aria-label="Inox"></button>
+      </div>
+      <div class="pairDot"></div>
+    </div>
+
+    <div class="sliders">
+      <div class="slideRow">
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M13 5a3 3 0 0 1 6 0v13.2a7 7 0 1 1-6 0Z"/><path d="M16 9v12"/><circle cx="16" cy="24" r="2.5" fill="#7bdcff" stroke="none"/></svg>
+        </div>
+        <input id="temp" type="range" min="0" max="100" value="50" aria-label="Temperatura" />
+        <div class="sliderTag">Temp</div>
+      </div>
+      <div class="slideRow">
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M16 3C11 10 7 14 7 20a9 9 0 0 0 18 0c0-6-4-10-9-17Z"/><circle cx="13" cy="21" r="1.3" fill="#7bdcff" stroke="none"/><circle cx="19" cy="18" r="1.3" fill="#7bdcff" stroke="none"/><circle cx="20.5" cy="23.5" r="1" fill="#7bdcff" stroke="none"/></svg>
+        </div>
+        <input id="conc" type="range" min="0" max="100" value="50" aria-label="Concentração" />
+        <div class="sliderTag">Conc</div>
+      </div>
+      <div class="slideRow">
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M3 10c4-6 8 6 12 0s8 6 14 0"/><path d="M3 16c4-6 8 6 12 0s8 6 14 0"/><path d="M3 22c4-6 8 6 12 0s8 6 14 0"/></svg>
+        </div>
+        <input id="motion" type="range" min="0" max="100" value="10" aria-label="Agitação" />
+        <div class="sliderTag">Mov</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel bathWrap"><canvas id="bath"></canvas></div>
+
+  <div class="scope">
+    <div class="panel scopeBox">
+      <div class="plotInfo">
+        <div class="plotLabel">ΔV</div>
+        <div class="valueStack">
+          <div class="plotValue" id="scopeVal">0.0 mV</div>
+          <div class="deltaChange" id="deltaChangeVal">ΔΔV 0.0 mV</div>
+        </div>
+      </div>
+      <canvas id="scope"></canvas>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="panel mini">
+      <div class="plotInfo"><div class="plotLabel">E1/ref</div><div class="plotValue" id="m1Val">0.0 mV</div></div>
+      <canvas id="micro1"></canvas><div class="pulse"></div>
+    </div>
+    <div class="panel mini">
+      <div class="plotInfo"><div class="plotLabel">E2/ref</div><div class="plotValue" id="m2Val">0.0 mV</div></div>
+      <canvas id="micro2"></canvas><div class="pulse"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const bath = document.getElementById('bath');
+  const scope = document.getElementById('scope');
+  const micro1 = document.getElementById('micro1');
+  const micro2 = document.getElementById('micro2');
+  const temp = document.getElementById('temp');
+  const conc = document.getElementById('conc');
+  const motion = document.getElementById('motion');
+  const scopeVal = document.getElementById('scopeVal');
+  const deltaChangeVal = document.getElementById('deltaChangeVal');
+  const m1Val = document.getElementById('m1Val');
+  const m2Val = document.getElementById('m2Val');
+
+  const ctx = bath.getContext('2d');
+  const sctx = scope.getContext('2d');
+  const m1 = micro1.getContext('2d');
+  const m2 = micro2.getContext('2d');
+
+  // Modelo qualitativo alinhado com a teoria:
+  // - E1/ref e E2/ref representam potenciais individuais contra uma referência ideal invisível.
+  // - ΔV = E1 - E2.
+  // - Ag/AgCl responde à temperatura e à concentração de Cl- de forma previsível,
+  //   mas com menor drift, menor ruído e menor sensibilidade a movimento.
+  // - Em pares idênticos, mudanças globais de temperatura/concentração afetam ambos quase igualmente,
+  //   restando apenas pequenas diferenças locais de interface.
+  const materials = {
+    // surfaceVar representa quanto o potencial aberto depende de um estado superficial
+    // específico daquele eletrodo. É muito pequeno no Ag/AgCl e maior em Cu/inox.
+    agcl:{base:0.205, temp:-0.00055, conc:-0.0215, motion:0.0011, noise:0.00009, drift:0.000006, local:0.006, surfaceVar:0.00045, tau:0.9, a:'#dce5e9', b:'#b8e3cf'},
+    cu:{base:0.050, temp:0.00110, conc:0.0100, motion:0.0085, noise:0.00100, drift:0.000085, local:0.050, surfaceVar:0.0120, tau:3.5, a:'#e3a176', b:'#8d4b2f'},
+    steel:{base:-0.080, temp:0.00135, conc:0.0065, motion:0.0130, noise:0.00165, drift:0.000150, local:0.075, surfaceVar:0.0180, tau:4.5, a:'#d7dde1', b:'#4d5b65'}
+  };
+
+  let mat1='agcl', mat2='agcl';
+  let history = new Array(420).fill(0);
+  let history1 = new Array(260).fill(materials.agcl.base);
+  let history2 = new Array(260).fill(materials.agcl.base);
+  let ions=[];
+  let lastIonCount=0;
+  let t0=performance.now();
+  let deltaReference=null;
+
+  function rnd(){ return Math.random() - 0.5; }
+  function clamp(x,a,b){ return Math.max(a,Math.min(b,x)); }
+
+  function makeElectrode(mat, polarity){
+    const p = materials[mat];
+    return {
+      mat,
+      polarity,
+      drift:0,
+      surfaceState:0,
+      lastUpdate:performance.now(),
+      surfaceOffset: rnd()*0.0025 + polarity*0.0005,
+
+      // Pequenas diferenças locais. No Ag/AgCl são muito pequenas.
+      localClBias: rnd()*p.local,
+      localTempBias: rnd()*p.local*0.35,
+      motionGain: 1 + rnd()*p.local*4,
+      noiseGain: 1 + rnd()*p.local*5,
+      driftGain: 1 + Math.abs(rnd())*p.local*6,
+
+      // Sensibilidades próprias de superfície para Cu/inox.
+      // Representam estado de óxido/passivação/corrosão e não uma nova lei de Nernst.
+      surfT: 0.55 + Math.random()*0.90,
+      surfC: 0.55 + Math.random()*0.90,
+      surfTC: rnd()*0.65,
+      surfSignT: Math.random()<0.5 ? -1 : 1,
+      surfSignC: Math.random()<0.5 ? -1 : 1,
+
+      ph1: Math.random()*Math.PI*2,
+      ph2: Math.random()*Math.PI*2,
+      ph3: Math.random()*Math.PI*2
+    };
+  }
+
+  let el1 = makeElectrode('agcl', -1);
+  let el2 = makeElectrode('agcl', +1);
+
+  function resetElectrode(which, mat){
+    if(which===1){
+      mat1 = mat;
+      el1 = makeElectrode(mat,-1);
+      history1.fill(materials[mat].base);
+    } else {
+      mat2 = mat;
+      el2 = makeElectrode(mat,+1);
+      history2.fill(materials[mat].base);
+    }
+    history.fill(0);
+    deltaReference=null;
+  }
+
+  function setupSelectors(id, which){
+    const box=document.getElementById(id);
+    box.querySelectorAll('.mat').forEach(b=>b.addEventListener('click',()=>{
+      box.querySelectorAll('.mat').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      resetElectrode(which,b.dataset.m);
+    }));
+  }
+  setupSelectors('mats1',1);
+  setupSelectors('mats2',2);
+
+  function env(){
+    return {
+      T:10 + (+temp.value/100)*35,
+      C:0.15 + (+conc.value/100)*1.85,
+      A:(+motion.value/100)
+    };
+  }
+
+  function electrodePotential(el, time, now){
+    const e = env();
+    const p = materials[el.mat];
+
+    // O Ag/AgCl compartilha praticamente a mesma relação de equilíbrio em ambos os eletrodos.
+    // As pequenas diferenças vêm da microcondição local da interface.
+    const Tlocal = e.T + el.localTempBias*5 + 0.10*e.A*Math.sin(time*0.9 + el.ph1);
+    const Clocal = clamp(e.C * (1 + el.localClBias*0.10 + 0.025*e.A*Math.sin(time*1.25 + el.ph2)), 0.05, 3.0);
+
+    const commonTemp = p.temp*(Tlocal - 25);
+    const commonConc = p.conc*Math.log(Clocal);
+
+    // Para metais sem um par redox reversível controlado no banho salino, o OCP também
+    // depende do estado superficial individual. Após T/C mudarem, esse estado acomoda
+    // lentamente e de modo diferente em cada eletrodo.
+    const uT = (e.T-25)/20;
+    const uC = Math.log(e.C);
+    const surfaceTarget = p.surfaceVar * (
+      el.surfSignT*el.surfT*uT +
+      el.surfSignC*el.surfC*uC +
+      el.surfTC*uT*uC
+    );
+
+    const dt = Math.min(0.05, Math.max(0.001, (now-el.lastUpdate)/1000));
+    el.lastUpdate = now;
+    const alpha = 1 - Math.exp(-dt/p.tau);
+    el.surfaceState += (surfaceTarget-el.surfaceState)*alpha;
+
+    // Movimento perturba a interface local.
+    const motionArtifact = p.motion*e.A*el.motionGain*(
+      0.72*Math.sin(time*4.8 + el.ph1) +
+      0.20*Math.sin(time*11.0 + el.ph2) +
+      0.12*Math.cos(time*15.2 + el.ph3)
+    );
+
+    const driftStep = rnd()*p.drift*el.driftGain*(
+      0.20 + e.A*1.4 + Math.abs(Tlocal-25)*0.02 + Math.abs(Math.log(Clocal))*0.16
+    );
+    el.drift = clamp(el.drift + driftStep, -0.05, 0.05);
+
+    const noise = rnd()*2*p.noise*el.noiseGain*(0.22 + e.A*1.7);
+
+    return p.base + el.surfaceOffset + commonTemp + commonConc +
+           el.surfaceState + motionArtifact + el.drift + noise;
+  }
+
+  function resizeCanvas(c){
+    const r=c.getBoundingClientRect();
+    const d=Math.min(window.devicePixelRatio||1,2);
+    const pw=Math.max(1,Math.round(r.width*d));
+    const ph=Math.max(1,Math.round(r.height*d));
+    if(c.width!==pw || c.height!==ph){ c.width=pw; c.height=ph; }
+    c.getContext('2d').setTransform(d,0,0,d,0,0);
+    return {w:r.width,h:r.height};
+  }
+
+  function roundRect(c,x,y,w,h,r){ c.beginPath(); c.roundRect(x,y,w,h,r); c.closePath(); }
+
+  function syncIons(w,h){
+    const count=Math.round(42 + (+conc.value/100)*110);
+    if(count===lastIonCount && ions.length) return;
+    lastIonCount=count;
+    ions=Array.from({length:count},(_,i)=>({
+      x:Math.random()*w, y:Math.random()*h,
+      vx:(Math.random()-.5)*.35, vy:(Math.random()-.5)*.2,
+      q:i%2?1:-1, r:2.4+Math.random()*3.2
+    }));
+  }
+
+  function drawElectrode(c,x,top,waterY,bottom,mat,instability){
+    const p=materials[mat];
+    c.save();
+    c.strokeStyle='rgba(220,245,255,.55)'; c.lineWidth=5;
+    c.beginPath(); c.moveTo(x,0); c.bezierCurveTo(x,top-35,x,top-30,x,top); c.stroke();
+    const halo=8+instability*40;
+    const grad=c.createRadialGradient(x,(waterY+bottom)/2,8,x,(waterY+bottom)/2,55+halo);
+    grad.addColorStop(0,'rgba(111,231,255,.12)'); grad.addColorStop(1,'rgba(111,231,255,0)');
+    c.fillStyle=grad; c.beginPath(); c.arc(x,(waterY+bottom)/2,55+halo,0,Math.PI*2); c.fill();
+    c.fillStyle='#172633'; roundRect(c,x-17,top-8,34,24,8); c.fill();
+    const eg=c.createLinearGradient(x-16,0,x+16,0); eg.addColorStop(0,p.b); eg.addColorStop(.5,p.a); eg.addColorStop(1,p.b);
+    c.fillStyle=eg; roundRect(c,x-15,top+10,30,bottom-top-10,11); c.fill();
+    if(mat==='agcl'){
+      c.fillStyle='rgba(185,228,207,.75)';
+      roundRect(c,x-15,waterY+18,30,Math.max(12,bottom-waterY-18),11); c.fill();
+      for(let i=0;i<16;i++){
+        c.fillStyle='rgba(230,255,243,.28)';
+        c.beginPath(); c.arc(x-10+Math.random()*20,waterY+25+Math.random()*Math.max(10,bottom-waterY-32),1,0,6.28); c.fill();
+      }
+    }
+    c.restore();
+  }
+
+  function drawBath(time, dV){
+    const {w,h}=resizeCanvas(bath), e=env();
+    ctx.clearRect(0,0,w,h);
+    const pad=Math.max(30,w*.05), tankX=pad, tankY=h*.12, tankW=w-pad*2, tankH=h*.73, waterY=tankY+tankH*.18;
+
+    const bg=ctx.createLinearGradient(0,0,0,h); bg.addColorStop(0,'rgba(14,35,50,.2)'); bg.addColorStop(1,'rgba(3,13,20,.7)'); ctx.fillStyle=bg; ctx.fillRect(0,0,w,h);
+    ctx.save();
+    roundRect(ctx,tankX,tankY,tankW,tankH,26); ctx.clip();
+    const wg=ctx.createLinearGradient(0,waterY,0,tankY+tankH); wg.addColorStop(0,'rgba(33,145,185,.36)'); wg.addColorStop(1,'rgba(13,91,128,.5)'); ctx.fillStyle=wg; ctx.fillRect(tankX,waterY,tankW,tankY+tankH-waterY);
+
+    const amp=2+e.A*12;
+    ctx.strokeStyle='rgba(163,231,255,.58)';ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let x=tankX;x<=tankX+tankW;x+=7){
+      const y=waterY + Math.sin(x*.028+time*2.2)*amp + Math.sin(x*.071-time*3.1)*amp*.35;
+      if(x===tankX)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    syncIons(tankW,tankH*.72);
+    const flow=e.A*1.6;
+    for(const ion of ions){
+      ion.x += ion.vx + Math.sin((ion.y+time*80)*.02)*flow;
+      ion.y += ion.vy + Math.cos((ion.x-time*50)*.015)*flow*.25;
+      if(ion.x<0)ion.x=tankW; if(ion.x>tankW)ion.x=0; if(ion.y<0)ion.y=tankH*.72; if(ion.y>tankH*.72)ion.y=0;
+      const x=tankX+ion.x, y=waterY+10+ion.y;
+      if(y>tankY+tankH-10) continue;
+      ctx.fillStyle=ion.q>0?'rgba(255,145,163,.85)':'rgba(107,187,255,.9)';
+      ctx.shadowColor=ion.q>0?'#ff91a3':'#6bbbff'; ctx.shadowBlur=8;
+      ctx.beginPath(); ctx.arc(x,y,ion.r,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+      ctx.strokeStyle='rgba(255,255,255,.72)'; ctx.lineWidth=.9;
+      ctx.beginPath(); ctx.moveTo(x-ion.r*.45,y); ctx.lineTo(x+ion.r*.45,y); if(ion.q>0){ctx.moveTo(x,y-ion.r*.45);ctx.lineTo(x,y+ion.r*.45)} ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle='rgba(164,224,255,.56)'; ctx.lineWidth=3; roundRect(ctx,tankX,tankY,tankW,tankH,26); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1; roundRect(ctx,tankX+7,tankY+7,tankW-14,tankH-14,20); ctx.stroke();
+
+    const i1=materials[mat1].motion*env().A*el1.motionGain + materials[mat1].noise*10*el1.noiseGain;
+    const i2=materials[mat2].motion*env().A*el2.motionGain + materials[mat2].noise*10*el2.noiseGain;
+    drawElectrode(ctx,tankX+tankW*.33,tankY+18,waterY,tankY+tankH*.72,mat1,i1);
+    drawElectrode(ctx,tankX+tankW*.67,tankY+18,waterY,tankY+tankH*.72,mat2,i2);
+
+    const cx=tankX+tankW*.5, cy=tankY+tankH*.82;
+    const glow=Math.min(1,Math.abs(dV)/.05);
+    const rg=ctx.createRadialGradient(cx,cy,4,cx,cy,90); rg.addColorStop(0,`rgba(143,255,195,${.20+.35*glow})`); rg.addColorStop(1,'rgba(143,255,195,0)');
+    ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(cx,cy,90,0,6.28); ctx.fill();
+  }
+
+  function drawScope(dV){
+    const {w,h}=resizeCanvas(scope); sctx.clearRect(0,0,w,h);
+    sctx.fillStyle='rgba(3,11,16,.5)'; sctx.fillRect(0,0,w,h);
+    sctx.strokeStyle='rgba(104,184,204,.10)'; sctx.lineWidth=1;
+    for(let x=0;x<w;x+=28){sctx.beginPath();sctx.moveTo(x,0);sctx.lineTo(x,h);sctx.stroke()}
+    for(let y=0;y<h;y+=28){sctx.beginPath();sctx.moveTo(0,y);sctx.lineTo(w,y);sctx.stroke()}
+    sctx.strokeStyle='rgba(143,255,195,.16)'; sctx.beginPath(); sctx.moveTo(0,h/2); sctx.lineTo(w,h/2); sctx.stroke();
+    history.push(dV); if(history.length>420)history.shift();
+    const maxScale = (mat1===mat2) ? .040 : .350;
+    sctx.beginPath();
+    history.forEach((v,i)=>{
+      const x=i/(history.length-1)*w;
+      const y=h/2 - clamp(v,-maxScale,maxScale)/maxScale*(h*.42);
+      if(i===0)sctx.moveTo(x,y); else sctx.lineTo(x,y);
+    });
+    sctx.strokeStyle='#9cffb7'; sctx.lineWidth=2.1; sctx.shadowColor='#79ffb0'; sctx.shadowBlur=12; sctx.stroke(); sctx.shadowBlur=0;
+  }
+
+  function drawMicro(cnv,c,hist,mat){
+    const {w,h}=resizeCanvas(cnv); c.clearRect(0,0,w,h);
+    c.strokeStyle='rgba(90,170,190,.10)'; c.lineWidth=1;
+    for(let x=0;x<w;x+=26){c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke()}
+    for(let y=0;y<h;y+=24){c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}
+
+    const lo=-.18, hi=.30;
+    c.beginPath();
+    hist.forEach((v,i)=>{
+      const x=i/(hist.length-1)*w;
+      const vv=clamp(v,lo,hi);
+      const y=h*.88-(vv-lo)/(hi-lo)*(h*.76);
+      if(i===0)c.moveTo(x,y); else c.lineTo(x,y);
+    });
+    c.strokeStyle=mat==='agcl'?'#91ffc5':(mat==='cu'?'#ffb07f':'#c9d8e2');
+    c.lineWidth=2; c.shadowColor=c.strokeStyle; c.shadowBlur=10; c.stroke(); c.shadowBlur=0;
+  }
+
+  function mv(v){ return `${(v*1000).toFixed(1)} mV`; }
+
+  function frame(now){
+    const time=(now-t0)/1000;
+    const v1=electrodePotential(el1,time,now);
+    const v2=electrodePotential(el2,time,now);
+    const dV=v1-v2;
+
+    if(deltaReference===null) deltaReference=dV;
+    const dDeltaV=dV-deltaReference;
+
+    history1.push(v1); if(history1.length>260)history1.shift();
+    history2.push(v2); if(history2.length>260)history2.shift();
+
+    scopeVal.textContent=mv(dV);
+    deltaChangeVal.textContent=`ΔΔV ${mv(dDeltaV)}`;
+    m1Val.textContent=mv(v1);
+    m2Val.textContent=mv(v2);
+
+    drawBath(time,dV);
+    drawScope(dV);
+    drawMicro(micro1,m1,history1,mat1);
+    drawMicro(micro2,m2,history2,mat2);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
