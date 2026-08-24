@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Simulador de Conversor A/D 10-bits</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        /* Container Principal */
+        .simulator-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            background: white;
+            padding: 25px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 700px;
+            gap: 20px;
+        }
+
+        /* Seção da Esquerda (Entrada) */
+        .input-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .slider {
+            writing-mode: vertical-lr;
+            direction: rtl;
+            width: 30px; 
+            height: 160px; /* Um pouco mais alto */
+            margin: 15px 0;
+            cursor: pointer;
+        }
+
+        .voltage-display {
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #0056b3;
+            background: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 6px;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        /* Seção Central (Bloco A/D) */
+        .adc-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+        }
+
+        .adc-block {
+            background-color: #343a40;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            width: 100px;
+            height: 120px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #212529, 0 8px 15px rgba(0,0,0,0.2);
+            transition: transform 0.1s, box-shadow 0.1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .adc-block:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #212529, 0 3px 5px rgba(0,0,0,0.2);
+            background-color: #495057;
+        }
+
+        .adc-block span {
+            font-size: 0.75rem;
+            font-weight: normal;
+            color: #adb5bd;
+            margin-top: 8px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        /* Seção da Direita (Saída Pinos) */
+        .output-section {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 260px; /* Aumentado para caber 10 pinos */
+            flex: 1;
+        }
+
+        .pin-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wire {
+            width: 20px;
+            height: 2px;
+            background-color: #6c757d;
+        }
+
+        .led {
+            width: 14px; /* Ligeiramente menor para caber melhor os 10 */
+            height: 14px;
+            border-radius: 50%;
+            background-color: #495057;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+            transition: background-color 0.1s;
+        }
+
+        .led.on {
+            background-color: #28a745;
+            box-shadow: 0 0 10px #28a745, inset 0 1px 2px rgba(255,255,255,0.4);
+        }
+
+        .pin-label {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        /* Painel de Resultados Numéricos */
+        .results-panel {
+            margin-top: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 40px;
+            width: 100%;
+            max-width: 700px;
+            justify-content: center;
+        }
+
+        .result-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .result-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .result-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #d90429;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        /* =========================================
+           REGRAS PARA SMARTPHONES (Telas até 650px)
+           ========================================= */
+        @media (max-width: 650px) {
+            body {
+                padding: 10px;
+            }
+
+            .simulator-container {
+                flex-direction: column;
+                gap: 30px;
+                padding: 25px 10px;
+            }
+
+            /* O Slider fica horizontal */
+            .slider {
+                writing-mode: horizontal-tb;
+                width: 85%;
+                max-width: 250px;
+                height: 30px; 
+                margin: 10px 0;
+            }
+
+            /* Os Pinos ficam alinhados em linha embaixo do ADC */
+            .output-section {
+                flex-direction: row;
+                width: 100%;
+                height: auto;
+                justify-content: space-between; 
+                gap: 2px;
+            }
+
+            /* Muda a direção dos fios para virem de cima para baixo */
+            .pin-container {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .wire {
+                width: 2px;
+                height: 15px; 
+            }
+            
+            /* Ajuste do LED e Fonte para caberem 10 itens na tela do celular */
+            .led {
+                width: 12px;
+                height: 12px;
+            }
+
+            .pin-label {
+                font-size: 0.65rem;
+            }
+
+            /* Ajusta o painel de resultados */
+            .results-panel {
+                gap: 20px;
+                padding: 15px;
+                justify-content: space-around;
+            }
+            
+            .result-value {
+                font-size: 1.2rem; 
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Conversor A/D (10-bits)</h2>
+
+    <div class="simulator-container">
+        <!-- Esquerda/Topo: Controle de Tensão -->
+        <div class="input-section">
+            <label style="color: #495057; margin-bottom: 5px;"><strong>Entrada</strong></label>
+            <!-- Alterado step para 0.01 para permitir ajustes finos -->
+            <input type="range" id="voltageInput" class="slider" min="0" max="5" step="0.01" value="0">
+            <div class="voltage-display"><span id="voltageValue">0.00</span> V</div>
+            <small style="color: #adb5bd; font-size: 0.75rem; margin-top: 5px;">Ref: 5V</small>
+        </div>
+
+        <!-- Centro/Meio: Bloco ADC -->
+        <div class="adc-section">
+            <button class="adc-block" onclick="convertADC()">
+                ADC
+                <span>TOCAR PARA<br>CONVERTER</span>
+            </button>
+        </div>
+
+        <!-- Direita/Baixo: Pinos / LEDs -->
+        <div class="output-section" id="pinsOutput">
+            <!-- Pinos gerados por JS -->
+        </div>
+    </div>
+
+    <!-- Painel de Resultados numéricos -->
+    <div class="results-panel">
+        <div class="result-item">
+            <span class="result-label">Decimal</span>
+            <span class="result-value" id="valDecimal">0</span>
+        </div>
+        <div class="result-item">
+            <span class="result-label">Binário</span>
+            <!-- 10 zeros iniciais -->
+            <span class="result-value" id="valBinario">0000000000</span> 
+        </div>
+    </div>
+
+    <script>
+        const BITS = 10; // Mudança para 10 bits
+        const VREF = 5.0;
+
+        const voltageInput = document.getElementById('voltageInput');
+        const voltageValue = document.getElementById('voltageValue');
+        const pinsOutput = document.getElementById('pinsOutput');
+        
+        const valDecimal = document.getElementById('valDecimal');
+        const valBinario = document.getElementById('valBinario');
+
+        // Atualiza apenas o texto ao mover o slider (Agora com 2 casas decimais)
+        voltageInput.addEventListener('input', function() {
+            voltageValue.textContent = parseFloat(this.value).toFixed(2);
+        });
+
+        // Gera os 10 pinos visualmente (D9 a D0)
+        function generatePins() {
+            for (let i = BITS - 1; i >= 0; i--) {
+                const pinContainer = document.createElement('div');
+                pinContainer.className = 'pin-container';
+                pinContainer.innerHTML = `
+                    <div class="wire"></div>
+                    <div class="led" id="led-${i}"></div>
+                    <span class="pin-label">D${i}</span>
+                `;
+                pinsOutput.appendChild(pinContainer);
+            }
+        }
+
+        // Executa a conversão ao apertar o botão
+        function convertADC() {
+            const vin = parseFloat(voltageInput.value);
+            const maxValue = Math.pow(2, BITS) - 1; // 1023
+            
+            let digitalValue = Math.round((vin / VREF) * maxValue);
+            let binaryString = digitalValue.toString(2).padStart(BITS, '0');
+
+            valDecimal.textContent = digitalValue;
+            valBinario.textContent = binaryString;
+
+            for (let i = 0; i < BITS; i++) {
+                const bitIndex = (BITS - 1) - i; 
+                const bitValue = binaryString[i];
+                const led = document.getElementById(`led-${bitIndex}`);
+                
+                if (bitValue === '1') {
+                    led.classList.add('on');
+                } else {
+                    led.classList.remove('on');
+                }
+            }
+        }
+
+        // Inicializa ao abrir
+        generatePins();
+    </script>
+
+</body>
+</html>
