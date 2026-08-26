@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aliasing em Tempo Discreto</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 6px; /* Padding mínimo para maximizar o espaço interno */
+            color: #333;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px; /* Largura ideal para conter os elementos sem esticar muito no desktop */
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 12px 10px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        h2 {
+            font-size: 1.15rem;
+            text-align: center;
+            margin: 0 0 12px 0;
+            color: #111;
+        }
+        .slider-group {
+            margin-bottom: 12px;
+            text-align: center;
+            background: #f8f9fa;
+            padding: 12px 10px;
+            border-radius: 8px;
+        }
+        .slider-group label {
+            display: block;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: #0056b3;
+        }
+        
+        /* Otimização máxima para toque no slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #ddd;
+            border-radius: 5px;
+            outline: none;
+            margin-bottom: 5px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 32px; /* Área de toque ainda maior */
+            height: 32px;
+            border-radius: 50%;
+            background: #0056b3;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #0056b3;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            border: none;
+        }
+
+        /* Altura fixa otimizada para caber em telas padrão sem scroll (aprox 200-220px) */
+        .chart-container {
+            position: relative;
+            height: 220px; 
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        /* Controles de visualização (Abas grandes para os dedos) */
+        .toggle-group {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 12px;
+            background: #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .toggle-group input[type="radio"] {
+            display: none;
+        }
+        .toggle-group label {
+            flex: 1;
+            text-align: center;
+            padding: 12px 4px; /* Padding vertical generoso para toque */
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #555;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .toggle-group input[type="radio"]:checked + label {
+            background: #0056b3;
+            color: #fff;
+        }
+
+        /* Container do Canvas (Círculo) */
+        .canvas-container {
+            display: none; /* Controlado via JS */
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 220px; /* Mesma altura do gráfico para não causar salto na tela */
+            margin-bottom: 12px;
+        }
+        canvas#circleCanvas {
+            width: 100%;
+            max-width: 220px;
+            height: auto;
+            aspect-ratio: 1 / 1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>x[n] = cos(&omega;n)</h2>
+    
+    <div class="slider-group">
+        <label for="w-slider">&omega; = <span id="w-value">0.5</span> &pi; rad/amostra</label>
+        <input type="range" id="w-slider" min="0" max="5" step="0.05" value="0.5">
+    </div>
+
+    <!-- Gráfico 1: Sinal em Tempo Discreto -->
+    <div class="chart-container">
+        <canvas id="timeChart"></canvas>
+    </div>
+
+    <!-- Seletor de Visão para a Frequência Equivalente -->
+    <div class="toggle-group">
+        <input type="radio" id="view-chart" name="view-mode" value="chart" checked>
+        <label for="view-chart">Triângulo</label>
+        
+        <input type="radio" id="view-circle" name="view-mode" value="circle">
+        <label for="view-circle">Círculo Trig.</label>
+    </div>
+
+    <!-- Visão 1: Gráfico Convencional de Aliasing -->
+    <div id="chart-view" class="chart-container">
+        <canvas id="freqChart"></canvas>
+    </div>
+
+    <!-- Visão 2: Círculo Trigonométrico -->
+    <div id="circle-view" class="canvas-container">
+        <canvas id="circleCanvas" width="600" height="600"></canvas>
+    </div>
+</div>
+
+<script>
+    const numSamples = 40; 
+    const wSlider = document.getElementById('w-slider');
+    const wValueDisplay = document.getElementById('w-value');
+
+    // Função matemática base
+    function calcEquivalentFreq(w_pi) {
+        let val = w_pi % 2; 
+        if (val > 1) val = 2 - val; 
+        return val;
+    }
+
+    // Configuração dos eixos
+    const n_labels = Array.from({length: numSamples}, (_, i) => i);
+    const w_axis_labels = Array.from({length: 101}, (_, i) => (i * 0.05).toFixed(2));
+    const triangle_data = w_axis_labels.map(w => calcEquivalentFreq(parseFloat(w)));
+    const mobileFontConfig = { size: 11 }; // Fonte levemente maior para melhor leitura
+
+    // --- CHART.JS: GRÁFICO DE TEMPO ---
+    const ctxTime = document.getElementById('timeChart').getContext('2d');
+    const timeChart = new Chart(ctxTime, {
+        type: 'bar', 
+        data: {
+            labels: n_labels,
+            datasets: [{
+                data: [],
+                backgroundColor: '#0056b3',
+                barThickness: 2 
+            },
+            {
+                type: 'scatter',
+                data: [],
+                backgroundColor: '#0056b3',
+                pointRadius: 2.5 
+            }]
+        },
+        options: {
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: 0 },
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { 
+                    min: -1.2, max: 1.2, 
+                    title: { display: true, text: 'Amplitude', font: mobileFontConfig },
+                    ticks: { font: mobileFontConfig }
+                },
+                x: { 
+                    title: { display: true, text: 'n', font: mobileFontConfig },
+                    ticks: { font: mobileFontConfig, maxTicksLimit: 10 }
+                }
+            }
+        }
+    });
+
+    // --- CHART.JS: GRÁFICO ZIGUE-ZAGUE ---
+    const ctxFreq = document.getElementById('freqChart').getContext('2d');
+    const freqChart = new Chart(ctxFreq, {
+        type: 'line',
+        data: {
+            labels: w_axis_labels,
+            datasets: [
+                {
+                    data: triangle_data,
+                    borderColor: '#888',
+                    borderWidth: 2,
+                    borderDash: [4, 4],
+                    fill: false,
+                    pointRadius: 0 
+                },
+                {
+                    data: [], 
+                    backgroundColor: '#dc3545',
+                    borderColor: '#dc3545',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: 0 },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Freq: ${context.parsed.y.toFixed(2)}π`
+                    }
+                }
+            },
+            scales: {
+                y: { 
+                    min: 0, 
+                    max: 1.1, 
+                    title: { display: true, text: 'Freq Eq (rad)', font: mobileFontConfig },
+                    ticks: {
+                        font: mobileFontConfig,
+                        callback: function(value) {
+                            return value === 0 ? '0' : value.toString().replace('0.', '.') + 'π';
+                        }
+                    }
+                },
+                x: {
+                    title: { display: true, text: 'ω Selecionado (rad)', font: mobileFontConfig },
+                    ticks: { 
+                        autoSkip: false,
+                        maxRotation: 0, 
+                        font: mobileFontConfig,
+                        callback: function(value, index) {
+                            if (index % 10 === 0) {
+                                const val = index * 0.05;
+                                return val === 0 ? '0' : val + 'π';
+                            }
+                            return null;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // --- CANVAS NATIVO: CÍRCULO TRIGONOMÉTRICO ---
+    const canvasCircle = document.getElementById('circleCanvas');
+    const ctxCircle = canvasCircle.getContext('2d');
+    const W = canvasCircle.width;
+    const H = canvasCircle.height;
+    const CX = W / 2;
+    const CY = H / 2;
+    const R = 220;
+
+    function drawCircle(w_pi, w_eq_pi) {
+        ctxCircle.clearRect(0, 0, W, H);
+
+        ctxCircle.lineWidth = 2;
+        ctxCircle.strokeStyle = '#ccc';
+        ctxCircle.beginPath();
+        ctxCircle.moveTo(0, CY); ctxCircle.lineTo(W, CY);
+        ctxCircle.moveTo(CX, 0); ctxCircle.lineTo(CX, H);
+        ctxCircle.stroke();
+
+        ctxCircle.lineWidth = 3;
+        ctxCircle.strokeStyle = '#999';
+        ctxCircle.beginPath();
+        ctxCircle.arc(CX, CY, R, 0, 2 * Math.PI);
+        ctxCircle.stroke();
+
+        ctxCircle.beginPath();
+        ctxCircle.arc(CX, CY, R, Math.PI, 0);
+        ctxCircle.strokeStyle = 'rgba(13, 110, 253, 0.3)';
+        ctxCircle.lineWidth = 12;
+        ctxCircle.stroke();
+
+        const theta_orig = w_pi * Math.PI;
+        const theta_eq = w_eq_pi * Math.PI;
+
+        const x_orig = CX + R * Math.cos(theta_orig);
+        const y_orig = CY - R * Math.sin(theta_orig);
+        const x_eq = CX + R * Math.cos(theta_eq);
+        const y_eq = CY - R * Math.sin(theta_eq);
+
+        if (Math.abs(w_pi - w_eq_pi) > 0.01) {
+            ctxCircle.setLineDash([12, 12]);
+            ctxCircle.lineWidth = 3;
+            ctxCircle.strokeStyle = '#666';
+            ctxCircle.beginPath();
+            ctxCircle.moveTo(x_orig, y_orig);
+            ctxCircle.lineTo(x_eq, y_eq);
+            ctxCircle.stroke();
+            ctxCircle.setLineDash([]);
+            
+            ctxCircle.lineWidth = 5;
+            ctxCircle.strokeStyle = 'rgba(220, 53, 69, 0.8)';
+            ctxCircle.setLineDash([10, 10]);
+            ctxCircle.beginPath();
+            ctxCircle.moveTo(CX, CY);
+            ctxCircle.lineTo(x_orig, y_orig);
+            ctxCircle.stroke();
+            ctxCircle.setLineDash([]);
+            
+            ctxCircle.fillStyle = '#dc3545';
+            ctxCircle.beginPath();
+            ctxCircle.arc(x_orig, y_orig, 10, 0, 2 * Math.PI);
+            ctxCircle.fill();
+        }
+
+        ctxCircle.lineWidth = 8;
+        ctxCircle.strokeStyle = '#0d6efd';
+        ctxCircle.beginPath();
+        ctxCircle.moveTo(CX, CY);
+        ctxCircle.lineTo(x_eq, y_eq);
+        ctxCircle.stroke();
+        
+        ctxCircle.fillStyle = '#0d6efd';
+        ctxCircle.beginPath();
+        ctxCircle.arc(x_eq, y_eq, 14, 0, 2 * Math.PI);
+        ctxCircle.fill();
+
+        ctxCircle.fillStyle = '#333';
+        ctxCircle.font = 'bold 28px sans-serif';
+        ctxCircle.fillText('0', CX + R + 15, CY + 10);
+        ctxCircle.fillText('π', CX - R - 35, CY + 10);
+    }
+
+    // --- ATUALIZAÇÃO GLOBAL E TROCA DE ABAS ---
+    const chartView = document.getElementById('chart-view');
+    const circleView = document.getElementById('circle-view');
+
+    document.querySelectorAll('input[name="view-mode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target.value === 'chart') {
+                chartView.style.display = 'block';
+                circleView.style.display = 'none';
+                freqChart.resize(); 
+            } else {
+                chartView.style.display = 'none';
+                circleView.style.display = 'flex';
+            }
+        });
+    });
+
+    function updateCharts() {
+        const w_pi = parseFloat(wSlider.value);
+        wValueDisplay.textContent = Number(w_pi.toFixed(2));
+        const w = w_pi * Math.PI;
+
+        const newData = n_labels.map(n => Math.cos(w * n));
+        timeChart.data.datasets[0].data = newData;
+        timeChart.data.datasets[1].data = newData; 
+        timeChart.update();
+
+        const eq_freq = calcEquivalentFreq(w_pi);
+        const pointData = w_axis_labels.map(label => {
+            return (Math.abs(parseFloat(label) - w_pi) < 0.01) ? eq_freq : null;
+        });
+        freqChart.data.datasets[1].data = pointData;
+        freqChart.update();
+
+        drawCircle(w_pi, eq_freq);
+    }
+
+    wSlider.addEventListener('input', updateCharts);
+    updateCharts();
+</script>
+
+</body>
+</html>
