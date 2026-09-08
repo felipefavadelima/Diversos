@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ventilação Mecânica</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#07090c;--panel:#11161d;--panel2:#171d25;--border:#2a333d;
+  --text:#f4f7fa;--muted:#99a6b2;--accent:#31d1b8;--accent-soft:#0f2623;
+  --p:#ffd84d;--f:#4ade80;--v:#55b5ff;--effort:#ff6c86;
+  --ins:#71ddd2;--exp:#8db3ff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+body{min-width:0;padding-bottom:88px}
+button,input,select{font:inherit}
+button{touch-action:manipulation}
+.app{width:min(100%,620px);margin:0 auto;padding:14px 14px 24px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.brand h1{font-size:1.1rem;margin:0;font-weight:800;letter-spacing:.01em}
+.status-pill{flex:none;border:1px solid var(--border);border-radius:999px;padding:7px 10px;font-size:.75rem;font-weight:800;background:var(--panel);color:var(--muted)}
+.status-pill.insp{color:var(--accent);border-color:#246f65;background:#0b2320}
+.mode-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.mode-pill{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 8px;text-align:center}
+.mode-pill .k{display:block;font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.mode-pill .v{display:block;font-size:.88rem;font-weight:900;margin-top:2px}
+.screen{display:none}.screen.active{display:block}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px}
+.section-title{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800;margin:0 0 10px}
+.patient-card{padding:10px 10px 14px;overflow:hidden}
+.patient-stage{position:relative;width:100%;aspect-ratio:1.52/1;min-height:236px;max-height:380px;background:linear-gradient(180deg,#07111a 0%, #05080b 100%);border:1px solid #16202b;border-radius:18px;overflow:hidden}
+.patient-stage svg{width:100%;height:100%;display:block}
+.phase-label{position:absolute;top:10px;left:10px;border-radius:999px;padding:6px 10px;background:#0f161b;border:1px solid var(--border);font-size:.72rem;font-weight:900;letter-spacing:.05em;z-index:5}
+.phase-label.insp{color:var(--accent);border-color:#246f65}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.metric{min-width:0;background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:11px}
+.metric .k{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800}
+.metric .num{font-size:1.8rem;line-height:1.05;font-weight:900;margin-top:4px;white-space:nowrap}
+.metric .unit{font-size:.68rem;color:var(--muted);margin-left:3px;font-weight:700}
+.metric.p .num{color:var(--p)}.metric.v .num{color:var(--v)}
+.segmented{display:grid;grid-template-columns:1fr 1fr;gap:8px}.segmented.three{grid-template-columns:repeat(3,1fr)}
+.seg{min-height:48px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:800;padding:8px 10px}
+.seg.active{background:#0d2623;color:#dffff9;border-color:#2a8a7d}
+.control{margin-top:14px}.control:first-child{margin-top:0}
+.control-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:8px}
+.control-name{font-size:.86rem;font-weight:800}.control-help{font-size:.7rem;color:var(--muted);margin-top:2px}
+.control-value{font-size:1.1rem;font-weight:900;color:var(--accent);white-space:nowrap}
+.range-row{display:grid;grid-template-columns:48px 1fr 48px;gap:8px;align-items:center}
+.step{width:48px;height:48px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:1.35rem;font-weight:700}
+.step:active{transform:scale(.97)}
+input[type="range"]{width:100%;height:44px;margin:0;accent-color:var(--accent)}
+.primary{width:100%;min-height:50px;border:0;border-radius:13px;background:var(--effort);color:white;font-weight:900;padding:10px 14px}
+.primary:active{filter:brightness(1.08)}
+.small-note{font-size:.75rem;line-height:1.35;color:var(--muted);margin-top:8px}
+.patient-state{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.info-box{background:var(--panel2);border:1px solid var(--border);border-radius:13px;padding:11px}
+.info-box .label{font-size:.67rem;color:var(--muted);text-transform:uppercase;font-weight:800;letter-spacing:.05em}
+.info-box .value{font-size:1.15rem;font-weight:900;margin-top:4px}
+.chart-card{padding:10px}.chart-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 3px 8px}.chart-name{font-weight:900}.chart-current{font-size:.85rem;font-weight:900}
+.canvas-wrap{height:260px;background:#050708;border:1px solid #1d242b;border-radius:12px;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.bottom-nav{position:fixed;z-index:50;left:0;right:0;bottom:0;background:rgba(9,12,15,.96);border-top:1px solid var(--border);padding:7px max(8px,env(safe-area-inset-right)) max(7px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));backdrop-filter:blur(10px)}
+.nav-inner{width:min(100%,620px);margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.nav-btn{min-height:58px;border:0;border-radius:12px;background:transparent;color:#7f8b96;padding:5px 3px;font-size:.68rem;font-weight:800}.nav-btn .ico{display:block;font-size:1.22rem;line-height:1;margin-bottom:4px}.nav-btn.active{background:#0e2421;color:#cffff8}
+.hidden{display:none!important}
+.effort-fab{position:fixed;right:14px;bottom:82px;z-index:65;display:flex;align-items:center;gap:8px;height:44px;padding:0 13px;border-radius:999px;border:1px solid rgba(255,108,134,.35);background:rgba(32,12,18,.93);color:#ffd7df;box-shadow:0 8px 20px rgba(0,0,0,.35);font-weight:900;font-size:.8rem;backdrop-filter:blur(8px)}
+.effort-fab .icon{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#ff6c86;color:white;font-size:.92rem;line-height:1}.effort-fab:active{transform:scale(.98)}
+.toast{position:fixed;left:50%;transform:translateX(-50%) translateY(14px);bottom:140px;z-index:70;background:rgba(7,12,16,.96);border:1px solid #2b3946;color:#e8f0f7;border-radius:999px;padding:10px 14px;font-size:.78rem;font-weight:700;opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (max-width:420px){.mode-strip{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:360px){.app{padding-left:10px;padding-right:10px}.brand h1{font-size:1rem}.patient-stage{min-height:220px}.metric .num{font-size:1.55rem}.seg{font-size:.8rem}.effort-fab{right:10px;bottom:78px;padding:0 12px;font-size:.78rem}}
+@media (min-width:700px){body{padding-bottom:92px}.app{padding-top:22px}.patient-stage{max-height:390px}.canvas-wrap{height:320px}.effort-fab{right:calc(50% - 300px + 14px)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><h1>Ventilação Mecânica</h1></div>
+    <div class="status-pill" id="statusPill">EXPIRAÇÃO</div>
+  </header>
+
+  <div class="mode-strip">
+    <div class="mode-pill"><span class="k">Modo</span><span class="v" id="modeBadge">VCV</span></div>
+    <div class="mode-pill"><span class="k">Disparo</span><span class="v" id="triggerBadge">A/C</span></div>
+    <div class="mode-pill"><span class="k">PEEP</span><span class="v"><span id="peepBadge">5</span> cmH₂O</span></div>
+    <div class="mode-pill"><span class="k">Paciente</span><span class="v" id="patientBadge">Passivo</span></div>
+  </div>
+
+  <section class="screen active" data-screen="patient">
+    <div class="card patient-card">
+      <div class="patient-stage">
+        <div class="phase-label" id="phaseLabel">EXPIRAÇÃO</div>
+        <svg viewBox="0 0 420 285" role="img" aria-label="Paciente ventilado com circuito simplificado">
+          <defs>
+            <linearGradient id="ventBody" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#19232e"/><stop offset="1" stop-color="#10161d"/></linearGradient>
+            <linearGradient id="mattress" x1="0" x2="1"><stop offset="0" stop-color="#33404c"/><stop offset="1" stop-color="#202730"/></linearGradient>
+            <linearGradient id="torso" x1="0" x2="1"><stop offset="0" stop-color="#255c7d"/><stop offset="1" stop-color="#317aa3"/></linearGradient>
+            <linearGradient id="skin" x1="0" x2="1"><stop offset="0" stop-color="#c79476"/><stop offset="1" stop-color="#aa795f"/></linearGradient>
+          </defs>
+
+          <rect x="0" y="0" width="420" height="285" fill="#061018"/>
+          <circle cx="278" cy="148" r="79" fill="#0d2a40" opacity=".26"/>
+          <circle cx="278" cy="148" r="61" fill="#14344c" opacity=".2"/>
+
+          <g>
+            <rect x="16" y="22" width="84" height="122" rx="14" fill="url(#ventBody)" stroke="#465360" stroke-width="2"/>
+            <rect x="29" y="36" width="56" height="34" rx="6" fill="#081111" stroke="#257a70" stroke-width="1.5"/>
+            <path id="ventWave" d="M35 54 L44 54 L49 45 L57 62 L64 48 L72 54 L80 54" fill="none" stroke="#31d1b8" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="40" cy="100" r="6" fill="#31d1b8"/><circle cx="59" cy="100" r="6" fill="#64707b"/><circle cx="78" cy="100" r="6" fill="#64707b"/>
+            <text x="58" y="129" text-anchor="middle" fill="#c6d0d9" font-size="8.2" font-weight="700">VENTILADOR</text>
+          </g>
+
+          <path d="M98 78 C132 78 154 86 182 97" fill="none" stroke="#71ddd2" stroke-width="8" stroke-linecap="round" opacity=".95"/>
+          <path d="M98 97 C132 99 154 109 182 124" fill="none" stroke="#8db3ff" stroke-width="8" stroke-linecap="round" opacity=".95"/>
+          <text x="119" y="71" fill="#9fdad4" font-size="9" font-weight="800">INS</text>
+          <text x="120" y="113" fill="#b6c6ff" font-size="9" font-weight="800">EXP</text>
+          <circle id="airDotIns1" cx="108" cy="78" r="3.8" fill="#dcfffb" opacity="0"/>
+          <circle id="airDotIns2" cx="139" cy="84" r="3.8" fill="#dcfffb" opacity="0"/>
+          <circle id="airDotExp1" cx="109" cy="97" r="3.8" fill="#d8e4ff" opacity="0"/>
+          <circle id="airDotExp2" cx="141" cy="105" r="3.8" fill="#d8e4ff" opacity="0"/>
+
+          <rect x="109" y="220" width="296" height="22" rx="7" fill="url(#mattress)"/>
+          <rect x="128" y="242" width="9" height="25" fill="#313c47"/>
+          <rect x="372" y="242" width="9" height="25" fill="#313c47"/>
+
+          <g id="patientWhole">
+            <path id="torsoShell" d="M158 214 C170 169 197 134 234 120 C269 108 319 120 356 156 C372 171 380 192 383 214 Z" fill="url(#torso)" stroke="#4a9ac0" stroke-width="2.2"/>
+          </g>
+
+          <g id="ribcageGroup" style="transform-box:fill-box; transform-origin:center;">
+            <ellipse cx="278" cy="154" rx="59" ry="49" fill="#143041" opacity=".82" stroke="#5f8195" stroke-width="2"/>
+            <path d="M278 111 L278 197" fill="none" stroke="#d7e3ea" stroke-opacity=".28" stroke-width="2.5"/>
+          </g>
+
+          <g id="yConnector">
+            <path d="M182 97 C190 101 198 107 206 114" fill="none" stroke="#e1eff1" stroke-width="6" stroke-linecap="round" opacity=".95"/>
+            <path d="M182 124 C190 121 198 118 206 114" fill="none" stroke="#e1eff1" stroke-width="6" stroke-linecap="round" opacity=".95"/>
+            <path d="M206 114 C219 121 232 128 245 136" fill="none" stroke="#e1eff1" stroke-width="7" stroke-linecap="round" opacity=".98"/>
+            <circle cx="206" cy="114" r="4.6" fill="#f1f6f8" opacity=".96"/>
+          </g>
+          <path d="M244 136 C252 140 258 144 264 148" fill="none" stroke="#e1eff1" stroke-width="6" stroke-linecap="round" opacity=".92"/>
+
+          <g id="lungs" style="transform-box:fill-box;transform-origin:center;">
+            <path d="M274 122 C252 116 234 131 228 155 C223 175 230 199 248 203 C264 205 274 188 274 167 Z" fill="#ef6d74" stroke="#ffc0c4" stroke-width="2.4"/>
+            <path d="M282 122 C304 116 322 131 328 155 C333 175 326 199 308 203 C292 205 282 188 282 167 Z" fill="#ef6d74" stroke="#ffc0c4" stroke-width="2.4"/>
+          </g>
+          <path d="M278 112 L278 157" stroke="#e8edf2" stroke-width="6" stroke-linecap="round"/>
+          <rect x="274" y="138" width="8" height="36" rx="4" fill="#eef5f7"/>
+          <path id="diaphragm" d="M227 194 Q278 179 329 194" fill="none" stroke="#4ade80" stroke-width="5" stroke-linecap="round"/>
+          <path id="effortArrow" d="M278 210 L278 188" stroke="#ff8aa1" stroke-width="4" stroke-linecap="round" opacity="0"/>
+          <path id="effortArrowHead" d="M270 197 L278 187 L286 197" fill="none" stroke="#ff8aa1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>
+        </svg>
+      </div>
+      <div class="metrics">
+        <div class="metric p"><div class="k">Pressão de pico</div><div class="num"><span id="outPpeak">0</span><span class="unit">cmH₂O</span></div></div>
+        <div class="metric v"><div class="k">Volume expirado</div><div class="num"><span id="outVte">0</span><span class="unit">mL</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="vent">
+    <div class="card">
+      <div class="section-title">Modo ventilatório</div>
+      <div class="segmented" id="modeSeg">
+        <button class="seg active" type="button" data-value="VCV">VCV<br><small>volume</small></button>
+        <button class="seg" type="button" data-value="PCV">PCV<br><small>pressão</small></button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Parâmetros principais</div>
+      <div class="control" id="vtControl">
+        <div class="control-head"><div><div class="control-name">Volume corrente</div><div class="control-help">VCV</div></div><div class="control-value"><span id="valVt">400</span> mL</div></div>
+        <div class="range-row"><button class="step" type="button" data-target="vt" data-delta="-10">−</button><input id="vt" type="range" min="200" max="800" step="10" value="400"><button class="step" type="button" data-target="vt" data-delta="10">+</button></div>
+      </div>
+      <div class="control hidden" id="pinsControl">
+        <div class="control-head"><div><div class="control-name">Pressão inspiratória</div><div class="control-help">PCV</div></div><div class="control-value"><span id="valPins">15</span> cmH₂O</div></div>
+        <div class="range-row"><button class="step" type="button" data-target="pins" data-delta="-1">−</button><input id="pins" type="range" min="5" max="35" step="1" value="15"><button class="step" type="button" data-target="pins" data-delta="1">+</button></div>
+      </div>
+      <div class="control">
+        <div class="control-head"><div><div class="control-name">PEEP</div><div class="control-help">Final da expiração</div></div><div class="control-value"><span id="valPeep">5</span> cmH₂O</div></div>
+        <div class="range-row"><button class="step" type="button" data-target="peep" data-delta="-1">−</button><input id="peep" type="range" min="0" max="20" step="1" value="5"><button class="step" type="button" data-target="peep" data-delta="1">+</button></div>
+      </div>
+      <div class="control">
+        <div class="control-head"><div><div class="control-name">FR do ventilador</div><div class="control-help">Ciclos mandatórios</div></div><div class="control-value"><span id="valVentRR">15</span> irpm</div></div>
+        <div class="range-row"><button class="step" type="button" data-target="rrVent" data-delta="-1">−</button><input id="rrVent" type="range" min="6" max="30" step="1" value="15"><button class="step" type="button" data-target="rrVent" data-delta="1">+</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Disparo</div>
+      <div class="segmented" id="triggerSeg">
+        <button class="seg active" type="button" data-value="AC">A/C<br><small>paciente pode disparar</small></button>
+        <button class="seg" type="button" data-value="CMV">CMV<br><small>somente tempo</small></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="lung">
+    <div class="card">
+      <div class="section-title">Mecânica pulmonar</div>
+      <div class="control">
+        <div class="control-head"><div><div class="control-name">Complacência</div><div class="control-help">Distensão por pressão</div></div><div class="control-value"><span id="valC">50</span> mL/cmH₂O</div></div>
+        <div class="range-row"><button class="step" type="button" data-target="c" data-delta="-5">−</button><input id="c" type="range" min="10" max="100" step="5" value="50"><button class="step" type="button" data-target="c" data-delta="5">+</button></div>
+      </div>
+      <div class="control">
+        <div class="control-head"><div><div class="control-name">Resistência</div><div class="control-help">Oposição ao fluxo</div></div><div class="control-value"><span id="valR">10</span> cmH₂O·s/L</div></div>
+        <div class="range-row"><button class="step" type="button" data-target="r" data-delta="-1">−</button><input id="r" type="range" min="5" max="50" step="1" value="10"><button class="step" type="button" data-target="r" data-delta="1">+</button></div>
+      </div>
+      <div class="info-grid" style="margin-top:12px">
+        <div class="info-box"><div class="label">Constante de tempo</div><div class="value"><span id="tauValue">0.50</span> s</div></div>
+        <div class="info-box"><div class="label">Mecânica</div><div class="value" id="mechanicsLabel">Normal</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Paciente</div>
+      <div class="patient-state" id="patientSeg">
+        <button class="seg active" type="button" data-value="sedated">Sedado<br><small>passivo</small></button>
+        <button class="seg" type="button" data-value="active">Ativo<br><small>espontâneo</small></button>
+      </div>
+      <div class="control">
+        <div class="control-head"><div><div class="control-name">FR do paciente</div><div class="control-help">Esforços espontâneos</div></div><div class="control-value"><span id="valPatientRR">18</span> irpm</div></div>
+        <div class="range-row"><button class="step" type="button" data-target="rrPatient" data-delta="-1">−</button><input id="rrPatient" type="range" min="6" max="40" step="1" value="18"><button class="step" type="button" data-target="rrPatient" data-delta="1">+</button></div>
+      </div>
+      <button class="primary" type="button" id="btnEffort">Simular esforço inspiratório</button>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="curves">
+    <div class="card chart-card">
+      <div class="segmented three" id="chartSeg" style="margin-bottom:10px">
+        <button class="seg active" type="button" data-value="P">Pressão</button>
+        <button class="seg" type="button" data-value="F">Fluxo</button>
+        <button class="seg" type="button" data-value="V">Volume</button>
+      </div>
+      <div class="chart-header"><div class="chart-name" id="chartName">Pressão</div><div class="chart-current" id="chartCurrent">5 cmH₂O</div></div>
+      <div class="canvas-wrap"><canvas id="waveCanvas"></canvas></div>
+    </div>
+  </section>
+</div>
+
+<button class="effort-fab" type="button" id="fabEffort" aria-label="Simular esforço inspiratório em qualquer tela"><span class="icon">↧</span><span>Esforço</span></button>
+<div class="toast" id="toast">Esforço inspiratório iniciado</div>
+
+<nav class="bottom-nav" aria-label="Telas do simulador">
+  <div class="nav-inner">
+    <button class="nav-btn active" type="button" data-screen-target="patient"><span class="ico">🫁</span>Paciente</button>
+    <button class="nav-btn" type="button" data-screen-target="vent"><span class="ico">⚙️</span>Ventilador</button>
+    <button class="nav-btn" type="button" data-screen-target="lung"><span class="ico">↔️</span>Paciente</button>
+    <button class="nav-btn" type="button" data-screen-target="curves"><span class="ico">〰️</span>Curvas</button>
+  </div>
+</nav>
+
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+
+  // ---------------------------------------------------------------------------
+  // MODELO FISIOLÓGICO
+  // Compartimento pulmonar único, linear:
+  //   Paw + Pmus = PEEP + V/C + R * dV/dt
+  // V é o volume acima do volume de equilíbrio definido pela PEEP.
+  // C: mL/cmH2O | R: cmH2O.s/L | fluxo: L/s ou L/min para exibição.
+  // ---------------------------------------------------------------------------
+  let mode='VCV', triggerType='AC', patientState='sedated';
+  let vt=400, pins=15, peep=5, C=50, R=10;
+  let rrVent=15, rrPatient=18;
+
+  const dt=0.05;
+  const Ti=1.0;                  // tempo inspiratório fixo, em segundos
+  const effortDuration=0.6;     // duração de cada esforço espontâneo
+  const effortAmplitude=10;     // pico de Pmus, cmH2O
+  const pressureTrigger=2;      // sensibilidade do disparo por pressão, cmH2O
+  const triggerCoupling=0.35;   // queda de Paw durante demanda espontânea na expiração
+
+  let cycleTime=0;              // tempo desde o início da última inspiração mecânica
+  let inspTime=0;
+  let isInsufflating=false;
+
+  let effortActive=false, effortTime=0, pMus=0;
+  let patientClock=0;
+
+  // Estados físicos e métricas respiratórias.
+  let currentP=peep;             // Paw, cmH2O
+  let currentF=0;                // fluxo, L/min; positivo = inspiração
+  let currentV=0;                // volume pulmonar acima do equilíbrio da PEEP, mL
+  let inspiredThisBreath=0;      // volume fornecido nesta inspiração, mL
+  let expiredThisBreath=0;       // volume expirado acumulado nesta expiração, mL
+  let lastVte=0;                 // VTE do último ciclo concluído, mL
+  let breathPpeak=peep;
+  let lastPpeak=peep;
+
+  let selectedChart='P';
+  const N=180;
+  const history={P:Array(N).fill(peep),F:Array(N).fill(0),V:Array(N).fill(0)};
+  let toastTimer=null;
+
+  const inputs={
+    vt:$('#vt'), pins:$('#pins'), peep:$('#peep'), c:$('#c'), r:$('#r'),
+    rrVent:$('#rrVent'), rrPatient:$('#rrPatient')
+  };
+
+  const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+  const setSegment=(root,value)=>$$(root+' .seg').forEach(b=>b.classList.toggle('active',b.dataset.value===value));
+  const tauSeconds=()=>Math.max(1e-6,(R*C)/1000);
+  const ventPeriod=()=>60/rrVent;
+  const expTime=()=>Math.max(dt,ventPeriod()-Ti);
+  const patientPeriod=()=>60/rrPatient;
+
+  function showToast(msg){
+    const t=$('#toast');
+    t.textContent=msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(()=>t.classList.remove('show'),1200);
+  }
+
+  function updateModeUI(){
+    setSegment('#modeSeg',mode);
+    $('#vtControl').classList.toggle('hidden',mode!=='VCV');
+    $('#pinsControl').classList.toggle('hidden',mode!=='PCV');
+    $('#modeBadge').textContent=mode;
+    updateChartText();
+  }
+
+  function updateMechanics(){
+    $('#tauValue').textContent=tauSeconds().toFixed(2);
+    let t='Normal';
+    if(C<=30 && R>=25)t='Restritiva + obstrutiva';
+    else if(C<=30)t='Baixa complacência';
+    else if(R>=25)t='Alta resistência';
+    $('#mechanicsLabel').textContent=t;
+  }
+
+  function updateLabels(){
+    $('#valVt').textContent=vt;
+    $('#valPins').textContent=pins;
+    $('#valPeep').textContent=peep;
+    $('#valC').textContent=C;
+    $('#valR').textContent=R;
+    $('#valVentRR').textContent=rrVent;
+    $('#valPatientRR').textContent=rrPatient;
+    $('#peepBadge').textContent=peep;
+    $('#patientBadge').textContent=patientState==='active'?'Ativo':'Passivo';
+    $('#triggerBadge').textContent=triggerType;
+    updateMechanics();
+    updateChartText();
+  }
+
+  function syncVar(id){
+    const v=Number(inputs[id].value);
+    if(id==='vt')vt=v;
+    else if(id==='pins')pins=v;
+    else if(id==='peep')peep=v;
+    else if(id==='c')C=v;
+    else if(id==='r')R=v;
+    else if(id==='rrVent')rrVent=v;
+    else if(id==='rrPatient')rrPatient=v;
+    updateLabels();
+  }
+
+  Object.keys(inputs).forEach(id=>inputs[id].addEventListener('input',()=>syncVar(id)));
+  $$('.step').forEach(btn=>btn.addEventListener('click',()=>{
+    const id=btn.dataset.target,input=inputs[id],delta=Number(btn.dataset.delta);
+    input.value=clamp(Number(input.value)+delta,Number(input.min),Number(input.max));
+    syncVar(id);
+  }));
+
+  $$('#modeSeg .seg').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.value;updateModeUI();}));
+  $$('#triggerSeg .seg').forEach(b=>b.addEventListener('click',()=>{triggerType=b.dataset.value;setSegment('#triggerSeg',triggerType);updateLabels();}));
+  $$('#patientSeg .seg').forEach(b=>b.addEventListener('click',()=>{
+    patientState=b.dataset.value;
+    setSegment('#patientSeg',patientState);
+    if(patientState==='sedated')patientClock=0;
+    updateLabels();
+  }));
+
+  function startEffort(user=false){
+    if(!effortActive){
+      effortActive=true;
+      effortTime=0;
+      if(user)showToast('Esforço inspiratório iniciado');
+    } else if(user){
+      effortTime=0;
+      showToast('Esforço reiniciado');
+    }
+  }
+
+  $('#btnEffort').addEventListener('click',()=>startEffort(true));
+  $('#fabEffort').addEventListener('click',()=>startEffort(true));
+
+  $$('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{
+    const target=btn.dataset.screenTarget;
+    $$('.nav-btn').forEach(x=>x.classList.toggle('active',x===btn));
+    $$('.screen').forEach(s=>s.classList.toggle('active',s.dataset.screen===target));
+    if(target==='curves')requestAnimationFrame(drawChart);
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+
+  $$('#chartSeg .seg').forEach(b=>b.addEventListener('click',()=>{
+    selectedChart=b.dataset.value;
+    setSegment('#chartSeg',selectedChart);
+    updateChartText();
+    drawChart();
+  }));
+
+  function phaseUI(){
+    const txt=isInsufflating?'INSPIRAÇÃO':'EXPIRAÇÃO';
+    $('#statusPill').textContent=txt;
+    $('#phaseLabel').textContent=txt;
+    $('#statusPill').classList.toggle('insp',isInsufflating);
+    $('#phaseLabel').classList.toggle('insp',isInsufflating);
+  }
+
+  function animatePatient(){
+    const volNorm=clamp(currentV/800,0,1), effortFrac=clamp(pMus/10,0,1);
+    $('#lungs').style.transform=`scale(${1+volNorm*0.17},${1+volNorm*0.24})`;
+    $('#ribcageGroup').style.transform=`scale(${1+volNorm*0.04},${1+volNorm*0.05})`;
+    $('#torsoShell').style.transform=`scale(${1+volNorm*0.02},${1+volNorm*0.03})`;
+    $('#torsoShell').style.transformOrigin='278px 170px';
+    const baseY=194, dipY=baseY + effortFrac*14 + volNorm*3;
+    $('#diaphragm').setAttribute('d',`M227 ${baseY} Q278 ${179+(dipY-baseY)} 329 ${baseY}`);
+    $('#diaphragm').setAttribute('stroke',pMus>0?'#ff6c86':'#4ade80');
+    $('#effortArrow').setAttribute('opacity',effortFrac>0.08?'0.95':'0');
+    $('#effortArrowHead').setAttribute('opacity',effortFrac>0.08?'0.95':'0');
+    $('#ventWave').setAttribute('d', isInsufflating ? 'M35 54 L44 54 L49 45 L57 62 L64 48 L72 54 L80 54' : 'M35 54 L44 54 L49 51 L57 57 L64 51 L72 54 L80 54');
+    const ins=[$('#airDotIns1'),$('#airDotIns2')], exp=[$('#airDotExp1'),$('#airDotExp2')];
+    if(isInsufflating){
+      const t=(inspTime/Ti)%1, pos=[[108+30*t,78+5*t],[139+30*t,84+10*t]];
+      ins.forEach((d,i)=>{d.setAttribute('cx',pos[i][0]);d.setAttribute('cy',pos[i][1]);d.setAttribute('opacity','0.95');});
+      exp.forEach(d=>d.setAttribute('opacity','0'));
+    } else {
+      const e=((cycleTime-Ti)/Math.max(expTime(),dt))%1, pos=[[140-28*e,105-5*e],[171-28*e,116-10*e]];
+      exp.forEach((d,i)=>{d.setAttribute('cx',pos[i][0]);d.setAttribute('cy',pos[i][1]);d.setAttribute('opacity', currentF< -0.5 ? '0.9':'0');});
+      ins.forEach(d=>d.setAttribute('opacity','0'));
+    }
+  }
+
+  function updateMonitor(){
+    const ppeak=isInsufflating?breathPpeak:lastPpeak;
+    const vte=isInsufflating?lastVte:expiredThisBreath;
+    $('#outPpeak').textContent=Math.round(ppeak||currentP);
+    $('#outVte').textContent=Math.round(Math.max(0,vte));
+    const cfg=chartConfig();
+    $('#chartCurrent').textContent=cfg.format(cfg.value);
+  }
+
+  function pushHistory(){
+    history.P.push(currentP);history.P.shift();
+    history.F.push(currentF);history.F.shift();
+    history.V.push(currentV);history.V.shift();
+  }
+
+  function updateEffort(){
+    if(patientState==='active'){
+      patientClock+=dt;
+      const Tpat=patientPeriod();
+      while(patientClock>=Tpat){
+        patientClock-=Tpat;
+        startEffort(false);
+      }
+    }
+
+    if(effortActive){
+      effortTime+=dt;
+      if(effortTime<=effortDuration){
+        pMus=Math.sin((effortTime/effortDuration)*Math.PI)*effortAmplitude;
+      } else {
+        effortActive=false;
+        pMus=0;
+      }
+    } else pMus=0;
+  }
+
+  function beginInspiration(){
+    // Encerra o VTE do ciclo anterior sem confundi-lo com o volume pulmonar residual.
+    if(expiredThisBreath>0)lastVte=expiredThisBreath;
+    expiredThisBreath=0;
+    inspiredThisBreath=0;
+    breathPpeak=currentP;
+    isInsufflating=true;
+    cycleTime=0;
+    inspTime=0;
+  }
+
+  function endInspiration(){
+    lastPpeak=breathPpeak;
+    isInsufflating=false;
+    inspTime=Ti;
+  }
+
+  function stepExpiration(){
+    // Durante a demanda espontânea, parte da pressão muscular aparece como
+    // deflexão de Paw no circuito. O restante atua sobre o sistema respiratório.
+    currentP=peep-triggerCoupling*pMus;
+
+    // Equação geral: Paw + Pmus = PEEP + V/C + R*dV/dt
+    const flowLs=(currentP+pMus-peep-(currentV/C))/R;
+    const oldV=currentV;
+
+    // Integração exponencial exata para o caso linear em cada passo, assumindo
+    // Paw e Pmus aproximadamente constantes durante dt.
+    const driving=currentP+pMus-peep;
+    const Veq=C*driving; // mL
+    const a=Math.exp(-dt/tauSeconds());
+    currentV=Veq+(oldV-Veq)*a;
+    currentV=Math.max(0,currentV);
+
+    // Fluxo médio no intervalo, coerente com a variação efetiva de volume.
+    currentF=((currentV-oldV)/1000/dt)*60;
+    if(currentF<0)expiredThisBreath+=(-currentF/60)*dt*1000;
+
+    const pressureTriggered=(triggerType==='AC' && currentP<=peep-pressureTrigger);
+    const timeTriggered=cycleTime>=ventPeriod();
+    if(pressureTriggered || timeTriggered)beginInspiration();
+  }
+
+  function stepVCV(){
+    const flowLs=(vt/1000)/Ti;
+    const remaining=Math.max(0,vt-inspiredThisBreath);
+    const dV=Math.min(remaining,flowLs*dt*1000);
+    const effectiveFlowLs=dV>0 ? (dV/1000/dt) : 0;
+
+    currentV+=dV;
+    inspiredThisBreath+=dV;
+    currentF=effectiveFlowLs*60;
+
+    // No VCV o fluxo é imposto, portanto Paw é obtida da equação do movimento.
+    currentP=peep+(currentV/C)+(effectiveFlowLs*R)-pMus;
+    breathPpeak=Math.max(breathPpeak,currentP);
+
+    if(inspiredThisBreath>=vt-1e-9 || inspTime>=Ti-1e-9)endInspiration();
+  }
+
+  function stepPCV(){
+    // Controlador de pressão ideal: Paw permanece em PEEP + Pins durante Ti.
+    currentP=peep+pins;
+    const oldV=currentV;
+    const Veq=C*(pins+pMus); // mL acima do volume de equilíbrio da PEEP
+    const a=Math.exp(-dt/tauSeconds());
+    currentV=Veq+(oldV-Veq)*a;
+    currentV=Math.max(0,currentV);
+
+    currentF=((currentV-oldV)/1000/dt)*60;
+    inspiredThisBreath+=Math.max(0,(currentV-oldV));
+    breathPpeak=Math.max(breathPpeak,currentP);
+
+    if(inspTime>=Ti-1e-9)endInspiration();
+  }
+
+  function stepModel(){
+    cycleTime+=dt;
+    updateEffort();
+
+    if(!isInsufflating){
+      stepExpiration();
+    } else {
+      inspTime+=dt;
+      if(mode==='VCV')stepVCV();
+      else stepPCV();
+    }
+
+    pushHistory();
+    phaseUI();
+    animatePatient();
+    updateMonitor();
+  }
+
+  function chartConfig(){
+    if(selectedChart==='F'){
+      const absMax=Math.max(80,...history.F.map(v=>Math.abs(v)),Math.abs(currentF));
+      const lim=Math.ceil(absMax/20)*20;
+      return {data:history.F,min:-lim,max:lim,color:'#4ade80',value:currentF,name:'Fluxo',format:v=>`${Math.round(v)} L/min`,unit:'L/min'};
+    }
+    if(selectedChart==='V'){
+      const maxSeen=Math.max(800,...history.V,currentV);
+      const vmax=Math.ceil(maxSeen/100)*100;
+      return {data:history.V,min:0,max:vmax,color:'#55b5ff',value:currentV,name:'Volume',format:v=>`${Math.round(v)} mL`,unit:'mL'};
+    }
+    const maxSeen=Math.max(45,...history.P,currentP);
+    const minSeen=Math.min(-10,...history.P,currentP);
+    return {data:history.P,min:Math.floor(minSeen/5)*5,max:Math.ceil(maxSeen/5)*5,color:'#ffd84d',value:currentP,name:'Pressão',format:v=>`${Math.round(v)} cmH₂O`,unit:'cmH₂O'};
+  }
+
+  function updateChartText(){
+    const c=chartConfig();
+    $('#chartName').textContent=c.name;
+    $('#chartCurrent').textContent=c.format(c.value);
+  }
+
+  const canvas=$('#waveCanvas'), ctx=canvas.getContext('2d');
+  function drawChart(){
+    if(!document.querySelector('[data-screen="curves"]').classList.contains('active'))return;
+    const rect=canvas.getBoundingClientRect();
+    if(rect.width<10||rect.height<10)return;
+    const dpr=Math.min(window.devicePixelRatio||1,2), w=Math.round(rect.width*dpr), h=Math.round(rect.height*dpr);
+    if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    const W=rect.width,H=rect.height;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#050708';ctx.fillRect(0,0,W,H);
+    const c=chartConfig(),padL=42,padR=10,padT=12,padB=20,pw=W-padL-padR,ph=H-padT-padB;
+    ctx.strokeStyle='#1d252c';ctx.lineWidth=1;ctx.fillStyle='#7f8b96';ctx.font='10px system-ui';ctx.textAlign='right';ctx.textBaseline='middle';
+    for(let i=0;i<=4;i++){
+      const y=padT+ph*i/4;
+      ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();
+      const val=c.max-(c.max-c.min)*i/4;
+      ctx.fillText(Math.round(val),padL-6,y);
+    }
+    ctx.strokeStyle=c.color;ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
+    c.data.forEach((v,i)=>{
+      const x=padL+(i/(c.data.length-1))*pw;
+      const vv=clamp(v,c.min,c.max);
+      const y=padT+(c.max-vv)/(c.max-c.min)*ph;
+      if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.fillStyle='#74818c';ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.font='10px system-ui';ctx.fillText(c.unit,padL,12);
+  }
+
+  window.addEventListener('resize',drawChart);
+
+  updateModeUI();
+  updateLabels();
+  phaseUI();
+  animatePatient();
+  setInterval(stepModel,50);
+  setInterval(drawChart,100);
+})();
+</script>
+</body>
+</html>
