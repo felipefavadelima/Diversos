@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f7fb">
+    <title>Simulador de Blender Eletrônico</title>
+    <style>
+        :root {
+            --bg-color: #f4f7fb;
+            --card-bg: rgba(255, 255, 255, 0.94);
+            --panel-bg: #f8fafc;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --o2-color: #0ea5e9;
+            --air-color: #64748b;
+            --mixed-color: #8b5cf6;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+            --danger: #dc2626;
+            --danger-bg: #fef2f2;
+            --border: #e2e8f0;
+            --shadow-lg: 0 22px 55px rgba(15, 23, 42, 0.08);
+            --shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            -webkit-text-size-adjust: 100%;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: clamp(14px, 3vw, 34px);
+            padding-top: max(clamp(14px, 3vw, 34px), env(safe-area-inset-top));
+            padding-bottom: max(clamp(14px, 3vw, 34px), env(safe-area-inset-bottom));
+            background:
+                radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.08), transparent 30rem),
+                radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.07), transparent 26rem),
+                var(--bg-color);
+            color: var(--text-main);
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        .container {
+            width: min(1160px, 100%);
+            margin: 0 auto;
+            padding: clamp(20px, 4vw, 40px);
+            background: var(--card-bg);
+            border: 1px solid rgba(226, 232, 240, 0.88);
+            border-radius: 28px;
+            box-shadow: var(--shadow-lg);
+            backdrop-filter: blur(12px);
+        }
+
+        header {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        .header-copy {
+            min-width: 0;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: var(--primary-dark);
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .eyebrow::before {
+            content: "";
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--o2-color), var(--mixed-color));
+            box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.08);
+        }
+
+        h1 {
+            margin: 0;
+            max-width: 720px;
+            color: var(--text-main);
+            font-size: clamp(1.65rem, 4vw, 2.5rem);
+            line-height: 1.05;
+            font-weight: 850;
+            letter-spacing: -0.045em;
+        }
+
+        p.subtitle {
+            max-width: 680px;
+            margin: 9px 0 0;
+            color: var(--text-sub);
+            font-size: clamp(0.92rem, 2vw, 1.05rem);
+            line-height: 1.5;
+        }
+
+        .header-badge {
+            flex: 0 0 auto;
+            display: grid;
+            grid-template-columns: auto auto;
+            align-items: center;
+            gap: 6px 9px;
+            min-width: 148px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-badge .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+        }
+
+        .header-badge strong {
+            font-size: 0.82rem;
+        }
+
+        .header-badge span:last-child {
+            grid-column: 2;
+            color: var(--text-sub);
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+            gap: 28px;
+            align-items: start;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 15px;
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+        }
+
+        .controls-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 3px 3px 7px;
+        }
+
+        .controls-title strong {
+            font-size: 0.88rem;
+        }
+
+        .controls-title span {
+            color: var(--text-sub);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        .control-group {
+            padding: 16px 16px 15px;
+            background: #fff;
+            border: 1px solid rgba(226, 232, 240, 0.85);
+            border-radius: 16px;
+            box-shadow: var(--shadow-sm);
+            transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+        }
+
+        .control-group:focus-within {
+            border-color: rgba(37, 99, 235, 0.42);
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.09);
+            transform: translateY(-1px);
+        }
+
+        .control-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            margin: 0;
+            color: var(--text-sub);
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.055em;
+            text-transform: uppercase;
+        }
+
+        .value-display {
+            display: inline-flex;
+            align-items: baseline;
+            justify-content: flex-end;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .value-num {
+            color: var(--primary-dark);
+            font-size: 1.35rem;
+            line-height: 1;
+            font-weight: 850;
+            letter-spacing: -0.03em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .unit {
+            color: var(--text-sub);
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .range-wrap {
+            display: flex;
+            align-items: center;
+            min-height: 32px;
+        }
+
+        input[type="range"] {
+            --fill: 50%;
+            width: 100%;
+            height: 32px;
+            margin: 0;
+            padding: 0;
+            appearance: none;
+            -webkit-appearance: none;
+            background: transparent;
+            cursor: pointer;
+            touch-action: pan-y;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 8px;
+            border-radius: 999px;
+            background: linear-gradient(to right, var(--primary) 0 var(--fill), #e2e8f0 var(--fill) 100%);
+        }
+
+        input[type="range"]::-moz-range-track {
+            height: 8px;
+            border: 0;
+            border-radius: 999px;
+            background: #e2e8f0;
+        }
+
+        input[type="range"]::-moz-range-progress {
+            height: 8px;
+            border-radius: 999px;
+            background: var(--primary);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            width: 24px;
+            height: 24px;
+            margin-top: -8px;
+            appearance: none;
+            -webkit-appearance: none;
+            border: 4px solid #fff;
+            border-radius: 50%;
+            background: var(--primary);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border: 4px solid #fff;
+            border-radius: 50%;
+            background: var(--primary);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+        }
+
+        input[type="range"]:focus-visible {
+            outline: none;
+        }
+
+        input[type="range"]:focus-visible::-webkit-slider-thumb {
+            box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.16), 0 2px 8px rgba(37, 99, 235, 0.35);
+        }
+
+        .alert {
+            display: none;
+            align-items: center;
+            gap: 7px;
+            margin-top: 9px;
+            padding: 8px 10px;
+            color: var(--danger);
+            background: var(--danger-bg);
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            line-height: 1.2;
+            font-weight: 800;
+        }
+
+        .main-sim {
+            min-width: 0;
+        }
+
+        .simulation-viewport {
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .sim-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 14px 17px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, #fff, #fbfdff);
+        }
+
+        .sim-topbar strong {
+            font-size: 0.86rem;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px 14px;
+            color: var(--text-sub);
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .legend-dot.o2 { background: var(--o2-color); }
+        .legend-dot.air { background: var(--air-color); }
+        .legend-dot.mix { background: var(--mixed-color); }
+
+        .diagram-scroll {
+            position: relative;
+            overflow-x: auto;
+            overflow-y: hidden;
+            overscroll-behavior-x: contain;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+            background:
+                linear-gradient(#fff, #fff) padding-box,
+                linear-gradient(180deg, rgba(248, 250, 252, 0.8), #fff) border-box;
+        }
+
+        .diagram-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .diagram-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+
+        svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .particle {
+            fill: none;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 2, 12;
+            animation: flow 2s linear infinite;
+        }
+
+        @keyframes flow {
+            from { stroke-dashoffset: 100; }
+            to { stroke-dashoffset: 0; }
+        }
+
+        .sensor-label {
+            font-size: 10px;
+            font-weight: 800;
+            fill: #64748b;
+            letter-spacing: 0.05em;
+        }
+
+        .pid-label {
+            font-size: 11px;
+            font-weight: 900;
+            fill: #fff;
+        }
+
+        .scroll-hint {
+            display: none;
+            padding: 8px 14px 11px;
+            color: var(--text-sub);
+            background: #fff;
+            border-top: 1px solid #f1f5f9;
+            font-size: 0.69rem;
+            font-weight: 650;
+            text-align: center;
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            padding: 14px;
+            background: var(--panel-bg);
+            border-top: 1px solid var(--border);
+        }
+
+        .data-card {
+            min-width: 0;
+            padding: 13px 8px;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 13px;
+            text-align: center;
+        }
+
+        .data-card .label {
+            margin-bottom: 5px;
+            overflow: hidden;
+            color: var(--text-sub);
+            font-size: 0.62rem;
+            font-weight: 800;
+            letter-spacing: 0.035em;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .data-card .value {
+            color: var(--text-main);
+            font-size: clamp(0.92rem, 2.2vw, 1.18rem);
+            font-weight: 850;
+            letter-spacing: -0.025em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                border-radius: 24px;
+            }
+
+            header {
+                align-items: center;
+                margin-bottom: 24px;
+            }
+
+            .header-badge {
+                display: none;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .controls {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+            }
+
+            .controls-title {
+                grid-column: 1 / -1;
+            }
+
+        }
+
+        @media (max-width: 620px) {
+            body {
+                padding-left: 0;
+                padding-right: 0;
+                background: var(--bg-color);
+            }
+
+            .container {
+                width: 100%;
+                padding: 18px 14px 20px;
+                border-left: 0;
+                border-right: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            header {
+                display: block;
+                margin-bottom: 18px;
+                padding: 2px 2px 0;
+            }
+
+            .eyebrow {
+                margin-bottom: 7px;
+                font-size: 0.68rem;
+            }
+
+            h1 {
+                font-size: clamp(1.55rem, 7vw, 2rem);
+                line-height: 1.08;
+            }
+
+            p.subtitle {
+                margin-top: 7px;
+                font-size: 0.9rem;
+            }
+
+            .dashboard {
+                gap: 15px;
+            }
+
+            .simulation-viewport,
+            .controls {
+                border-radius: 18px;
+            }
+
+            .sim-topbar {
+                align-items: flex-start;
+                padding: 12px 13px;
+            }
+
+            .legend {
+                gap: 7px 10px;
+                font-size: 0.64rem;
+            }
+
+            .diagram-scroll svg {
+                width: 560px;
+                max-width: none;
+            }
+
+            .scroll-hint {
+                display: block;
+            }
+
+            .data-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                padding: 10px;
+            }
+
+            .data-card {
+                padding: 12px 8px;
+            }
+
+            .data-card .label {
+                white-space: normal;
+            }
+
+            .data-card .value {
+                font-size: 1rem;
+            }
+
+            .controls {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                padding: 10px;
+            }
+
+            .controls-title {
+                padding: 4px 4px 3px;
+            }
+
+            .control-group {
+                padding: 14px 14px 13px;
+                border-radius: 14px;
+            }
+
+            .control-head {
+                margin-bottom: 10px;
+            }
+
+            .value-num {
+                font-size: 1.28rem;
+            }
+
+            input[type="range"] {
+                height: 38px;
+            }
+
+            input[type="range"]::-webkit-slider-runnable-track {
+                height: 9px;
+            }
+
+            input[type="range"]::-webkit-slider-thumb {
+                width: 28px;
+                height: 28px;
+                margin-top: -9.5px;
+            }
+
+            input[type="range"]::-moz-range-track,
+            input[type="range"]::-moz-range-progress {
+                height: 9px;
+            }
+
+            input[type="range"]::-moz-range-thumb {
+                width: 20px;
+                height: 20px;
+            }
+        }
+
+        @media (max-width: 390px) {
+            .container {
+                padding-left: 11px;
+                padding-right: 11px;
+            }
+
+            .sim-topbar {
+                display: block;
+            }
+
+            .legend {
+                justify-content: flex-start;
+                margin-top: 7px;
+            }
+
+            .diagram-scroll svg {
+                width: 520px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="header-copy">
+            <div class="eyebrow">Mistura O₂ + Ar</div>
+            <h1>Simulador de Blender Eletrônico</h1>
+            <p class="subtitle">Controle interativo da FiO₂ e do fluxo de gases medicinais.</p>
+        </div>
+        <div class="header-badge" aria-label="Estado do simulador">
+            <span class="dot" aria-hidden="true"></span>
+            <strong>Simulação ativa</strong>
+            <span>Atualização em tempo real</span>
+        </div>
+    </header>
+
+    <div class="dashboard">
+        <section class="controls" aria-label="Controles do simulador">
+            <div class="controls-title">
+                <strong>Ajustes</strong>
+                <span>Arraste os controles</span>
+            </div>
+
+            <div class="control-group">
+                <div class="control-head">
+                    <label for="fio2-input">FiO₂ desejada</label>
+                    <div class="value-display">
+                        <span class="value-num" id="fio2-val">40</span>
+                        <span class="unit">%</span>
+                    </div>
+                </div>
+                <div class="range-wrap">
+                    <input type="range" id="fio2-input" min="21" max="100" value="40" aria-label="FiO2 desejada">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-head">
+                    <label for="flow-input">Fluxo total</label>
+                    <div class="value-display">
+                        <span class="value-num" id="flow-val">60</span>
+                        <span class="unit">L/min</span>
+                    </div>
+                </div>
+                <div class="range-wrap">
+                    <input type="range" id="flow-input" min="5" max="120" value="60" aria-label="Fluxo total">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-head">
+                    <label for="pres-o2-input">Rede O₂</label>
+                    <div class="value-display">
+                        <span class="value-num" id="pres-o2-val">50</span>
+                        <span class="unit">psi</span>
+                    </div>
+                </div>
+                <div class="range-wrap">
+                    <input type="range" id="pres-o2-input" min="0" max="80" value="50" aria-label="Pressão da rede de oxigênio">
+                </div>
+                <div id="alert-o2" class="alert" role="status">⚠ Baixa pressão de O₂</div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-head">
+                    <label for="pres-air-input">Rede Ar</label>
+                    <div class="value-display">
+                        <span class="value-num" id="pres-air-val">50</span>
+                        <span class="unit">psi</span>
+                    </div>
+                </div>
+                <div class="range-wrap">
+                    <input type="range" id="pres-air-input" min="0" max="80" value="50" aria-label="Pressão da rede de ar">
+                </div>
+                <div id="alert-air" class="alert" role="status">⚠ Baixa pressão de Ar</div>
+            </div>
+        </section>
+
+        <main class="main-sim">
+            <div class="simulation-viewport">
+                <div class="sim-topbar">
+                    <strong>Diagrama funcional</strong>
+                    <div class="legend" aria-label="Legenda do diagrama">
+                        <span class="legend-item"><span class="legend-dot o2"></span>O₂</span>
+                        <span class="legend-item"><span class="legend-dot air"></span>Ar</span>
+                        <span class="legend-item"><span class="legend-dot mix"></span>Mistura</span>
+                    </div>
+                </div>
+
+                <div class="diagram-scroll" aria-label="Diagrama do blender. Em telas pequenas, deslize horizontalmente para visualizar todo o desenho.">
+                    <svg viewBox="0 0 600 400" role="img" aria-label="Diagrama do fluxo de oxigênio e ar pelo blender eletrônico">
+                        <path d="M 40 120 L 300 120" stroke="#eef2f7" stroke-width="14" fill="none" />
+                        <text x="40" y="105" class="sensor-label">REDE O₂ (100%)</text>
+
+                        <path d="M 40 280 L 300 280" stroke="#eef2f7" stroke-width="14" fill="none" />
+                        <text x="40" y="265" class="sensor-label">REDE AR (21%)</text>
+
+                        <path id="path-o2" d="M 40 120 L 300 120" class="particle" stroke="var(--o2-color)" />
+                        <path id="path-air" d="M 40 280 L 300 280" class="particle" stroke="var(--air-color)" />
+
+                        <g transform="translate(180, 85)">
+                            <rect x="0" y="0" width="40" height="25" fill="#334155" rx="4" />
+                            <text x="-5" y="-12" class="sensor-label" style="fill:#0f172a">VÁLV. PROP. O₂</text>
+                            <rect x="0" y="25" width="10" height="30" fill="#1e293b" />
+                            <rect x="30" y="25" width="10" height="30" fill="#1e293b" />
+                            <rect id="gate-o2" x="10" y="25" width="20" height="25" fill="var(--primary)" style="transition: height 0.3s ease;" />
+                        </g>
+
+                        <g transform="translate(180, 245)">
+                            <rect x="0" y="0" width="40" height="25" fill="#334155" rx="4" />
+                            <text x="-5" y="-12" class="sensor-label" style="fill:#0f172a">VÁLV. PROP. AR</text>
+                            <rect x="0" y="25" width="10" height="30" fill="#1e293b" />
+                            <rect x="30" y="25" width="10" height="30" fill="#1e293b" />
+                            <rect id="gate-air" x="10" y="25" width="20" height="25" fill="#64748b" style="transition: height 0.3s ease;" />
+                        </g>
+
+                        <path d="M 220 120 L 320 120 L 320 280 L 220 280" stroke="#eef2f7" stroke-width="14" fill="none" />
+                        <rect x="320" y="160" width="100" height="80" rx="16" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2" />
+                        <text x="325" y="150" class="sensor-label">CÂMARA DE MISTURA</text>
+
+                        <path d="M 420 200 L 560 200" stroke="#eef2f7" stroke-width="14" fill="none" />
+                        <path id="path-mix" d="M 420 200 L 560 200" class="particle" stroke="var(--mixed-color)" />
+
+                        <circle cx="490" cy="200" r="14" fill="#fff" stroke="var(--mixed-color)" stroke-width="3" />
+                        <text x="445" y="175" class="sensor-label">SENSOR FiO₂ / FLUXO</text>
+
+                        <g transform="translate(420, 30)">
+                            <rect x="0" y="0" width="150" height="50" rx="10" fill="#1e293b" />
+                            <text x="25" y="30" class="pid-label">CONTROLADOR PID</text>
+
+                            <path id="line-feedback" d="M 75 50 L 70 170" stroke="#94a3b8" stroke-dasharray="4" fill="none" opacity="0.6" />
+                            <text x="85" y="110" class="sensor-label" style="fill:#94a3b8; font-size:8px">SINAL FEEDBACK</text>
+
+                            <path d="M 0 25 L -200 65" stroke="var(--primary)" stroke-dasharray="4" fill="none" opacity="0.4" />
+                            <path d="M 0 25 L -200 225" stroke="var(--air-color)" stroke-dasharray="4" fill="none" opacity="0.4" />
+                        </g>
+                    </svg>
+                </div>
+
+                <div class="scroll-hint">↔ Deslize o diagrama horizontalmente para visualizar todos os componentes.</div>
+
+                <div class="data-grid" aria-label="Resultados da simulação">
+                    <div class="data-card">
+                        <div class="label">Válvula O₂</div>
+                        <div class="value" id="v-o2-pc">0%</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">Válvula Ar</div>
+                        <div class="value" id="v-air-pc">0%</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">Fluxo real</div>
+                        <div class="value" id="real-flow">0.0</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">FiO₂ real</div>
+                        <div class="value" id="real-fio2">21%</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    const inputs = {
+        fio2: document.getElementById('fio2-input'),
+        flow: document.getElementById('flow-input'),
+        pO2: document.getElementById('pres-o2-input'),
+        pAir: document.getElementById('pres-air-input')
+    };
+
+    const displays = {
+        fio2Val: document.getElementById('fio2-val'),
+        flowVal: document.getElementById('flow-val'),
+        pO2Val: document.getElementById('pres-o2-val'),
+        pAirVal: document.getElementById('pres-air-val'),
+        vO2Pc: document.getElementById('v-o2-pc'),
+        vAirPc: document.getElementById('v-air-pc'),
+        realFlow: document.getElementById('real-flow'),
+        realFio2: document.getElementById('real-fio2'),
+        alertO2: document.getElementById('alert-o2'),
+        alertAir: document.getElementById('alert-air'),
+        gateO2: document.getElementById('gate-o2'),
+        gateAir: document.getElementById('gate-air'),
+        pathO2: document.getElementById('path-o2'),
+        pathAir: document.getElementById('path-air'),
+        pathMix: document.getElementById('path-mix')
+    };
+
+    function updateSliderFill(input) {
+        const min = parseFloat(input.min) || 0;
+        const max = parseFloat(input.max) || 100;
+        const value = parseFloat(input.value);
+        const percent = ((value - min) / (max - min)) * 100;
+        input.style.setProperty('--fill', percent + '%');
+    }
+
+    function update() {
+        const targetFiO2 = parseFloat(inputs.fio2.value);
+        const targetFlow = parseFloat(inputs.flow.value);
+        const pO2 = parseFloat(inputs.pO2.value);
+        const pAir = parseFloat(inputs.pAir.value);
+
+        displays.fio2Val.textContent = targetFiO2;
+        displays.flowVal.textContent = targetFlow;
+        displays.pO2Val.textContent = pO2;
+        displays.pAirVal.textContent = pAir;
+
+        // Cálculos de Mistura — mantidos do simulador original
+        let flowO2 = targetFlow * (targetFiO2 - 21) / 79;
+        let flowAir = targetFlow - flowO2;
+
+        // Limitação por pressão — mantida do simulador original
+        const capO2 = (pO2 / 50) * 120;
+        const capAir = (pAir / 50) * 120;
+
+        const realO2 = Math.min(flowO2, capO2);
+        const realAir = Math.min(flowAir, capAir);
+        const totalFlow = realO2 + realAir;
+        const realFiO2 = totalFlow > 0 ? ((realO2 * 100) + (realAir * 21)) / totalFlow : 21;
+
+        displays.realFlow.textContent = totalFlow.toFixed(1) + " L/min";
+        displays.realFio2.textContent = Math.round(realFiO2) + " %";
+        displays.alertO2.style.display = pO2 < 30 ? 'flex' : 'none';
+        displays.alertAir.style.display = pAir < 30 ? 'flex' : 'none';
+
+        const openO2 = Math.min(100, (realO2 / 80) * 100);
+        const openAir = Math.min(100, (realAir / 80) * 100);
+
+        displays.vO2Pc.textContent = Math.round(openO2) + "%";
+        displays.vAirPc.textContent = Math.round(openAir) + "%";
+
+        displays.gateO2.setAttribute('height', 25 - (openO2 * 0.2));
+        displays.gateAir.setAttribute('height', 25 - (openAir * 0.2));
+
+        updateFlow(displays.pathO2, realO2);
+        updateFlow(displays.pathAir, realAir);
+        updateFlow(displays.pathMix, totalFlow);
+
+        Object.values(inputs).forEach(updateSliderFill);
+
+        inputs.fio2.setAttribute('aria-valuetext', targetFiO2 + ' por cento');
+        inputs.flow.setAttribute('aria-valuetext', targetFlow + ' litros por minuto');
+        inputs.pO2.setAttribute('aria-valuetext', pO2 + ' psi');
+        inputs.pAir.setAttribute('aria-valuetext', pAir + ' psi');
+    }
+
+    function updateFlow(path, flow) {
+        if (flow < 0.5) {
+            path.style.display = 'none';
+        } else {
+            path.style.display = 'block';
+            path.style.animationDuration = (40 / flow) + 's';
+        }
+    }
+
+    Object.values(inputs).forEach(input => input.addEventListener('input', update));
+    update();
+</script>
+
+</body>
+</html>
