@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Simulador de Capnografia — Mobile</title>
+<style>
+:root{
+  --bg:#f4f5f7;
+  --panel:#ffffff;
+  --ink:#1d2733;
+  --muted:#66717f;
+  --line:#d8dde4;
+  --blue:#2563eb;
+  --green:#159947;
+  --red:#c93434;
+  --amber:#b7791f;
+  --graph:#0e1621;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{
+  margin:0;
+  color:var(--ink);
+  background:var(--bg);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button,input{font:inherit}
+button{touch-action:manipulation}
+.app{width:min(760px,100%);margin:0 auto;padding:10px 10px 24px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px 10px}
+.title{font-size:1.08rem;font-weight:800;line-height:1.15}
+.subtitle{font-size:.78rem;color:var(--muted);margin-top:3px}
+.mode-switch{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;flex:0 0 auto}
+.mode-switch button{border:0;background:#fff;color:var(--muted);padding:8px 10px;font-weight:750;font-size:.82rem}
+.mode-switch button.active{background:var(--ink);color:#fff}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
+.panel-pad{padding:12px}
+.monitor{padding:10px}
+.readouts{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
+.readout{border:1px solid var(--line);border-radius:10px;padding:8px 8px 7px;min-width:0;background:#fff}
+.readout .k{font-size:.67rem;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.readout .v{font-size:1.14rem;font-weight:850;margin-top:2px;white-space:nowrap}
+.readout .u{font-size:.68rem;color:var(--muted);font-weight:650}
+.graph-wrap{position:relative;background:var(--graph);border-radius:11px;overflow:hidden;border:1px solid #263241}
+#graphCanvas{display:block;width:100%;height:230px}
+.graph-label{position:absolute;left:10px;top:8px;color:#cbd5e1;font-size:.7rem;font-weight:700;pointer-events:none}
+.sensor-strip{display:grid;grid-template-columns:72px 1fr 76px;align-items:center;gap:7px;margin-top:9px}
+.sensor-box{text-align:center;font-size:.69rem;color:var(--muted);font-weight:750}
+.ir-source{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;margin:0 auto 4px;background:#fff3e8;border:2px solid #d86235;color:#b83a1f;font-weight:900;font-size:.75rem}
+.detector{width:46px;height:42px;border-radius:8px;display:grid;place-items:center;margin:0 auto 4px;background:#273444;color:#fff;font-size:.62rem;font-weight:800;line-height:1.05}
+.chamber{height:56px;border:1px solid var(--line);border-radius:10px;position:relative;overflow:hidden;background:#fafbfc}
+.chamber:before{content:"gás";position:absolute;left:50%;top:4px;transform:translateX(-50%);font-size:.6rem;color:var(--muted);font-weight:800}
+.flow-line{position:absolute;left:50%;top:16px;bottom:4px;width:2px;background:#9bb8e8;transform:translateX(-50%)}
+.flow-line:after{content:"";position:absolute;bottom:-1px;left:-4px;border-top:7px solid #5b8bd9;border-left:4px solid transparent;border-right:4px solid transparent}
+.beam{position:absolute;left:0;right:0;top:28px;height:8px;background:#e0573f;opacity:.92;transition:opacity .15s,height .15s}
+.particle{position:absolute;width:5px;height:5px;border-radius:50%;background:#4c6177;opacity:.55;animation:fall 1.7s linear infinite}
+@keyframes fall{from{transform:translateY(-10px)}to{transform:translateY(58px)}}
+.status-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:.72rem;color:var(--muted)}
+.status-pill{border:1px solid var(--line);border-radius:999px;padding:5px 8px;background:#fff;white-space:nowrap}
+.status-pill.warn{border-color:#f0c8c8;color:var(--red);background:#fff7f7}
+.section-title{font-weight:850;font-size:.95rem}
+.section-sub{color:var(--muted);font-size:.76rem;margin-top:2px;line-height:1.35}
+.control{padding:10px 0;border-top:1px solid #edf0f3}
+.control:first-child{border-top:0;padding-top:0}
+.control label{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:.82rem;font-weight:760}
+.val{color:var(--blue);font-weight:850}
+input[type=range]{width:100%;margin:9px 0 0;accent-color:var(--blue)}
+.actions{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:10px}
+.btn{border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);padding:10px 9px;font-weight:780;font-size:.8rem;min-height:40px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.good{background:var(--green);border-color:var(--green);color:#fff}
+.btn.danger{background:var(--red);border-color:var(--red);color:#fff}
+.btn.active{outline:2px solid rgba(37,99,235,.18);border-color:var(--blue)}
+.guide-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.step-counter{font-size:.76rem;color:var(--muted);font-weight:750}
+.progress{height:5px;background:#e9edf2;border-radius:99px;overflow:hidden;margin:9px 0 12px}
+.progress > div{height:100%;background:var(--blue);width:12.5%;transition:width .2s}
+.step-title{font-size:1rem;font-weight:900;line-height:1.25}
+.step-text{font-size:.81rem;color:var(--muted);line-height:1.45;margin-top:6px}
+.quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.quick button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 10px;font-size:.76rem;font-weight:780;color:var(--ink)}
+.quick button.active{background:#eaf1ff;border-color:#9dbaf0;color:#174ea6}
+.question{margin-top:10px;padding:9px 10px;border-left:3px solid #c9d5e8;background:#f8fafc;border-radius:7px;font-size:.8rem;line-height:1.38}
+.guide-nav{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px}
+.guide-nav button{border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px;font-weight:800;color:var(--ink)}
+.guide-nav button.next{background:var(--ink);color:#fff;border-color:var(--ink)}
+.guide-nav button:disabled{opacity:.35}
+details{border:1px solid var(--line);border-radius:var(--radius);background:#fff;margin-bottom:10px;overflow:hidden}
+summary{list-style:none;cursor:pointer;padding:12px;font-weight:850;font-size:.9rem;display:flex;align-items:center;justify-content:space-between}
+summary::-webkit-details-marker{display:none}
+summary:after{content:"＋";color:var(--muted);font-size:1rem}
+details[open] summary:after{content:"−"}
+.details-body{padding:0 12px 12px}
+.note{font-size:.74rem;color:var(--muted);line-height:1.42;margin:8px 1px 0}
+.eq{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.72rem;background:#f5f6f8;border:1px solid var(--line);border-radius:9px;padding:8px;margin-top:8px;overflow:auto}
+.hidden{display:none!important}
+@media(max-width:390px){
+  .app{padding-left:7px;padding-right:7px}
+  #graphCanvas{height:210px}
+  .readout .v{font-size:1.02rem}
+  .readout .k{font-size:.62rem}
+  .mode-switch button{padding:7px 8px;font-size:.76rem}
+}
+@media(min-width:680px){
+  .app{padding-top:18px}
+  #graphCanvas{height:280px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div>
+      <div class="title">Simulador de Capnografia</div>
+      <div class="subtitle">Absorção infravermelha · atividade guiada</div>
+    </div>
+    <div class="mode-switch" aria-label="Modo de uso">
+      <button id="guideModeBtn" class="active">Guia</button>
+      <button id="freeModeBtn">Livre</button>
+    </div>
+  </div>
+
+  <section class="panel monitor">
+    <div class="readouts">
+      <div class="readout"><div class="k">CO₂ agora</div><div class="v"><span id="co2Now">0.0</span><span class="u"> %</span></div></div>
+      <div class="readout"><div class="k">EtCO₂</div><div class="v"><span id="etco2MmHg">38</span><span class="u"> mmHg</span></div></div>
+      <div class="readout"><div class="k">Luz detectada</div><div class="v"><span id="lightPct">100</span><span class="u"> %</span></div></div>
+    </div>
+
+    <div class="graph-wrap">
+      <canvas id="graphCanvas"></canvas>
+      <div class="graph-label">CO₂ (%)</div>
+    </div>
+
+    <div class="sensor-strip" aria-label="Esquema óptico simplificado">
+      <div class="sensor-box"><div class="ir-source">IR</div>Fonte</div>
+      <div class="chamber" id="chamber">
+        <div class="flow-line"></div>
+        <div class="beam" id="beam"></div>
+      </div>
+      <div class="sensor-box"><div class="detector">FOTO<br>DET.</div>Detector</div>
+    </div>
+
+    <div class="status-row">
+      <span id="modeText">Respiração automática</span>
+      <span id="heaterStatus" class="status-pill">Aquecedor ligado</span>
+    </div>
+  </section>
+
+  <section id="guidePanel" class="panel panel-pad">
+    <div class="guide-head">
+      <div>
+        <div class="section-title">Guia de atividade</div>
+        <div class="section-sub">Siga as etapas e observe o traçado.</div>
+      </div>
+      <div id="stepCounter" class="step-counter">1 / 8</div>
+    </div>
+    <div class="progress"><div id="progressBar"></div></div>
+
+    <div id="stepTitle" class="step-title"></div>
+    <div id="stepText" class="step-text"></div>
+    <div id="stepQuick" class="quick"></div>
+    <div id="stepQuestions"></div>
+
+    <div class="guide-nav">
+      <button id="prevStep">Anterior</button>
+      <button id="nextStep" class="next">Próxima</button>
+    </div>
+  </section>
+
+  <details id="manualPanel">
+    <summary>Ajustes manuais</summary>
+    <div class="details-body">
+      <div class="control">
+        <label>EtCO₂ alvo <span class="val"><span id="targetEtco2Label">5.0</span>%</span></label>
+        <input id="targetEtco2" type="range" min="2" max="10" step="0.1" value="5" />
+      </div>
+      <div class="control">
+        <label>Frequência respiratória <span class="val"><span id="rrLabel">12</span> irpm</span></label>
+        <input id="rr" type="range" min="6" max="35" step="1" value="12" />
+      </div>
+      <div class="control">
+        <label>Espaço morto / reinalação <span class="val"><span id="deadSpaceLabel">0</span>%</span></label>
+        <input id="deadSpace" type="range" min="0" max="45" step="1" value="0" />
+      </div>
+      <div class="control">
+        <label>Absorção óptica <span class="val"><span id="absorptionLabel">1.00</span>x</span></label>
+        <input id="absorption" type="range" min="0.5" max="1.8" step="0.05" value="1" />
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="normalBtn">Normal</button>
+        <button class="btn danger" id="apneaBtn">Apneia</button>
+        <button class="btn" id="obstructionBtn">Obstrução</button>
+        <button class="btn" id="heaterBtn">Aquecedor</button>
+      </div>
+      <div class="eq">I = I₀ · exp(−k · C<sub>CO₂</sub> · L)</div>
+    </div>
+  </details>
+
+  <p class="note">Modelo didático simplificado. A conversão para mmHg e os artefatos são aproximados e não representam um equipamento clínico.</p>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const els = {
+    graph:$('graphCanvas'), beam:$('beam'), chamber:$('chamber'),
+    co2Now:$('co2Now'), etco2MmHg:$('etco2MmHg'), lightPct:$('lightPct'),
+    modeText:$('modeText'), heaterStatus:$('heaterStatus'),
+    targetEtco2:$('targetEtco2'), rr:$('rr'), deadSpace:$('deadSpace'), absorption:$('absorption'),
+    targetEtco2Label:$('targetEtco2Label'), rrLabel:$('rrLabel'), deadSpaceLabel:$('deadSpaceLabel'), absorptionLabel:$('absorptionLabel'),
+    normalBtn:$('normalBtn'), apneaBtn:$('apneaBtn'), obstructionBtn:$('obstructionBtn'), heaterBtn:$('heaterBtn'),
+    guidePanel:$('guidePanel'), manualPanel:$('manualPanel'), guideModeBtn:$('guideModeBtn'), freeModeBtn:$('freeModeBtn'),
+    stepTitle:$('stepTitle'), stepText:$('stepText'), stepQuick:$('stepQuick'), stepQuestions:$('stepQuestions'), stepCounter:$('stepCounter'), progressBar:$('progressBar'),
+    prevStep:$('prevStep'), nextStep:$('nextStep')
+  };
+
+  const ctx = els.graph.getContext('2d');
+  let graphData = [];
+  let startTime = performance.now();
+  let lastPush = 0;
+  let apnea = false;
+  let obstruction = false;
+  let heaterOn = true;
+  let automatic = true;
+  let currentStep = 0;
+  let particleNodes = [];
+
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+
+  function capnogramValue(phase,target,baseline){
+    if(phase < 0.18) return baseline;
+    if(phase < 0.35){
+      const r=smooth(0.18,0.35,phase);
+      return baseline+r*(target*0.88-baseline);
+    }
+    if(phase < 0.78){
+      const r=(phase-0.35)/(0.78-0.35);
+      const slope=obstruction?0.22:0.06;
+      return target*(0.88+slope*r);
+    }
+    const r=smooth(0.78,0.92,phase);
+    return target*(obstruction?1.05:0.94)*(1-r)+baseline*r;
+  }
+
+  function state(now){
+    const target=+els.targetEtco2.value;
+    const rr=+els.rr.value;
+    const baseline=target*(+els.deadSpace.value)/100;
+    const cycle=60000/rr;
+    const phase=((now-startTime)%cycle)/cycle;
+    let co2=apnea?baseline:capnogramValue(phase,target,baseline);
+    if(!heaterOn) co2 += (Math.random()-.5)*0.65 + .25*Math.sin(now/170);
+    co2=clamp(co2,0,12);
+    const absorption=+els.absorption.value;
+    const intensity=Math.exp(-absorption*co2/6.4);
+    return {co2,intensity,target};
+  }
+
+  function resizeCanvas(){
+    const r=els.graph.getBoundingClientRect();
+    const dpr=window.devicePixelRatio||1;
+    els.graph.width=Math.max(1,Math.floor(r.width*dpr));
+    els.graph.height=Math.max(1,Math.floor(r.height*dpr));
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    drawGraph();
+  }
+  window.addEventListener('resize',resizeCanvas);
+
+  function drawGraph(){
+    const r=els.graph.getBoundingClientRect(), w=r.width, h=r.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle='#0e1621'; ctx.fillRect(0,0,w,h);
+    const L=34,R=w-9,T=15,B=h-25;
+    ctx.font='10px system-ui';
+    ctx.fillStyle='rgba(226,232,240,.70)';
+    ctx.strokeStyle='rgba(148,163,184,.16)'; ctx.lineWidth=1;
+    for(let yv=0;yv<=10;yv+=2){
+      const y=B-yv/10*(B-T);
+      ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(R,y);ctx.stroke();
+      ctx.fillText(String(yv),8,y+3);
+    }
+    if(graphData.length>1){
+      ctx.strokeStyle='#31c96b';ctx.lineWidth=2.4;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
+      graphData.forEach((v,i)=>{
+        const x=L+(i/Math.max(1,graphData.length-1))*(R-L);
+        const y=B-clamp(v,0,10)/10*(B-T);
+        i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+      });
+      ctx.stroke();
+    }
+  }
+
+  function updateParticles(co2){
+    const count=Math.min(22,Math.round(co2*2.2));
+    while(particleNodes.length<count){
+      const p=document.createElement('span');
+      p.className='particle';
+      p.style.left=(8+Math.random()*84)+'%';
+      p.style.top=(-10-Math.random()*35)+'px';
+      p.style.animationDelay=(-Math.random()*1.7)+'s';
+      p.style.animationDuration=(1.2+Math.random()*1.2)+'s';
+      els.chamber.appendChild(p); particleNodes.push(p);
+    }
+    while(particleNodes.length>count){particleNodes.pop().remove()}
+  }
+
+  function updateLabels(){
+    els.targetEtco2Label.textContent=(+els.targetEtco2.value).toFixed(1);
+    els.rrLabel.textContent=els.rr.value;
+    els.deadSpaceLabel.textContent=els.deadSpace.value;
+    els.absorptionLabel.textContent=(+els.absorption.value).toFixed(2);
+    els.etco2MmHg.textContent=Math.round((+els.targetEtco2.value)*7.6);
+  }
+
+  function updateButtons(){
+    els.apneaBtn.classList.toggle('active',apnea);
+    els.obstructionBtn.classList.toggle('active',obstruction);
+    els.heaterBtn.classList.toggle('active',heaterOn);
+    els.heaterBtn.textContent=heaterOn?'Aquecedor ligado':'Aquecedor desligado';
+    els.heaterStatus.textContent=heaterOn?'Aquecedor ligado':'Aquecedor desligado';
+    els.heaterStatus.classList.toggle('warn',!heaterOn);
+    els.modeText.textContent=apnea?'Apneia':obstruction?'Obstrução parcial':'Respiração automática';
+  }
+
+  function setNormal(){
+    apnea=false; obstruction=false; heaterOn=true;
+    els.targetEtco2.value=5; els.rr.value=12; els.deadSpace.value=0; els.absorption.value=1;
+    graphData=[]; startTime=performance.now(); updateLabels(); updateButtons();
+  }
+  function setApnea(on=true){apnea=on; if(on) obstruction=false; graphData=[]; updateButtons()}
+  function setObstruction(on=true){obstruction=on; if(on) apnea=false; graphData=[]; updateButtons()}
+  function setHeater(on){heaterOn=on; updateButtons()}
+  function setValue(el,v){el.value=String(v); graphData=[]; updateLabels()}
+
+  [els.targetEtco2,els.rr,els.deadSpace,els.absorption].forEach(i=>i.addEventListener('input',()=>{graphData=[];updateLabels()}));
+  els.normalBtn.addEventListener('click',setNormal);
+  els.apneaBtn.addEventListener('click',()=>setApnea(!apnea));
+  els.obstructionBtn.addEventListener('click',()=>setObstruction(!obstruction));
+  els.heaterBtn.addEventListener('click',()=>setHeater(!heaterOn));
+
+  const steps=[
+    {
+      title:'1. Cenário normal',
+      text:'Comece com EtCO₂ 5%, 12 irpm, sem reinalação e aquecedor ligado.',
+      apply:setNormal,
+      quick:[['Aplicar cenário normal',()=>setNormal()]],
+      q:['Quando o CO₂ fica próximo de zero?','Em que ponto do ciclo aparece o EtCO₂?','Por que a curva sobe na expiração e cai na inspiração?']
+    },
+    {
+      title:'2. CO₂ × luz detectada',
+      text:'Mantenha o restante normal e compare diferentes concentrações de CO₂.',
+      apply:()=>{setNormal();setValue(els.targetEtco2,5)},
+      quick:[['EtCO₂ 2%',()=>setValue(els.targetEtco2,2)],['EtCO₂ 5%',()=>setValue(els.targetEtco2,5)],['EtCO₂ 8%',()=>setValue(els.targetEtco2,8)]],
+      q:['Quando o CO₂ aumenta, a luz detectada aumenta ou diminui?','Por que isso permite estimar CO₂ opticamente?','Por que o sistema precisa de calibração?']
+    },
+    {
+      title:'3. Sensibilidade óptica',
+      text:'Compare a absorção óptica do caminho. Ela representa, de forma didática, fonte, filtro, detector, caminho e alinhamento.',
+      apply:()=>{setNormal();setValue(els.absorption,1)},
+      quick:[['0,50×',()=>setValue(els.absorption,.5)],['1,00×',()=>setValue(els.absorption,1)],['1,80×',()=>setValue(els.absorption,1.8)]],
+      q:['Por que uma fonte visível comum não é adequada?','Por que fonte e filtro devem selecionar a faixa absorvida pelo CO₂?']
+    },
+    {
+      title:'4. Câmara óptica',
+      text:'Observe o feixe IR atravessando a câmara horizontalmente e o fluxo de gás perpendicularmente.',
+      apply:()=>{setNormal()},
+      quick:[['Restaurar normal',()=>setNormal()]],
+      q:['Por que o material no caminho óptico deve transmitir o infravermelho usado?','Por que a espessura da janela influencia a transmissão?']
+    },
+    {
+      title:'5. Aquecimento e condensação',
+      text:'Desligue o aquecedor, observe a instabilidade do sinal e depois ligue novamente.',
+      apply:()=>{setNormal();setHeater(false)},
+      quick:[['Desligar aquecedor',()=>setHeater(false)],['Ligar aquecedor',()=>setHeater(true)]],
+      q:['Como gotículas de água podem alterar a luz detectada?','Por que o aquecimento melhora a estabilidade da medida?']
+    },
+    {
+      title:'6. Reinalação e linha de base',
+      text:'Aumente a reinalação e observe se a linha inspiratória retorna a zero.',
+      apply:()=>{setNormal();setValue(els.deadSpace,0)},
+      quick:[['0%',()=>setValue(els.deadSpace,0)],['15%',()=>setValue(els.deadSpace,15)],['30%',()=>setValue(els.deadSpace,30)],['45%',()=>setValue(els.deadSpace,45)]],
+      q:['O que significa a linha de base não voltar a zero?','Por que o capnograma informa mais do que apenas o EtCO₂?']
+    },
+    {
+      title:'7. Apneia e obstrução',
+      text:'Compare o traçado normal, a apneia e a obstrução parcial.',
+      apply:()=>setNormal(),
+      quick:[['Normal',()=>setNormal()],['Apneia',()=>setApnea(true)],['Obstrução',()=>setObstruction(true)]],
+      q:['O que acontece com o capnograma na apneia?','Na obstrução, a subida e o platô permanecem normais?','Por que a morfologia da curva é importante?']
+    },
+    {
+      title:'8. Pergunta final',
+      text:'Explique como o capnógrafo transforma a presença de CO₂ em sinal elétrico.',
+      apply:()=>setNormal(),
+      quick:[],
+      q:['Use na resposta: fonte IR, absorção, fotodetector, câmara óptica, aquecimento e espaço morto.']
+    }
+  ];
+
+  function renderStep(runApply=true){
+    const s=steps[currentStep];
+    els.stepCounter.textContent=`${currentStep+1} / ${steps.length}`;
+    els.progressBar.style.width=`${(currentStep+1)/steps.length*100}%`;
+    els.stepTitle.textContent=s.title;
+    els.stepText.textContent=s.text;
+    els.stepQuick.innerHTML='';
+    s.quick.forEach(([label,fn])=>{
+      const b=document.createElement('button'); b.textContent=label; b.addEventListener('click',fn); els.stepQuick.appendChild(b);
+    });
+    els.stepQuestions.innerHTML='';
+    s.q.forEach(q=>{const d=document.createElement('div');d.className='question';d.textContent=q;els.stepQuestions.appendChild(d)});
+    els.prevStep.disabled=currentStep===0;
+    els.nextStep.textContent=currentStep===steps.length-1?'Recomeçar':'Próxima';
+    if(runApply) s.apply();
+  }
+  els.prevStep.addEventListener('click',()=>{if(currentStep>0){currentStep--;renderStep(true);window.scrollTo({top:0,behavior:'smooth'})}});
+  els.nextStep.addEventListener('click',()=>{currentStep=currentStep===steps.length-1?0:currentStep+1;renderStep(true);window.scrollTo({top:0,behavior:'smooth'})});
+
+  function setMode(mode){
+    const guide=mode==='guide';
+    els.guidePanel.classList.toggle('hidden',!guide);
+    els.guideModeBtn.classList.toggle('active',guide);
+    els.freeModeBtn.classList.toggle('active',!guide);
+    if(!guide) els.manualPanel.open=true;
+    else els.manualPanel.open=false;
+  }
+  els.guideModeBtn.addEventListener('click',()=>setMode('guide'));
+  els.freeModeBtn.addEventListener('click',()=>setMode('free'));
+
+  function animate(now){
+    const s=state(now);
+    els.co2Now.textContent=s.co2.toFixed(1);
+    els.lightPct.textContent=Math.round(s.intensity*100);
+    els.beam.style.opacity=String(clamp(s.intensity,.12,.95));
+    els.beam.style.height=(6+5*s.intensity)+'px';
+    updateParticles(s.co2);
+    if(now-lastPush>65){
+      graphData.push(s.co2);
+      const maxPoints=240;
+      if(graphData.length>maxPoints) graphData.shift();
+      drawGraph();
+      lastPush=now;
+    }
+    requestAnimationFrame(animate);
+  }
+
+  updateLabels(); updateButtons(); resizeCanvas(); renderStep(true); setMode('guide'); requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
