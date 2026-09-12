@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Média móvel em sinal degrau com ruído branco</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #eef2f5;
+    --card: #ffffff;
+    --text: #24323d;
+    --muted: #60717e;
+    --grid: #dfe6ea;
+    --axis: #425563;
+    --red: #e74c3c;
+    --blue: #2878b8;
+    --yellow: rgba(244, 196, 48, 0.23);
+  }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    padding: max(10px, env(safe-area-inset-top)) 10px max(14px, env(safe-area-inset-bottom));
+  }
+  .app {
+    width: min(100%, 760px);
+    margin: 0 auto;
+    background: var(--card);
+    border-radius: 16px;
+    box-shadow: 0 5px 20px rgba(27, 46, 59, 0.10);
+    overflow: hidden;
+  }
+  header { padding: 16px 16px 8px; text-align: center; }
+  h1 { margin: 0; font-size: clamp(18px, 5vw, 25px); line-height: 1.2; }
+  .subtitle { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+  .controls {
+    margin: 8px 12px 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #f5f7f8;
+    display: grid;
+    gap: 9px;
+  }
+  .control-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+  label { font-size: 13px; font-weight: 700; white-space: nowrap; }
+  select {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid #cbd6dc;
+    border-radius: 10px;
+    padding: 7px 10px;
+    background: white;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .buttons { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  button {
+    border: 0;
+    border-radius: 10px;
+    min-height: 42px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-weight: 700;
+    background: #e6edf1;
+    color: var(--text);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  button.primary { background: var(--blue); color: white; }
+  .canvas-wrap { padding: 0 8px; }
+  canvas {
+    width: 100%;
+    height: 340px;
+    display: block;
+    background: #fbfcfc;
+    border: 1px solid #d7e0e5;
+    border-radius: 12px;
+    touch-action: none;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 14px;
+    padding: 10px 12px 4px;
+    color: #465862;
+    font-size: 12px;
+  }
+  .item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 16px; height: 4px; border-radius: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .formula {
+    margin: 7px 12px 14px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: #f7f9fa;
+    text-align: center;
+    font-size: 13px;
+    color: #40515c;
+    overflow-x: auto;
+  }
+  @media (max-width: 430px) {
+    body { padding-left: 6px; padding-right: 6px; }
+    .app { border-radius: 13px; }
+    header { padding-top: 13px; }
+    .controls { margin-left: 8px; margin-right: 8px; }
+    .canvas-wrap { padding: 0 5px; }
+    canvas { height: 315px; }
+    .legend { font-size: 11.5px; gap: 7px 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Filtro de Média Móvel</h1>
+  </header>
+
+  <div class="controls">
+    <div class="control-row">
+      <label for="filterSize">Tamanho do filtro</label>
+      <select id="filterSize" aria-label="Tamanho do filtro de média móvel">
+        <option value="2">2 amostras</option>
+        <option value="5" selected>5 amostras</option>
+        <option value="10">10 amostras</option>
+      </select>
+    </div>
+    <div class="buttons">
+      <button id="pause" class="primary">Pausar</button>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="plot" aria-label="Gráfico do sinal ruidoso e da saída do filtro de média móvel"></canvas>
+  </div>
+
+  <div class="legend">
+    <div class="item"><span class="swatch" style="background:#aeb8bf"></span>Sinal ideal</div>
+    <div class="item"><span class="dot" style="background:#e74c3c"></span>Sinal com ruído</div>
+    <div class="item"><span class="swatch" style="background:#2878b8; height:5px"></span>Média móvel</div>
+    <div class="item"><span class="dot" style="background:white; border:2px solid #1d54d8"></span>Janela atual</div>
+  </div>
+
+  <div id="formula" class="formula"></div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('plot');
+  const ctx = canvas.getContext('2d');
+  const filterSize = document.getElementById('filterSize');
+  const formula = document.getElementById('formula');
+  const pauseBtn = document.getElementById('pause');
+
+  const N = 61;
+  const MID = Math.floor(N / 2);
+  let M = Number(filterSize.value);
+  const TFINAL = 10;
+  const YMIN = 0.25;
+  const YMAX = 2.75;
+  const FRAME_MS = 95;
+
+  const sigma = 0.1;
+  let ideal = [];
+  let noisy = [];
+  let filtered = [];
+  let animIndex = M - 1;
+  let paused = false;
+  let lastFrame = 0;
+  let cssW = 0;
+  let cssH = 0;
+
+  function gaussian() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  function updateFormula() {
+    formula.innerHTML = `M = ${M} &nbsp;&nbsp; y[n] = 1/${M} &Sigma;<sub>k=0</sub><sup>${M - 1}</sup> x[n&minus;k]`;
+  }
+
+  function recomputeFilter() {
+    filtered = new Array(N).fill(null);
+    for (let i = M - 1; i < N; i++) {
+      let sum = 0;
+      for (let k = 0; k < M; k++) sum += noisy[i - k];
+      filtered[i] = sum / M;
+    }
+    animIndex = M - 1;
+    lastFrame = 0;
+    updateFormula();
+    draw();
+  }
+
+  function generateSignal() {
+    ideal = Array.from({length: N}, (_, i) => i < MID ? 2 : 1);
+    noisy = ideal.map(v => v + sigma * gaussian());
+    recomputeFilter();
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cssW = Math.max(280, rect.width);
+    cssH = Math.max(260, rect.height);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function margins() {
+    const compact = cssW < 420;
+    return { top: 20, right: 14, bottom: 42, left: compact ? 42 : 50 };
+  }
+
+  function xOf(i) {
+    const m = margins();
+    return m.left + (i / (N - 1)) * (cssW - m.left - m.right);
+  }
+
+  function yOf(v) {
+    const m = margins();
+    return m.top + (YMAX - v) / (YMAX - YMIN) * (cssH - m.top - m.bottom);
+  }
+
+  function drawAxes() {
+    const m = margins();
+    const pw = cssW - m.left - m.right;
+    const ph = cssH - m.top - m.bottom;
+
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.fillStyle = '#fbfcfc';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    ctx.font = cssW < 420 ? '11px system-ui, sans-serif' : '12px system-ui, sans-serif';
+    ctx.lineWidth = 1;
+    ctx.textBaseline = 'middle';
+
+    const yTicks = [0.5, 1, 1.5, 2, 2.5];
+    for (const v of yTicks) {
+      const y = yOf(v);
+      ctx.strokeStyle = '#dfe6ea';
+      ctx.beginPath();
+      ctx.moveTo(m.left, y);
+      ctx.lineTo(m.left + pw, y);
+      ctx.stroke();
+      ctx.fillStyle = '#667985';
+      ctx.textAlign = 'right';
+      ctx.fillText(v.toFixed(v % 1 ? 1 : 0), m.left - 7, y);
+    }
+
+    const xTicks = [0, 2.5, 5, 7.5, 10];
+    for (const t of xTicks) {
+      const x = m.left + (t / TFINAL) * pw;
+      ctx.strokeStyle = '#eef2f4';
+      ctx.beginPath();
+      ctx.moveTo(x, m.top);
+      ctx.lineTo(x, m.top + ph);
+      ctx.stroke();
+      ctx.fillStyle = '#667985';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(String(t).replace('.', ','), x, m.top + ph + 7);
+    }
+
+    ctx.strokeStyle = '#425563';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(m.left, m.top);
+    ctx.lineTo(m.left, m.top + ph);
+    ctx.lineTo(m.left + pw, m.top + ph);
+    ctx.stroke();
+
+    ctx.fillStyle = '#425563';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('Tempo (s)', m.left + pw / 2, cssH - 5);
+
+    ctx.save();
+    ctx.translate(13, m.top + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Amplitude', 0, 0);
+    ctx.restore();
+  }
+
+  function drawIdeal() {
+    ctx.strokeStyle = '#aeb8bf';
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(xOf(0), yOf(2));
+    ctx.lineTo(xOf(MID - 1), yOf(2));
+    ctx.lineTo(xOf(MID), yOf(1));
+    ctx.lineTo(xOf(N - 1), yOf(1));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawNoisy() {
+    ctx.strokeStyle = 'rgba(231,76,60,0.26)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    noisy.forEach((v, i) => {
+      const x = xOf(i), y = yOf(v);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = '#e74c3c';
+    noisy.forEach((v, i) => {
+      ctx.beginPath();
+      ctx.arc(xOf(i), yOf(v), cssW < 420 ? 2.3 : 2.8, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function drawFiltered() {
+    const end = Math.min(animIndex, N - 1);
+    if (end < M - 1) return;
+
+    ctx.strokeStyle = '#2878b8';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = M - 1; i <= end; i++) {
+      const x = xOf(i), y = yOf(filtered[i]);
+      if (i === M - 1) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = '#2878b8';
+    for (let i = M - 1; i <= end; i++) {
+      ctx.beginPath();
+      ctx.arc(xOf(i), yOf(filtered[i]), cssW < 420 ? 2.6 : 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawWindow() {
+    if (animIndex < M - 1 || animIndex >= N) return;
+    const m = margins();
+    const start = animIndex - M + 1;
+    const dx = xOf(1) - xOf(0);
+    const x0 = xOf(start) - dx * 0.45;
+    const x1 = xOf(animIndex) + dx * 0.45;
+
+    ctx.fillStyle = 'rgba(244, 196, 48, 0.23)';
+    ctx.fillRect(x0, m.top, x1 - x0, cssH - m.top - m.bottom);
+
+    ctx.strokeStyle = '#1d54d8';
+    ctx.lineWidth = 2;
+    for (let i = start; i <= animIndex; i++) {
+      ctx.beginPath();
+      ctx.arc(xOf(i), yOf(noisy[i]), cssW < 420 ? 5.2 : 6.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  function drawStepMarker() {
+    const m = margins();
+    const x = (xOf(MID - 1) + xOf(MID)) / 2;
+    ctx.strokeStyle = 'rgba(80,95,105,0.38)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, m.top);
+    ctx.lineTo(x, cssH - m.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#596b76';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('degrau', x, m.top + 4);
+  }
+
+  function draw() {
+    if (!cssW || !cssH || noisy.length === 0) return;
+    drawAxes();
+    drawIdeal();
+    drawStepMarker();
+    drawNoisy();
+    drawWindow();
+    drawFiltered();
+  }
+
+  function animate(ts) {
+    if (!paused) {
+      if (!lastFrame) lastFrame = ts;
+      if (ts - lastFrame >= FRAME_MS) {
+        animIndex++;
+        if (animIndex > N + 7) animIndex = M - 1;
+        lastFrame = ts;
+        draw();
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  filterSize.addEventListener('change', () => {
+    M = Number(filterSize.value);
+    recomputeFilter();
+  });
+
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? 'Continuar' : 'Pausar';
+    pauseBtn.classList.toggle('primary', !paused);
+    if (!paused) lastFrame = 0;
+  });
+
+  const ro = new ResizeObserver(resizeCanvas);
+  ro.observe(canvas);
+  generateSignal();
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
