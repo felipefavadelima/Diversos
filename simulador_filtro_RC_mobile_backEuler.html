@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Filtro RC passa-baixas</title>
+<style>
+  :root{
+    --bg:#f3f5f7;
+    --card:#ffffff;
+    --text:#17202a;
+    --muted:#68707a;
+    --grid:#dfe4e8;
+    --axis:#7d8790;
+    --x:#1976d2;
+    --y:#d32f2f;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  .app{
+    max-width:720px;
+    margin:0 auto;
+    padding:14px 12px 24px;
+  }
+
+  h1{
+    margin:2px 0 12px;
+    font-size:20px;
+    line-height:1.2;
+    text-align:center;
+    font-weight:700;
+  }
+
+  .card{
+    background:var(--card);
+    border-radius:16px;
+    box-shadow:0 2px 12px rgba(0,0,0,.07);
+    overflow:hidden;
+  }
+
+  .controls{
+    padding:14px 14px 12px;
+    border-bottom:1px solid #e7eaed;
+  }
+
+  .freq-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:12px;
+    margin-bottom:10px;
+  }
+
+  .freq-label{
+    font-size:15px;
+    font-weight:650;
+  }
+
+  .freq-value{
+    font-size:24px;
+    font-weight:750;
+    font-variant-numeric:tabular-nums;
+  }
+
+  input[type="range"]{
+    width:100%;
+    height:34px;
+    margin:0;
+    accent-color:#303f9f;
+    touch-action:pan-y;
+  }
+
+  .range-labels{
+    display:flex;
+    justify-content:space-between;
+    margin-top:-3px;
+    color:var(--muted);
+    font-size:12px;
+  }
+
+  .info{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:6px;
+    padding:10px 12px;
+    background:#fafbfc;
+    border-bottom:1px solid #e7eaed;
+  }
+
+  .info div{
+    text-align:center;
+    min-width:0;
+  }
+
+  .info b{
+    display:block;
+    font-size:13px;
+    white-space:nowrap;
+  }
+
+  .info span{
+    display:block;
+    color:var(--muted);
+    font-size:10px;
+    margin-bottom:2px;
+  }
+
+
+  .peak-box{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:10px 14px;
+    background:#ffffff;
+    border-bottom:1px solid #e7eaed;
+  }
+
+  .peak-box span{
+    font-size:13px;
+    color:var(--muted);
+    font-weight:600;
+  }
+
+  .peak-box b{
+    font-size:20px;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .legend{
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    padding:10px 8px 2px;
+    font-size:13px;
+  }
+
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  .swatch{
+    width:18px;
+    height:3px;
+    border-radius:2px;
+  }
+
+  .swatch.x{background:var(--x)}
+  .swatch.y{background:var(--y)}
+
+  .plot-wrap{
+    position:relative;
+    width:100%;
+    height:min(58vh,480px);
+    min-height:330px;
+    padding:4px 6px 8px;
+  }
+
+  canvas{
+    display:block;
+    width:100%;
+    height:100%;
+    touch-action:none;
+  }
+
+  .equation{
+    padding:10px 12px 14px;
+    text-align:center;
+    color:#3c4650;
+    font-family:"Times New Roman",Times,serif;
+    font-size:16px;
+    border-top:1px solid #eef0f2;
+  }
+
+  @media (max-width:430px){
+    .app{padding:10px 8px 18px}
+    h1{font-size:18px;margin-bottom:9px}
+    .controls{padding:12px}
+    .freq-value{font-size:22px}
+    .plot-wrap{height:54vh;min-height:310px}
+    .info{padding:9px 6px;gap:2px}
+    .info b{font-size:12px}
+    .info span{font-size:9px}
+    .legend{gap:14px;font-size:12px}
+  }
+</style>
+</head>
+
+<body>
+<div class="app">
+  <h1>Filtro RC passa-baixas</h1>
+
+  <div class="card">
+    <div class="controls">
+      <div class="freq-row">
+        <div class="freq-label">Frequência de entrada</div>
+        <div class="freq-value"><span id="freqValue">5.0</span> Hz</div>
+      </div>
+
+      <input id="freqSlider" type="range" min="0" max="50" step="0.1" value="5"
+             aria-label="Frequência do sinal de entrada">
+
+      <div class="range-labels">
+        <span>0 Hz</span>
+        <span>50 Hz</span>
+      </div>
+    </div>
+
+    <div class="info">
+      <div><span>R</span><b>1 kΩ</b></div>
+      <div><span>C</span><b>70 µF</b></div>
+      <div><span>Fs</span><b>1000 Hz</b></div>
+      <div><span>Janela</span><b>5 s</b></div>
+    </div>
+
+    <div class="peak-box">
+      <span>Pico da saída |y[n]|</span>
+      <b id="peakValue">0,0000</b>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="swatch x"></span><span>x(t)</span></div>
+      <div class="legend-item"><span class="swatch y"></span><span>y[n] + spline</span></div>
+    </div>
+
+    <div class="plot-wrap" id="plotWrap">
+      <canvas id="plot"></canvas>
+    </div>
+
+    <div class="equation">
+      y[n] = 0,01408 x[n] + 0,98592 y[n−1]
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const R = 1000.0;
+  const C = 70e-6;
+  const RC = R * C;
+
+  const Fs = 1000.0;
+  const Ts = 1 / Fs;
+  const duration = 5.0;
+
+  const a = Ts / (RC + Ts);
+  const b = RC / (RC + Ts);
+
+  const slider = document.getElementById("freqSlider");
+  const freqValue = document.getElementById("freqValue");
+  const peakValue = document.getElementById("peakValue");
+  const canvas = document.getElementById("plot");
+  const wrap = document.getElementById("plotWrap");
+  const ctx = canvas.getContext("2d");
+
+  let cssW = 0;
+  let cssH = 0;
+  let dpr = 1;
+
+  const colors = {
+    text: "#17202a",
+    muted: "#68707a",
+    grid: "#dfe4e8",
+    axis: "#7d8790",
+    x: "#1976d2",
+    y: "#d32f2f"
+  };
+
+  function resizeCanvas() {
+    const r = wrap.getBoundingClientRect();
+    cssW = Math.max(300, r.width - 12);
+    cssH = Math.max(260, r.height - 12);
+
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function buildSignals(f) {
+    const N = Math.round(duration * Fs) + 1;
+    const x = new Float64Array(N);
+    const y = new Float64Array(N);
+
+    let yPrev = 0.0;
+
+    for (let n = 0; n < N; n++) {
+      const t = n * Ts;
+      x[n] = Math.cos(2 * Math.PI * f * t);
+
+      y[n] = a * x[n] + b * yPrev;
+      yPrev = y[n];
+    }
+    return {x, y};
+  }
+
+  function drawAxes(left, top, right, bottom, xToPx, yToPx) {
+    ctx.lineWidth = 1;
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.fillStyle = colors.muted;
+    ctx.strokeStyle = colors.grid;
+
+    // Grade vertical: 1 s
+    for (let t = 0; t <= duration + 1e-9; t += 1) {
+      const px = xToPx(t);
+
+      ctx.beginPath();
+      ctx.moveTo(px, top);
+      ctx.lineTo(px, bottom);
+      ctx.stroke();
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(t.toFixed(0), px, bottom + 5);
+    }
+
+    // Grade horizontal
+    const yTicks = [-1, -0.5, 0, 0.5, 1];
+    for (const v of yTicks) {
+      const py = yToPx(v);
+
+      ctx.beginPath();
+      ctx.moveTo(left, py);
+      ctx.lineTo(right, py);
+      ctx.stroke();
+
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.fillText(v.toFixed(v === 0 ? 0 : 1), left - 6, py);
+    }
+
+    // Eixo em y = 0
+    ctx.strokeStyle = colors.axis;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(left, yToPx(0));
+    ctx.lineTo(right, yToPx(0));
+    ctx.stroke();
+
+    // Título eixo x
+    ctx.fillStyle = colors.muted;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("Tempo (s)", (left + right) / 2, cssH - 1);
+  }
+
+  function drawInput(f, left, top, right, bottom, xToPx, yToPx) {
+    // Desenha x(t) de forma visualmente contínua, com ~1 amostra por pixel.
+    const samples = Math.max(800, Math.round(right - left) * 2);
+
+    ctx.strokeStyle = colors.x;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+
+    for (let i = 0; i < samples; i++) {
+      const t = duration * i / (samples - 1);
+      const v = Math.cos(2 * Math.PI * f * t);
+      const px = xToPx(t);
+      const py = yToPx(v);
+
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  function drawOutputSpline(y, left, top, right, bottom, xToPx, yToPx) {
+    // Interpolação cúbica de Hermite/Catmull-Rom entre amostras.
+    // Como as amostras são uniformemente espaçadas, as tangentes podem
+    // ser obtidas diretamente dos vizinhos.
+    ctx.strokeStyle = colors.y;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+
+    const N = y.length;
+    ctx.moveTo(xToPx(0), yToPx(y[0]));
+
+    for (let i = 0; i < N - 1; i++) {
+      const t0 = i * Ts;
+      const t1 = (i + 1) * Ts;
+
+      const p0 = y[i];
+      const p1 = y[i + 1];
+
+      const m0 = (i === 0) ? (y[1] - y[0]) : (y[i + 1] - y[i - 1]) / 2;
+      const m1 = (i + 1 === N - 1) ? (y[N - 1] - y[N - 2]) : (y[i + 2] - y[i]) / 2;
+
+      // Conversão de Hermite para Bézier cúbica.
+      const c1t = t0 + Ts / 3;
+      const c2t = t1 - Ts / 3;
+      const c1y = p0 + m0 / 3;
+      const c2y = p1 - m1 / 3;
+
+      ctx.bezierCurveTo(
+        xToPx(c1t), yToPx(c1y),
+        xToPx(c2t), yToPx(c2y),
+        xToPx(t1),  yToPx(p1)
+      );
+    }
+    ctx.stroke();
+
+    // Pontos y[n]. Todos os pontos são desenhados.
+    // Em telas estreitas, muitos se sobrepõem porque Fs = 1000 Hz.
+    ctx.fillStyle = colors.y;
+    const radius = (right - left) < 430 ? 0.85 : 1.0;
+
+    for (let i = 0; i < N; i++) {
+      const px = xToPx(i * Ts);
+      const py = yToPx(y[i]);
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  }
+
+  function draw() {
+    if (!cssW || !cssH) return;
+
+    const f = Number(slider.value);
+    freqValue.textContent = f.toFixed(1);
+
+    const {y} = buildSignals(f);
+
+    let peak = 0;
+    for (let i = 0; i < y.length; i++) {
+      const ay = Math.abs(y[i]);
+      if (ay > peak) peak = ay;
+    }
+    peakValue.textContent = peak.toFixed(4).replace(".", ",");
+
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    const left = 42;
+    const right = cssW - 10;
+    const top = 10;
+    const bottom = cssH - 30;
+
+    const yMin = -1.12;
+    const yMax = 1.12;
+
+    const xToPx = t => left + (t / duration) * (right - left);
+    const yToPx = v => top + (yMax - v) / (yMax - yMin) * (bottom - top);
+
+    drawAxes(left, top, right, bottom, xToPx, yToPx);
+    drawInput(f, left, top, right, bottom, xToPx, yToPx);
+    drawOutputSpline(y, left, top, right, bottom, xToPx, yToPx);
+  }
+
+  slider.addEventListener("input", draw);
+
+  const ro = new ResizeObserver(resizeCanvas);
+  ro.observe(wrap);
+
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
