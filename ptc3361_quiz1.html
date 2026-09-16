@@ -1839,6 +1839,29 @@ let state=new Map(); // question object -> {choice, checked, correct}
 const el=id=>document.getElementById(id);
 const categorySelect=el('categorySelect'), orderSelect=el('orderSelect');
 
+// Efeitos sonoros sintetizados no navegador: não dependem de arquivos externos.
+let soundContext=null;
+function sound(type){
+  const AudioCtx=window.AudioContext||window.webkitAudioContext;
+  if(!AudioCtx)return;
+  try{
+    soundContext??=new AudioCtx();
+    if(soundContext.state==='suspended')soundContext.resume();
+    const now=soundContext.currentTime, gain=soundContext.createGain();
+    gain.connect(soundContext.destination);
+    const tone=(frequency,start,duration,wave='sine',volume=.07)=>{
+      const osc=soundContext.createOscillator(), g=soundContext.createGain();
+      osc.type=wave;osc.frequency.setValueAtTime(frequency,now+start);
+      g.gain.setValueAtTime(.0001,now+start);g.gain.exponentialRampToValueAtTime(volume,now+start+.012);
+      g.gain.exponentialRampToValueAtTime(.0001,now+start+duration);
+      osc.connect(g).connect(gain);osc.start(now+start);osc.stop(now+start+duration+.02);
+    };
+    if(type==='click'){tone(520,0,.07,'square',.045);}
+    if(type==='correct'){tone(523.25,0,.11,'triangle');tone(659.25,.10,.12,'triangle');tone(783.99,.20,.18,'triangle',.08);}
+    if(type==='wrong'){tone(220,0,.12,'sawtooth',.055);tone(164.81,.11,.22,'sawtooth',.05);}
+  }catch(_){}
+}
+
 function initCategories(){
   const cats=['Todas',...new Set(Q.map(q=>q.cat))];
   categorySelect.innerHTML=cats.map(c=>`<option>${c}</option>`).join('');
@@ -2018,7 +2041,7 @@ function render(){
   el('prevBtn').disabled=idx===0;el('nextBtn').textContent=idx===filtered.length-1?'Finalizar':'Próxima →';
   el('checkBtn').disabled=(selected===null)||!!s?.checked;el('resetQ').disabled=!!s?.checked||selected===null;
 }
-function selectOption(i){const q=filtered[idx],s=state.get(q);if(s?.checked)return;selected=i;state.set(q,{choice:i,checked:false,correct:false});markSelected();el('checkBtn').disabled=false;el('resetQ').disabled=false;saveProgress()}
+function selectOption(i){const q=filtered[idx],s=state.get(q);if(s?.checked)return;sound('click');selected=i;state.set(q,{choice:i,checked:false,correct:false});markSelected();el('checkBtn').disabled=false;el('resetQ').disabled=false;saveProgress()}
 function markSelected(){document.querySelectorAll('.option').forEach((b,i)=>{b.classList.toggle('selected',i===selected);b.setAttribute('aria-pressed',String(i===selected))})}
 function showChecked(q,s){
   document.querySelectorAll('.option').forEach((b,i)=>{b.disabled=true;b.classList.remove('selected');b.setAttribute('aria-pressed',String(i===s.choice));if(i===q.a)b.classList.add('correct');if(i===s.choice&&i!==q.a)b.classList.add('wrong')});
@@ -2033,6 +2056,7 @@ function check(){
   if(s.correct){game.streak++;game.best=Math.max(game.best,game.streak);if(!game.earned.includes(q.id)){gain=10+Math.min(10,Math.max(0,game.streak-1)*2);game.xp+=gain;game.earned.push(q.id)}}else{game.streak=0}
   showChecked(q,s);updateCounts();updateGame();saveProgress();
   el('feedback').focus({preventScroll:true});
+  sound(s.correct?'correct':'wrong');
   if(s.correct)reward(gain);
 }
 function topScroll(){window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'})}
