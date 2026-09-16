@@ -1,6 +1,6 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PTC 3361 — Quiz de treino</title>
@@ -52,110 +52,1785 @@ button,select{font:inherit}
 .summary{display:none;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
 .summary.show{display:block}.summary h2{margin:0 0 8px;font-size:26px}.score-big{font-size:52px;font-weight:900;letter-spacing:-.05em;margin:4px 0}.summary p{color:var(--muted);line-height:1.45}.cat-list{display:grid;gap:8px;margin:16px 0}.cat-row{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0;font-size:14px}.cat-row:last-child{border:0}.summary-actions{display:grid;gap:10px}.smallnote{font-size:12px;color:var(--muted);padding:12px 4px 0;text-align:center;line-height:1.4}
 @media(max-width:480px){.app{padding-top:12px}.toolbar{grid-template-columns:1fr}.question{font-size:18px}.card-head{padding-top:14px}.options{padding-left:12px;padding-right:12px}.option{grid-template-columns:34px 1fr;padding:10px}.option .letter{width:30px;height:30px}.actions{padding-left:12px;padding-right:12px}.score-big{font-size:46px}}
+
+.game-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.game-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.game-stats span{display:block;color:var(--muted);font-size:11px}.game-stats b{display:block;font-size:15px;margin-top:4px}
+.xp-bar{height:5px;margin-top:12px}.xp-bar>div{background:linear-gradient(90deg,var(--accent),#14a87a)}
+.game-caption{font-size:11px;color:var(--muted);margin-top:6px}.achievements{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.achievement{font-size:11px;border-radius:20px;padding:5px 8px;background:#f2f4f7;color:#667085}.achievement.earned{background:var(--accent2);color:var(--accent);font-weight:700}
+.game-help{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5}.game-help summary{cursor:pointer}.text-button{border:0;background:none;color:var(--accent);padding:6px 0;cursor:pointer;text-decoration:underline}
+.feedback{line-height:1.65}.feedback p{margin:10px 0}.feedback p:last-child{margin-bottom:0}.feedback b{font-weight:750}.feedback .answer-key{font-size:13px;padding-bottom:10px;border-bottom:1px solid currentColor}.feedback strong{font-size:16px}
+.option:focus-visible,.btn:focus-visible,summary:focus-visible,.text-button:focus-visible,select:focus-visible{outline:3px solid #809cef;outline-offset:3px}.option .label,.question,.feedback{overflow-wrap:anywhere}.plot{height:auto}
+.reward{position:fixed;left:50%;top:18px;transform:translate(-50%,-120px);opacity:0;pointer-events:none;z-index:40;background:#147a4a;color:#fff;box-shadow:var(--shadow);border-radius:18px;padding:14px 22px;text-align:center;max-width:90vw;width:max-content;font-weight:800}.reward span{display:block;font-weight:500;font-size:12px;margin-top:3px}.reward.show{animation:rewardPop 2.1s ease both}
+@keyframes rewardPop{0%{transform:translate(-50%,-100px);opacity:0}15%,80%{transform:translate(-50%,0);opacity:1}100%{transform:translate(-50%,-20px);opacity:0}}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:35;overflow:hidden}.confetto{position:absolute;left:50%;top:70px;width:7px;height:11px;border-radius:2px;background:var(--c);animation:confettiFall 1.2s ease-out forwards}
+@keyframes confettiFall{from{opacity:1;transform:translate(0,0) rotate(0)}to{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--rot))}}
+.card.celebrate{animation:cardWin .55s ease}@keyframes cardWin{50%{box-shadow:0 0 0 4px #b1e4cb, var(--shadow)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.reward.show{transform:translate(-50%,0);opacity:1}.confetto{display:none}}
+@media(max-width:480px){.game-panel{padding:12px}.game-stats b{font-size:13px}.reward{font-size:14px}.feedback{font-size:14px}.cat-row{gap:12px}.cat-row strong{white-space:nowrap}}
+
 </style>
 </head>
 <body>
 <div class="app">
   <section class="hero">
     <h1>PTC 3361 — Quiz de treino</h1>
-    <p>Treino para prova com sinais em tempo contínuo e discreto, periodicidade, amostragem, aliasing, reconstrução, ZOH, sistemas, FIR/IIR, convolução e muitas questões com análise gráfica.</p>
+    <p>100 questões para praticar, compreender e avançar. Explore sinais, amostragem, reconstrução, sistemas e convolução com explicações comentadas após cada resposta.</p>
   </section>
 
-  <section id="quizArea">
+  <section id="quizArea" style="display: block;">
     <div class="toolbar">
-      <div class="control"><label>Bloco</label><select id="categorySelect"></select></div>
-      <div class="control"><label>Ordem</label><select id="orderSelect"><option value="fixed">Sequencial</option><option value="shuffle">Embaralhada</option></select></div>
+      <div class="control"><label for="categorySelect">Bloco</label><select id="categorySelect"><option selected="selected">Todas</option><option>Sinais e periodicidade</option><option>Amostragem e reconstrução</option><option>Sistemas</option><option>Convolução</option><option>Reconstrução e D/A</option><option>Casos aplicados</option></select></div>
+      <div class="control"><label for="orderSelect">Ordem</label><select id="orderSelect"><option value="fixed" selected="selected">Sequencial</option><option value="shuffle">Embaralhada</option></select></div>
     </div>
 
+
+    <section class="game-panel" aria-label="Seu progresso de aprendizagem">
+      <div class="game-stats"><div><span>Experiência</span><b id="xpValue">0 XP</b></div><div><span>Sequência atual</span><b id="streakValue">0 acertos</b></div><div><span>Seu nível</span><b id="levelValue">Explorador</b></div></div>
+      <div class="bar xp-bar"><div id="xpBar"></div></div>
+      <div class="game-caption" id="levelHint"></div>
+      <div class="achievements" id="achievements" aria-label="Conquistas"></div>
+      <details class="game-help"><summary>Como funciona o progresso?</summary><p>Cada questão rende 10 XP no primeiro acerto, mais 2 XP por acerto consecutivo a partir do segundo, até 10 XP de bônus. As conquistas consideram questões diferentes. Você pode refazer o treino, mas uma questão já conquistada não rende novos pontos. O erro encerra apenas a sequência, sem retirar XP.</p><p id="saveStatus">O progresso é salvo neste navegador quando o armazenamento está disponível.</p><button class="text-button" id="clearProgress">Apagar progresso salvo</button></details>
+    </section>
     <div class="progress-wrap">
-      <div class="progress-row"><span id="progressText">Questão 1 de 40</span><span><strong id="scoreTop">0</strong> acertos</span></div>
-      <div class="bar"><div id="progressBar"></div></div>
+      <div class="progress-row"><span id="progressText">Questão 1 de 100</span><span><strong id="scoreTop">0</strong> acertos</span></div>
+      <div class="bar"><div id="progressBar" style="width: 1%;"></div></div>
     </div>
 
     <article class="card">
-      <div class="card-head"><span class="badge" id="categoryBadge"></span><span class="difficulty" id="difficulty"></span></div>
-      <div class="question" id="questionText"></div>
+      <div class="card-head"><span class="badge" id="categoryBadge">Sinais e periodicidade</span><span class="difficulty" id="difficulty">Básica</span></div>
+      <div class="question" id="questionText">Qual afirmação distingue corretamente um sinal de tempo contínuo de um sinal de tempo discreto?</div>
       <div class="visual" id="visual"></div>
       <div class="options" id="options"></div>
-      <div class="feedback" id="feedback"></div>
+      <div class="feedback" id="feedback" role="status" aria-live="polite" tabindex="-1"></div>
       <div class="actions">
-        <button class="btn secondary" id="resetQ">Limpar</button>
-        <button class="btn primary" id="checkBtn">Responder</button>
+        <button class="btn secondary" id="resetQ" disabled="disabled">Limpar</button>
+        <button class="btn primary" id="checkBtn" disabled="disabled">Responder</button>
       </div>
     </article>
-    <div class="smallnote">A resposta só é revelada depois de clicar em <b>Responder</b>. Use o erro como parte do treino: a explicação mostra o raciocínio essencial.</div>
+    <div class="smallnote">A resposta é revelada ao clicar em <b>Responder</b>. Leia a resolução e a observação “Para consolidar” antes de avançar. SLIT e LTI designam um sistema linear e invariante no tempo. Use u[0]=1. Frequências: f em Hz, ω em rad/s e Ω em rad/amostra.</div>
   </section>
 
   <section class="summary" id="summary"></section>
 </div>
 
-<div class="navbar" id="navbar"><div class="navbar-inner">
-  <button class="btn secondary" id="prevBtn">← Anterior</button>
-  <div class="nav-stat"><strong id="navIndex">1 / 40</strong><span id="navScore">0 certas</span></div>
+<div id="reward" class="reward" role="status" aria-live="polite"></div><div id="confetti" aria-hidden="true"></div>
+<div class="navbar" id="navbar" style="display: block;"><div class="navbar-inner">
+  <button class="btn secondary" id="prevBtn" disabled="disabled">← Anterior</button>
+  <div class="nav-stat"><strong id="navIndex">1 / 100</strong><span id="navScore">0 certas</span></div>
   <button class="btn primary" id="nextBtn">Próxima →</button>
 </div></div>
 
 <script>
-// Versão final revisada: conteúdo matemático e questões autocontidas para ordem embaralhada.
+// Banco revisado: 100 questões, quatro alternativas, 25 gabaritos por letra.
 const Q = [
-// SINAIS E PERIODICIDADE
-{cat:'Sinais e periodicidade',diff:'Básica',q:'Qual afirmação distingue corretamente um sinal de tempo contínuo de um sinal de tempo discreto?',o:['No tempo contínuo, a variável independente pode assumir qualquer valor real; no discreto, assume índices isolados.','No tempo discreto, a amplitude só pode assumir valores inteiros.','Todo sinal de tempo contínuo é periódico.','Todo sinal de tempo discreto resulta necessariamente de amostragem.'],a:0,e:'A distinção é feita pelo domínio da variável independente. Tempo discreto não implica quantização de amplitude e nem todo sinal discreto precisa ter sido obtido por amostragem.'},
-{cat:'Sinais e periodicidade',diff:'Básica',q:'Para x(t) = cos(20πt), qual é a frequência fundamental?',o:['5 Hz','10 Hz','20 Hz','40 Hz'],a:1,e:'20π = 2πf, portanto f = 10 Hz e T₀ = 0,1 s.'},
-{cat:'Sinais e periodicidade',diff:'Intermediária',q:'O sinal x[n] = cos((3π/5)n) é periódico. Qual é seu período fundamental?',o:['5','10','15','20'],a:1,e:'É preciso que ΩN = 2πk. Como Ω/(2π)=3/10, o menor N inteiro que satisfaz a condição é 10.'},
-{cat:'Sinais e periodicidade',diff:'Intermediária',q:'O sinal x[n] = cos((2π/15)n) possui período fundamental igual a:',o:['5','10','15','30'],a:2,e:'Como Ω = 2π/15, um avanço de 15 amostras acrescenta 2π à fase. Logo N₀ = 15.'},
-{cat:'Sinais e periodicidade',diff:'Intermediária',q:'Se x₁[n] = 9cos((3π/5)n) e x₂[n] = 20cos((2π/15)n), qual é o período fundamental de x₁[n]+x₂[n]?',o:['10','15','30','150'],a:2,e:'Os períodos fundamentais são 10 e 15. O período da soma é o mínimo múltiplo comum: mmc(10,15)=30.'},
-{cat:'Sinais e periodicidade',diff:'Intermediária',q:'Qual condição é necessária e suficiente para cos(Ωn+φ) ser periódico em tempo discreto?',o:['Ω deve ser inteiro.','Ω/π deve ser irracional.','Ω/(2π) deve ser racional.','φ deve ser zero.'],a:2,e:'A periodicidade exige ΩN = 2πk para inteiros N e k, o que equivale a Ω/(2π)=k/N racional.'},
-{cat:'Sinais e periodicidade',diff:'Básica',q:'Em tempo discreto, as frequências angulares Ω e Ω+2πk, com k inteiro, representam:',o:['Sinusoides sempre diferentes.','A mesma sequência complexa e^{jΩn}.','Sinais iguais apenas quando n é par.','Sinais iguais apenas para Ω<π.'],a:1,e:'e^{j(Ω+2πk)n}=e^{jΩn}e^{j2πkn}=e^{jΩn}, pois e^{j2πkn}=1 para n e k inteiros.'},
-{cat:'Sinais e periodicidade',diff:'Intermediária',q:'Qual é o período fundamental de x[n] = cos((π/10)n)?',o:['10','20','π/10','40'],a:1,e:'Ω=π/10. O menor N com (π/10)N=2πk é N=20, para k=1.'},
-{cat:'Sinais e periodicidade',diff:'Gráfica',q:'Observe a sequência discreta. Qual é o menor período N₀?',o:['2','3','4','6'],a:2,e:'O padrão de quatro amostras [1,0,−1,0] se repete integralmente. Portanto o menor período é 4.',v:{kind:'stem',start:0,values:[1,0,-1,0,1,0,-1,0,1]}},
-{cat:'Sinais e periodicidade',diff:'Gráfica',q:'O gráfico mostra uma senoide contínua com máximos em t=0 s e t=0,5 s. Qual é a frequência fundamental?',o:['0,5 Hz','1 Hz','2 Hz','4 Hz'],a:2,e:'A distância entre máximos consecutivos é o período T₀=0,5 s. Logo f₀=1/T₀=2 Hz.',v:{kind:'ctsine',A:1,T:0.5,xmin:0,xmax:1.25}},
-
-// AMOSTRAGEM E RECONSTRUÇÃO
-{cat:'Amostragem e reconstrução',diff:'Básica',q:'Uma senoide de frequência f₀ é amostrada com frequência fₛ. Qual é sua frequência angular discreta Ω?',o:['Ω = 2πfₛ/f₀','Ω = 2πf₀/fₛ','Ω = f₀fₛ','Ω = 2π(fₛ−f₀)'],a:1,e:'Com Tₛ=1/fₛ, vale Ω=ω₀Tₛ=2πf₀/fₛ rad/amostra.'},
-{cat:'Amostragem e reconstrução',diff:'Intermediária',q:'Uma senoide de 120 Hz é amostrada a 1000 Hz. Qual é Ω?',o:['0,12π rad/amostra','0,24π rad/amostra','0,50π rad/amostra','1,20π rad/amostra'],a:1,e:'Ω=2π(120/1000)=0,24π rad/amostra.'},
-{cat:'Amostragem e reconstrução',diff:'Intermediária',q:'Um sinal estritamente limitado em banda até 250 Hz deve ser amostrado, entre as opções abaixo, por qual menor frequência para satisfazer fₛ > 2fₘₐₓ?',o:['400 Hz','500 Hz','600 Hz','1000 Hz'],a:2,e:'É necessário fₛ>500 Hz. Entre as alternativas, 600 Hz é a menor que satisfaz a desigualdade.'},
-{cat:'Amostragem e reconstrução',diff:'Intermediária',q:'Uma senoide de 600 Hz é amostrada a 1000 Hz. Qual frequência analógica na faixa de 0 a 500 Hz produz as mesmas amostras?',o:['100 Hz','200 Hz','400 Hz','500 Hz'],a:2,e:'600 Hz e 400 Hz diferem por 1000 Hz quando se considera a simetria do cosseno: Ω=1,2π é equivalente a −0,8π. O alias observado é 400 Hz.'},
-{cat:'Amostragem e reconstrução',diff:'Conceitual',q:'Por que um pulso retangular ideal de duração finita não pode, em geral, ser reconstruído perfeitamente a partir de amostras usando uma frequência de amostragem finita?',o:['Porque ele é necessariamente aperiódico.','Porque seu espectro ideal se estende a frequências arbitrariamente altas.','Porque sua amplitude é constante.','Porque sinais retangulares não possuem Transformada de Fourier.'],a:1,e:'Um pulso retangular limitado no tempo tem espectro do tipo sinc, que não é limitado em banda. Assim, não existe fₛ finita que contenha todo o espectro sem sobreposição de réplicas.'},
-{cat:'Amostragem e reconstrução',diff:'Conceitual',q:'Sobre amostrar exatamente em fₛ = 2fₘₐₓ, qual afirmação é a mais adequada?',o:['É sempre suficiente, independentemente de fase ou conteúdo em fₘₐₓ.','É sempre equivalente a superamostragem.','É uma situação-limite; na prática e em formulações seguras usa-se fₛ > 2fₘₐₓ.','Produz necessariamente metade da amplitude.'],a:2,e:'A igualdade é uma condição-limite e pode falhar em casos particulares, como amostras tomadas em zeros de uma senoide no limite. A forma segura é exigir banda estritamente abaixo de fₛ/2.'},
-{cat:'Amostragem e reconstrução',diff:'Intermediária',q:'Um sinal ocupa somente |ω| ≤ 3000 rad/s. Qual das frequências angulares de amostragem abaixo garante ausência de aliasing?',o:['ωₛ = 4000 rad/s','ωₛ = 5000 rad/s','ωₛ = 6000 rad/s','ωₛ = 8000 rad/s'],a:3,e:'É necessário ωₛ>2ωₘₐₓ=6000 rad/s. Das opções, 8000 rad/s satisfaz a condição estrita.'},
-{cat:'Amostragem e reconstrução',diff:'Intermediária',q:'Se o espectro de um sinal ocupa as bandas até ±(ω₀+ω₁), qual condição simples de Nyquist evita sobreposição das réplicas?',o:['ωₛ > ω₀+ω₁','ωₛ > 2(ω₀+ω₁)','ωₛ < 2(ω₀+ω₁)','ωₛ = ω₀−ω₁'],a:1,e:'A maior frequência angular em módulo é ω₀+ω₁. A condição de Nyquist exige frequência de amostragem maior que o dobro desse limite.'},
-{cat:'Amostragem e reconstrução',diff:'Básica',q:'Na reconstrução ideal de um sinal perfeitamente limitado em banda, a interpolação temporal é associada a:',o:['Uma função sinc.','Uma função exponencial crescente.','Uma sequência delta sem filtro.','Uma função triangular obrigatoriamente.'],a:0,e:'A reconstrução ideal passa-baixas corresponde à interpolação sinc no domínio do tempo.'},
-{cat:'Amostragem e reconstrução',diff:'Conceitual',q:'Um retentor de ordem zero (ZOH) reconstrói o sinal mantendo cada amostra constante até a próxima. Seu núcleo de interpolação no tempo é aproximadamente:',o:['Retangular.','Triangular.','Senoidal infinito.','Impulso derivado.'],a:0,e:'O ZOH mantém um nível constante durante um intervalo de amostragem, o que corresponde a uma resposta impulsiva retangular.'},
-{cat:'Amostragem e reconstrução',diff:'Conceitual',q:'Na interpolação linear entre amostras, o núcleo de interpolação possui forma:',o:['Retangular.','Triangular.','Gaussiana obrigatória.','Impulsiva pura.'],a:1,e:'A interpolação linear pode ser vista como a convolução das amostras impulsivas com um núcleo triangular.'},
-{cat:'Amostragem e reconstrução',diff:'Gráfica',q:'No espectro esquemático abaixo, as réplicas do espectro após a amostragem estão sobrepostas. O fenômeno mostrado é:',o:['Quantização.','Aliasing.','Causalidade.','Convolução circular.'],a:1,e:'Quando as réplicas espectrais deslocadas de múltiplos de ωₛ se sobrepõem, diferentes componentes de frequência se tornam indistinguíveis: ocorre aliasing.',v:{kind:'spectra',overlap:true}},
-{cat:'Amostragem e reconstrução',diff:'Gráfica',q:'O gráfico mostra amostras ligadas por segmentos de reta. Qual método de reconstrução está representado?',o:['Retenção de ordem zero.','Interpolação linear.','Reconstrução ideal sinc.','Nenhuma interpolação.'],a:1,e:'A ligação direta por retas entre amostras caracteriza interpolação linear.',v:{kind:'interp',mode:'linear'}},
-{cat:'Amostragem e reconstrução',diff:'Gráfica',q:'O gráfico mostra cada amostra mantida constante até o instante da amostra seguinte. Qual método está representado?',o:['Retenção de ordem zero.','Interpolação linear.','Interpolação cúbica.','Filtro diferenciador.'],a:0,e:'Degraus horizontais entre amostras são a característica visual do ZOH.',v:{kind:'interp',mode:'zoh'}},
-
-// SISTEMAS
-{cat:'Sistemas',diff:'Básica',q:'O sistema y[n] = x[n] − x[n−1] é:',o:['Causal.','Não causal, pois depende do futuro.','Sem memória.','Necessariamente instável.'],a:0,e:'A saída em n depende de x[n] e x[n−1], isto é, do presente e do passado. Portanto é causal.'},
-{cat:'Sistemas',diff:'Básica',q:'O sistema y[n] = x[n+1] é:',o:['Causal e sem memória.','Não causal.','Invariante apenas se n for par.','Um FIR de média móvel.'],a:1,e:'A saída em n precisa da amostra futura x[n+1]. Portanto o sistema é não causal.'},
-{cat:'Sistemas',diff:'Intermediária',q:'O sistema y[n] = x²[n] é melhor descrito como:',o:['Linear, causal e sem memória.','Não linear, causal e sem memória.','Linear, não causal e com memória.','Não linear e necessariamente instável.'],a:1,e:'Ele depende apenas da amostra atual, portanto é causal e sem memória. O quadrado viola superposição, então o sistema é não linear.'},
-{cat:'Sistemas',diff:'Intermediária',q:'Considere y[n] = n·x[n]. Qual alternativa é correta?',o:['É linear, invariante no tempo e BIBO estável.','É linear, variante no tempo e não é BIBO estável.','É não linear e invariante no tempo.','É causal apenas para n≥0 e sempre estável.'],a:1,e:'A multiplicação por n preserva linearidade, mas introduz dependência explícita do índice, tornando o sistema variante no tempo. Para x[n]=1, a saída y[n]=n é ilimitada, logo não é BIBO estável.'},
-{cat:'Sistemas',diff:'Intermediária',q:'Para um sistema LTI discreto, qual condição em h[n] caracteriza estabilidade BIBO?',o:['Σ|h[n]| < ∞.','Σh[n] = 0 obrigatoriamente.','h[n] precisa ter exatamente duas amostras.','h[n] precisa ser periódico.'],a:0,e:'Um sistema LTI discreto é BIBO estável se e somente se sua resposta ao impulso é absolutamente somável.'},
-{cat:'Sistemas',diff:'Básica',q:'Um sistema cuja resposta ao impulso h[n] possui duração finita é classificado como:',o:['FIR.','IIR.','Necessariamente não linear.','Necessariamente não causal.'],a:0,e:'FIR significa Finite Impulse Response: a resposta ao impulso tem número finito de amostras não nulas.'},
-{cat:'Sistemas',diff:'Intermediária',q:'Para y[n] = 0,5y[n−1] + x[n], com condições iniciais nulas, a resposta ao impulso é:',o:['δ[n]−δ[n−1]','(0,5)ⁿu[n]','u[n−1]−u[n−2]','n·u[n]'],a:1,e:'Aplicando x[n]=δ[n], a recorrência gera 1, 0,5, 0,25, ... para n≥0. Logo h[n]=(0,5)ⁿu[n], de duração infinita.'},
-{cat:'Sistemas',diff:'Intermediária',q:'O sistema y[n] = x[n] − x[n−1] tem resposta ao impulso:',o:['h[n]=δ[n]+δ[n−1]','h[n]=δ[n]−δ[n−1]','h[n]=u[n]','h[n]=(1/2)ⁿu[n]'],a:1,e:'Basta aplicar x[n]=δ[n]: y[n]=δ[n]−δ[n−1].'},
-{cat:'Sistemas',diff:'Básica',q:'Qual identidade representa corretamente o degrau unitário discreto?',o:['u[n] = Σ(k=−∞ até n) δ[k]','u[n] = δ[n]+δ[n+1] apenas','u[n] = nδ[n]','u[n] = δ[n]−δ[n−1]'],a:0,e:'Somar impulsos unitários desde −∞ até n produz 1 para n≥0 e 0 para n<0, exatamente o degrau unitário.'},
-{cat:'Sistemas',diff:'Conceitual',q:'Qual afirmação sobre o índice de um sinal é correta?',o:['(n+1)x[n] é a mesma coisa que x[n+1].','x[n+1] representa um avanço de uma amostra.','x[n−1] representa um avanço de uma amostra.','Multiplicar x[n] por n desloca o sinal no tempo.'],a:1,e:'Alterar o argumento desloca o sinal: x[n+1] é um avanço. Multiplicar por n+1 altera a amplitude amostra a amostra, não o argumento.'},
-{cat:'Sistemas',diff:'Gráfica',q:'A resposta ao impulso abaixo é diferente de zero somente para n=0,1,2,3. O sistema LTI é:',o:['FIR.','IIR.','Necessariamente instável.','Necessariamente não causal.'],a:0,e:'Como h[n] tem suporte finito, a resposta ao impulso possui duração finita e o sistema é FIR.',v:{kind:'stem',start:0,values:[1,0.7,0.35,0.1,0,0]}},
-{cat:'Sistemas',diff:'Gráfica',q:'A resposta ao impulso h[n]=(0,6)ⁿu[n] decai sem nunca se tornar exatamente zero. Como classificar o sistema LTI?',o:['FIR e instável.','IIR e BIBO estável.','FIR e BIBO estável.','IIR e necessariamente instável.'],a:1,e:'A resposta dura infinitamente, então é IIR. Como Σ(0,6)ⁿ converge, h[n] é absolutamente somável e o sistema é BIBO estável.',v:{kind:'stem',start:0,values:[1,.6,.36,.216,.13,.078,.047,.028]}},
-
-// CONVOLUÇÃO
-{cat:'Convolução',diff:'Básica',q:'Para um sistema LTI, a relação entrada–saída é y[n]=x[n]*h[n]. Qual expressão corresponde à convolução discreta?',o:['y[n]=Σ x[k]h[n−k]','y[n]=x[n]h[n]','y[n]=Σ x[n]h[k] sem deslocamento','y[n]=x[n]+h[n]'],a:0,e:'A convolução discreta é y[n]=Σₖ x[k]h[n−k], somando o produto após reversão/deslocamento de uma das sequências.'},
-{cat:'Convolução',diff:'Intermediária',q:'Se x[n] é não nulo de n=0 a 5 e h[n] é não nulo de n=0 a 2, em que intervalo y[n]=x[n]*h[n] pode ser não nulo?',o:['0 ≤ n ≤ 3','0 ≤ n ≤ 5','0 ≤ n ≤ 7','2 ≤ n ≤ 5'],a:2,e:'Os extremos dos suportes se somam: início 0+0=0 e fim 5+2=7.'},
-{cat:'Convolução',diff:'Intermediária',q:'Uma sequência de comprimento 6 é convoluída com outra de comprimento 3. Qual é o comprimento máximo da convolução linear?',o:['6','8','9','18'],a:1,e:'Para sequências finitas de comprimentos L₁ e L₂, a convolução linear tem comprimento L₁+L₂−1=6+3−1=8.'},
-{cat:'Convolução',diff:'Intermediária',q:'Se x[n]=[1,1] para n=0,1 e h[n]=[1,1,1] para n=0,1,2, qual é y[n]?',o:['[1,2,2,1]','[1,1,1,1,1]','[2,2,2]','[1,3,1]'],a:0,e:'Somando os produtos por deslocamento: y[0]=1, y[1]=2, y[2]=2 e y[3]=1.'},
-{cat:'Convolução',diff:'Intermediária',q:'Se x[n]=δ[n]+2δ[n−2], então x[n]*h[n] é:',o:['h[n]+2h[n−2]','h[n−2]+2h[n]','2h[n−1]','h²[n]'],a:0,e:'δ[n]*h[n]=h[n] e δ[n−2]*h[n]=h[n−2]. Pela linearidade, y[n]=h[n]+2h[n−2].'},
-{cat:'Convolução',diff:'Intermediária',q:'Se h[n]=u[n−3]−u[n−6], para quais índices h[n]=1?',o:['0≤n≤2','3≤n≤5','3≤n≤6','6≤n'],a:1,e:'u[n−3] liga em n=3; u[n−6] subtrai a partir de n=6. Assim restam n=3,4,5.'},
-{cat:'Convolução',diff:'Avançada',q:'Se x[n]=1 para 0≤n≤9 e 0 caso contrário; h[n]=1 para 0≤n≤N e 0 caso contrário, com N≤9 inteiro. Sabendo que y=x*h, y[4]=5 e y[14]=0, qual é N?',o:['3','4','5','9'],a:1,e:'Em n=4, a sobreposição precisa conter 5 amostras, exigindo N≥4. Em n=14, para não haver sobreposição com x até n=9, é necessário 14−N>9, isto é, N<5. Logo N=4.'},
-{cat:'Convolução',diff:'Gráfica',q:'Duas sequências retangulares valem 1: x[n] para 0≤n≤4 e h[n] para 0≤n≤2. Qual é o valor máximo de y[n]=x*h?',o:['1','2','3','5'],a:2,e:'O máximo número de amostras simultaneamente sobrepostas é o comprimento da sequência menor, 3. Como todas valem 1, o pico da soma é 3.',v:{kind:'convshape',values:[1,2,3,3,3,2,1]}},
-{cat:'Convolução',diff:'Gráfica',q:'O gráfico de y[n] abaixo foi obtido pela convolução de dois retângulos unitários de comprimentos 5 e 3. Em quais índices ocorre o platô máximo?',o:['Somente em n=0','n=1 e n=5','n=2,3,4','n=0 até n=6'],a:2,e:'A sequência resultante é [1,2,3,3,3,2,1], portanto o valor máximo 3 ocorre em n=2,3,4.',v:{kind:'stem',start:0,values:[1,2,3,3,3,2,1]}},
-{cat:'Convolução',diff:'Intermediária',q:'Se h[n]=δ[n]−δ[n−1] e x[n] é constante em um intervalo longo, o que y[n]=x*h destaca principalmente?',o:['Regiões constantes, com grande valor.','Mudanças entre amostras consecutivas.','A média global do sinal.','Somente a componente DC.'],a:1,e:'y[n]=x[n]−x[n−1] é uma primeira diferença. Ela é zero em trechos constantes e responde nas transições.'},
-{cat:'Convolução',diff:'Gráfica',q:'O sinal discreto abaixo entra em um sistema com h[n]=δ[n−1]. Como fica a saída?',o:['É x[n] avançado de 1 amostra.','É x[n] atrasado de 1 amostra.','É x[n] multiplicado por n.','É a derivada de x[n].'],a:1,e:'Convoluir com δ[n−n₀] produz x[n−n₀]. Para n₀=1, a saída é x[n−1], isto é, atraso de uma amostra.',v:{kind:'stem',start:-1,values:[0,1,2,1,0]}},
-{cat:'Convolução',diff:'Conceitual',q:'Qual propriedade da convolução permite escrever x[n]*h[n] = h[n]*x[n]?',o:['Associatividade.','Comutatividade.','Distributividade.','Causalidade.'],a:1,e:'A convolução é comutativa: trocar a ordem das duas sequências não altera o resultado.'}
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Básica",
+    "q": "Qual afirmação distingue corretamente um sinal de tempo contínuo de um sinal de tempo discreto?",
+    "o": [
+      "No tempo contínuo, a variável independente pode assumir qualquer valor real; no discreto, assume índices isolados.",
+      "Todo sinal de tempo discreto resulta necessariamente de amostragem.",
+      "No tempo discreto, a amplitude só pode assumir valores inteiros.",
+      "Todo sinal de tempo contínuo é periódico."
+    ],
+    "a": 0,
+    "e": "<p>Um sinal de tempo contínuo é definido para todos os instantes de seu domínio, enquanto um sinal de tempo discreto é definido em índices separados, como n=0,1,2,… A distinção está no eixo do tempo, e não nos valores da amplitude.</p><p><b>Para consolidar:</b> Uma sequência pode ter amplitudes reais, como 0,37 ou √2. A quantização é uma operação adicional. Além disso, uma sequência pode ser definida diretamente por uma fórmula, sem resultar de uma amostragem.</p>",
+    "id": 1
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Básica",
+    "q": "Para x(t) = cos(20πt), qual é a frequência fundamental?",
+    "o": [
+      "5 Hz",
+      "20 Hz",
+      "40 Hz",
+      "10 Hz"
+    ],
+    "a": 3,
+    "e": "<p>Compare x(t)=cos(20πt) com a forma cos(2πft). O coeficiente de t é a frequência angular ω=20π rad/s. Dividindo por 2π, obtemos f=10 Hz e, portanto, T₀=1/f=0,1 s.</p><p><b>Para consolidar:</b> Não confunda ω com f. Dez ciclos por segundo correspondem a vinte π radianos por segundo, pois cada ciclo completo contém 2π radianos.</p>",
+    "id": 2
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Intermediária",
+    "q": "O sinal x[n] = cos((3π/5)n) é periódico. Qual é seu período fundamental?",
+    "o": [
+      "10",
+      "15",
+      "5",
+      "20"
+    ],
+    "a": 0,
+    "e": "<p>Uma sequência periódica deve satisfazer x[n+N]=x[n] para todo n, com N inteiro positivo. Para essa cossenoide, isso exige (3π/5)N=2πk. A razão Ω/(2π)=3/10 está irredutível, de modo que o menor período é N₀=10 amostras.</p><p><b>Para consolidar:</b> O cálculo 2π/Ω=10/3 indica quantas amostras corresponderiam a uma volta de fase, mas não é um deslocamento inteiro. A repetição ocorre após três voltas, em dez amostras. N=5 inverte o sinal.</p>",
+    "id": 3
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Intermediária",
+    "q": "O sinal x[n] = cos((2π/15)n) possui período fundamental igual a:",
+    "o": [
+      "30",
+      "15",
+      "10",
+      "5"
+    ],
+    "a": 1,
+    "e": "<p>Substituindo n por n+15, a fase aumenta em (2π/15)·15=2π, o que preserva todos os valores do cosseno. Como Ω/(2π)=1/15 é uma fração irredutível, não há inteiro positivo menor que 15 capaz de repetir toda a sequência.</p><p><b>Para consolidar:</b> Trinta amostras também constituem um período, mas não o período fundamental. O período fundamental é sempre o menor deslocamento inteiro positivo que reproduz a sequência inteira.</p>",
+    "id": 4
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Intermediária",
+    "q": "Se x₁[n] = 9cos((3π/5)n) e x₂[n] = 20cos((2π/15)n), qual é o período fundamental de x₁[n]+x₂[n]?",
+    "o": [
+      "150",
+      "10",
+      "30",
+      "15"
+    ],
+    "a": 2,
+    "e": "<p>A primeira componente tem Ω₁/(2π)=3/10 e período 10. A segunda tem Ω₂/(2π)=1/15 e período 15. O menor deslocamento que repete simultaneamente ambas é mmc(10,15)=30 amostras. Como as componentes são distintas e não se cancelam, esse é o período fundamental da soma.</p><p><b>Para consolidar:</b> As amplitudes 9 e 20 não alteram os períodos individuais. Para somas em geral, o mmc fornece um período comum, mas cancelamentos entre componentes podem reduzir o período fundamental. Isso não ocorre aqui.</p>",
+    "id": 5
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Intermediária",
+    "q": "Qual condição é necessária e suficiente para cos(Ωn+φ) ser periódico em tempo discreto?",
+    "o": [
+      "Ω deve ser inteiro.",
+      "Ω/π deve ser irracional.",
+      "φ deve ser zero.",
+      "Ω/(2π) deve ser racional."
+    ],
+    "a": 3,
+    "e": "<p>A repetição exige que um deslocamento inteiro N acrescente um número inteiro de voltas à fase: ΩN=2πk. Portanto, Ω/(2π)=k/N deve ser racional. Reciprocamente, se essa razão é racional, existe um N inteiro positivo que repete os valores da sequência.</p><p><b>Para consolidar:</b> A fase φ não precisa ser zero. Ela altera os valores iniciais, mas não impede a repetição. Para frequências racionais, basta procurar uma fração irredutível e um deslocamento inteiro que complete voltas de fase.</p>",
+    "id": 6
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Básica",
+    "q": "Em tempo discreto, as frequências angulares Ω e Ω+2πk, com k inteiro, representam:",
+    "o": [
+      "Sinais iguais apenas quando n é par.",
+      "Sinusoides sempre diferentes.",
+      "A mesma sequência complexa e^{jΩn}.",
+      "Sinais iguais apenas para Ω<π."
+    ],
+    "a": 2,
+    "e": "<p>Ao substituir Ω por Ω+2πk, temos e<sup>j(Ω+2πk)n</sup>=e<sup>jΩn</sup>e<sup>j2πkn</sup>. Como k e n são inteiros, o segundo fator vale 1. Assim, as duas frequências representam exatamente a mesma sequência complexa em todos os índices.</p><p><b>Para consolidar:</b> A frequência angular discreta é periódica com período 2π. Isso não significa que toda sequência seja periódica no tempo. São duas propriedades diferentes: equivalência de frequências e repetição dos valores em n.</p>",
+    "id": 7
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Intermediária",
+    "q": "Qual é o período fundamental de x[n] = cos((π/10)n)?",
+    "o": [
+      "10",
+      "20",
+      "π/10",
+      "40"
+    ],
+    "a": 1,
+    "e": "<p>A condição de repetição é (π/10)N=2πk, ou N=20k. O menor valor inteiro positivo ocorre para k=1, dando N₀=20 amostras. De modo equivalente, Ω/(2π)=1/20.</p><p><b>Para consolidar:</b> Em dez amostras, a fase aumenta apenas π, invertendo o sinal da cossenoide. Quarenta amostras também repetem o sinal, mas correspondem a dois períodos fundamentais, não ao menor período.</p>",
+    "id": 8
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Gráfica",
+    "q": "A figura mostra um trecho de uma sequência cujo padrão se repete indefinidamente em ambos os sentidos. Qual é o menor período N₀?",
+    "o": [
+      "4",
+      "2",
+      "3",
+      "6"
+    ],
+    "a": 0,
+    "e": "<p>O bloco [1,0,−1,0] se repete a cada quatro amostras. Um deslocamento de duas amostras troca o valor 1 por −1, portanto não repete o sinal. Deslocamentos de uma ou três amostras também falham. Logo, N₀=4.</p><p><b>Para consolidar:</b> Um trecho finito isolado não prova periodicidade global. Por isso o enunciado estabelece a continuação periódica do padrão. A verificação deve comparar todos os valores do bloco, e não somente os pontos em que o sinal vale zero.</p>",
+    "v": {
+      "kind": "stem",
+      "start": 0,
+      "values": [
+        1,
+        0,
+        -1,
+        0,
+        1,
+        0,
+        -1,
+        0,
+        1
+      ]
+    },
+    "id": 9
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Gráfica",
+    "q": "O gráfico mostra uma senoide contínua com máximos em t=0 s e t=0,5 s. Qual é a frequência fundamental?",
+    "o": [
+      "0,5 Hz",
+      "4 Hz",
+      "2 Hz",
+      "1 Hz"
+    ],
+    "a": 2,
+    "e": "<p>Dois máximos consecutivos têm a mesma fase, separados por uma oscilação completa. A distância temporal entre eles é T₀=0,5 s. Como a frequência conta quantas oscilações cabem em um segundo, f₀=1/0,5=2 Hz.</p><p><b>Para consolidar:</b> O valor 0,5 é o período em segundos, não a frequência em hertz. Entre um máximo e o mínimo seguinte há apenas meio período. Aqui são usados máximos consecutivos para evitar essa confusão.</p>",
+    "v": {
+      "kind": "ctsine",
+      "A": 1,
+      "T": 0.5,
+      "xmin": 0,
+      "xmax": 1.25
+    },
+    "id": 10
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Básica",
+    "q": "Uma senoide de frequência f₀ é amostrada com frequência fₛ. Qual é sua frequência angular discreta Ω?",
+    "o": [
+      "Ω = 2π(fₛ−f₀)",
+      "Ω = f₀fₛ",
+      "Ω = 2πf₀/fₛ",
+      "Ω = 2πfₛ/f₀"
+    ],
+    "a": 2,
+    "e": "<p>A amostragem substitui t por nTₛ=n/fₛ em cos(2πf₀t+φ). O resultado é cos((2πf₀/fₛ)n+φ), permitindo identificar Ω=2πf₀/fₛ rad/amostra. A razão f₀/fₛ informa os ciclos percorridos entre duas amostras.</p><p><b>Para consolidar:</b> Multiplicar essa razão por 2π converte ciclos por amostra em radianos por amostra. Se fₛ aumenta mantendo f₀ fixo, o avanço de fase entre amostras diminui.</p>",
+    "id": 11
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Uma senoide de 120 Hz é amostrada a 1000 Hz. Qual é Ω?",
+    "o": [
+      "1,20π rad/amostra",
+      "0,12π rad/amostra",
+      "0,50π rad/amostra",
+      "0,24π rad/amostra"
+    ],
+    "a": 3,
+    "e": "<p>Aplicando Ω=2πf₀/fₛ, obtemos Ω=2π·120/1000=0,24π rad/amostra. Isso significa que a fase avança 0,12 ciclo, ou aproximadamente 0,754 radiano, a cada nova amostra.</p><p><b>Para consolidar:</b> O valor 0,12 é a frequência normalizada em ciclos/amostra. Para expressá-la em rad/amostra é preciso multiplicar por 2π. Como 120 Hz está abaixo de 500 Hz, essa componente está dentro da faixa de Nyquist.</p>",
+    "id": 12
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Um sinal estritamente limitado em banda até 250 Hz deve ser amostrado, entre as opções abaixo, por qual menor frequência para satisfazer fₛ > 2fₘₐₓ?",
+    "o": [
+      "1000 Hz",
+      "600 Hz",
+      "400 Hz",
+      "500 Hz"
+    ],
+    "a": 1,
+    "e": "<p>A maior frequência é 250 Hz. A condição expressamente pedida é fₛ&gt;2·250=500 Hz. Entre 400, 500, 600 e 1000 Hz, a menor taxa que atende à desigualdade estrita é 600 Hz. Seu limite de Nyquist é 300 Hz.</p><p><b>Para consolidar:</b> A taxa de 500 Hz satisfaz a igualdade, mas não o sinal “maior que” do enunciado. A opção de 1000 Hz também é suficiente, porém não é a menor entre as propostas.</p>",
+    "id": 13
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "O sinal x(t)=cos(2π·600t) é amostrado a 1000 Hz. Qual frequência f, na faixa de 0 a 500 Hz, faz cos(2πft) produzir exatamente as mesmas amostras?",
+    "o": [
+      "500 Hz",
+      "100 Hz",
+      "200 Hz",
+      "400 Hz"
+    ],
+    "a": 3,
+    "e": "<p>Para x(t)=cos(2π·600t), a amostragem a 1000 Hz produz cos(1,2πn). Subtraindo 2π da frequência discreta, temos cos(−0,8πn)=cos(0,8πn). Essa última sequência corresponde a um cosseno de 400 Hz amostrado à mesma taxa.</p><p><b>Para consolidar:</b> A igualdade usa a simetria do cosseno e a fase zero especificada. Para senoides com fase arbitrária, a reflexão de frequência exige também ajustar a fase. Por isso não basta afirmar que quaisquer senoides de 600 e 400 Hz têm amostras iguais.</p>",
+    "id": 14
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Conceitual",
+    "q": "Por que um pulso retangular ideal de duração finita não pode, em geral, ser reconstruído perfeitamente a partir de amostras usando uma frequência de amostragem finita?",
+    "o": [
+      "Porque seu espectro ideal se estende a frequências arbitrariamente altas.",
+      "Porque ele é necessariamente aperiódico.",
+      "Porque sinais retangulares não possuem Transformada de Fourier.",
+      "Porque sua amplitude é constante."
+    ],
+    "a": 0,
+    "e": "<p>O espectro de um pulso retangular ideal tem formato sinc e se estende indefinidamente. As descontinuidades abruptas exigem componentes de frequências arbitrariamente altas. Assim, o teorema usual de reconstrução de sinais limitados em banda não garante recuperação perfeita desse pulso com uma taxa finita.</p><p><b>Para consolidar:</b> Ser aperiódico não impede, por si só, a reconstrução por amostras. O obstáculo é a ausência de um limite de banda. Na prática, a filtragem suaviza as bordas e permite uma representação aproximada com banda finita.</p>",
+    "id": 15
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Conceitual",
+    "q": "Sobre amostrar exatamente em fₛ = 2fₘₐₓ, qual afirmação é a mais adequada?",
+    "o": [
+      "É uma situação-limite; na prática e em formulações seguras usa-se fₛ > 2fₘₐₓ.",
+      "É sempre equivalente a superamostragem.",
+      "Produz necessariamente metade da amplitude.",
+      "É sempre suficiente, independentemente de fase ou conteúdo em fₘₐₓ."
+    ],
+    "a": 0,
+    "e": "<p>Na igualdade fₛ=2fₘₐₓ, uma componente no limite pode perder informação de fase. Por exemplo, sin(2π(fₛ/2)t), amostrada em t=n/fₛ, gera sin(πn)=0 para todo n, apesar de o sinal contínuo não ser nulo.</p><p><b>Para consolidar:</b> Exigir conteúdo estritamente abaixo de fₛ/2 evita esse caso de fronteira. Na aquisição prática, também é necessária margem para a transição do filtro anti-aliasing. A igualdade pode funcionar em casos específicos, mas não é garantia universal.</p>",
+    "id": 16
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Um sinal ocupa somente |ω| ≤ 3000 rad/s. Qual das frequências angulares de amostragem abaixo garante ausência de aliasing?",
+    "o": [
+      "ωₛ = 4000 rad/s",
+      "ωₛ = 6000 rad/s",
+      "ωₛ = 5000 rad/s",
+      "ωₛ = 8000 rad/s"
+    ],
+    "a": 3,
+    "e": "<p>As unidades já são rad/s, portanto podemos comparar diretamente ωₛ com 2ωₘₐₓ. O dobro do limite espectral é 6000 rad/s. A taxa angular de 8000 rad/s é a única alternativa estritamente acima desse valor.</p><p><b>Para consolidar:</b> Não é preciso converter para hertz se todas as grandezas estão em rad/s. A opção de 6000 rad/s fica exatamente no limite e não garante a recuperação de conteúdo arbitrário localizado nos extremos da banda.</p>",
+    "id": 17
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Se o espectro de um sinal ocupa as bandas até ±(ω₀+ω₁), qual condição simples de Nyquist evita sobreposição das réplicas?",
+    "o": [
+      "ωₛ = ω₀−ω₁",
+      "ωₛ > 2(ω₀+ω₁)",
+      "ωₛ > ω₀+ω₁",
+      "ωₛ < 2(ω₀+ω₁)"
+    ],
+    "a": 1,
+    "e": "<p>Se a maior frequência angular em módulo é ω₀+ω₁, a réplica central se estende desse valor negativo ao positivo. Para separar cópias vizinhas pelo critério usual de banda base, exige-se ωₛ&gt;2(ω₀+ω₁).</p><p><b>Para consolidar:</b> O fator 2 vem da largura total do intervalo entre os extremos negativo e positivo. Estratégias especiais de amostragem passa-faixa podem explorar bandas vazias, mas não são a condição simples de Nyquist solicitada aqui.</p>",
+    "id": 18
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Básica",
+    "q": "Na reconstrução ideal de um sinal perfeitamente limitado em banda, a interpolação temporal é associada a:",
+    "o": [
+      "Uma sequência delta sem filtro.",
+      "Uma função exponencial crescente.",
+      "Uma função triangular obrigatoriamente.",
+      "Uma função sinc."
+    ],
+    "a": 3,
+    "e": "<p>Quando não há aliasing, um passa-baixas ideal pode selecionar a banda desejada e compensar a escala da amostragem. A resposta temporal associada a esse filtro é uma sinc. Cada amostra pondera uma cópia deslocada dessa função, e a soma produz a interpolação ideal.</p><p><b>Para consolidar:</b> O núcleo sinc vale 1 no instante de sua amostra e zero nos demais instantes amostrais. O resultado depende de banda adequada e, na formulação ideal, de toda a sequência. Um núcleo triangular corresponde à interpolação linear.</p>",
+    "id": 19
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Conceitual",
+    "q": "Um retentor de ordem zero (ZOH) reconstrói o sinal mantendo cada amostra constante até a próxima. Seu núcleo de interpolação no tempo é no modelo ideal:",
+    "o": [
+      "Retangular.",
+      "Senoidal infinito.",
+      "Triangular.",
+      "Impulso derivado."
+    ],
+    "a": 0,
+    "e": "<p>O ZOH mantém cada valor durante um intervalo Tₛ. Seu núcleo ideal vale 1 entre 0 e Tₛ e zero fora desse intervalo, sendo, portanto, retangular. A soma de retângulos deslocados e ponderados pelas amostras produz a escada de saída.</p><p><b>Para consolidar:</b> “Ordem zero” significa que cada trecho entre atualizações é constante. O ZOH não une os valores por retas inclinadas e não realiza interpolação sinc. Seu efeito espectral precisa ser considerado na reconstrução.</p>",
+    "id": 20
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Conceitual",
+    "q": "Na interpolação linear entre amostras, o núcleo de interpolação possui forma:",
+    "o": [
+      "Retangular.",
+      "Triangular.",
+      "Gaussiana obrigatória.",
+      "Impulsiva pura."
+    ],
+    "a": 1,
+    "e": "<p>Na interpolação linear, cada amostra é associada a um triângulo centrado em seu instante, com valor 1 no centro e zero nos instantes vizinhos. Entre duas amostras, os dois triângulos envolvidos geram pesos complementares, formando uma reta entre os valores.</p><p><b>Para consolidar:</b> O núcleo retangular produz manutenção por patamares, característica do ZOH. O núcleo sinc corresponde à reconstrução ideal de banda limitada. Ligar amostras por segmentos não equivale a essa reconstrução ideal.</p>",
+    "id": 21
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Gráfica",
+    "q": "No espectro esquemático abaixo, as réplicas do espectro após a amostragem estão sobrepostas. O fenômeno mostrado é:",
+    "o": [
+      "Convolução circular.",
+      "Aliasing.",
+      "Quantização.",
+      "Causalidade."
+    ],
+    "a": 1,
+    "e": "<p>A amostragem cria réplicas deslocadas do espectro por múltiplos da frequência de amostragem. No desenho, elas ocupam regiões comuns e suas contribuições se somam. Isso é aliasing: componentes contínuas diferentes podem gerar a mesma frequência discreta.</p><p><b>Para consolidar:</b> Quantização refere-se à representação da amplitude em níveis, não à sobreposição de réplicas. Uma vez misturadas componentes arbitrárias na mesma faixa, a filtragem digital posterior não consegue recuperar sua separação original.</p>",
+    "v": {
+      "kind": "spectra",
+      "overlap": true
+    },
+    "id": 22
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Gráfica",
+    "q": "O gráfico mostra amostras ligadas por segmentos de reta. Qual método de reconstrução está representado?",
+    "o": [
+      "Retenção de ordem zero.",
+      "Reconstrução ideal sinc.",
+      "Interpolação linear.",
+      "Nenhuma interpolação."
+    ],
+    "a": 2,
+    "e": "<p>Cada par de amostras é conectado por um segmento de reta. Dentro desse intervalo, o valor varia linearmente entre os dois extremos. Essa é a característica da interpolação linear, que pode ser descrita por um núcleo triangular.</p><p><b>Para consolidar:</b> A passagem pelos pontos amostrados não basta para caracterizar reconstrução ideal. A interpolação sinc também passa pelas amostras, mas geralmente gera uma curva diferente entre elas. O ZOH, por sua vez, forma patamares constantes.</p>",
+    "v": {
+      "kind": "interp",
+      "mode": "linear"
+    },
+    "id": 23
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Gráfica",
+    "q": "O gráfico mostra cada amostra mantida constante até o instante da amostra seguinte. Qual método está representado?",
+    "o": [
+      "Interpolação cúbica.",
+      "Interpolação linear.",
+      "Filtro diferenciador.",
+      "Retenção de ordem zero."
+    ],
+    "a": 3,
+    "e": "<p>A saída conserva o valor de uma amostra até o instante da seguinte, quando pode ocorrer uma mudança abrupta. Esse comportamento em escada caracteriza o retentor de ordem zero, ou ZOH.</p><p><b>Para consolidar:</b> Os segmentos verticais desenhados indicam as mudanças de nível. Eles não representam uma interpolação ao longo do intervalo. Na interpolação linear, a transição entre valores ocorre continuamente por uma reta inclinada.</p>",
+    "v": {
+      "kind": "interp",
+      "mode": "zoh"
+    },
+    "id": 24
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Básica",
+    "q": "O sistema y[n] = x[n] − x[n−1] é:",
+    "o": [
+      "Necessariamente instável.",
+      "Causal.",
+      "Sem memória.",
+      "Não causal, pois depende do futuro."
+    ],
+    "a": 1,
+    "e": "<p>Para calcular y[n], são necessárias somente a amostra presente x[n] e a anterior x[n−1]. Como nenhuma amostra futura é exigida, o sistema é causal. Há memória, pois a saída também depende de um instante diferente de n.</p><p><b>Para consolidar:</b> O sistema também é BIBO estável: se |x[n]|≤M, então |y[n]|≤|x[n]|+|x[n−1]|≤2M. Assim, a diferença entre amostras não torna o sistema necessariamente instável.</p>",
+    "id": 25
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Básica",
+    "q": "O sistema y[n] = x[n+1] é:",
+    "o": [
+      "Não causal.",
+      "Causal e sem memória.",
+      "Invariante apenas se n for par.",
+      "Um FIR de média móvel."
+    ],
+    "a": 0,
+    "e": "<p>Em y[n]=x[n+1], a saída no índice n depende de uma entrada que só ocorre no índice seguinte. Logo, o sistema é não causal. O sinal de “mais” dentro do argumento representa avanço, pois traz uma amostra futura para o instante atual.</p><p><b>Para consolidar:</b> O sistema ainda é linear, invariante no tempo e BIBO estável. Causalidade, linearidade e estabilidade são propriedades distintas. Ele pode ser aplicado a dados já armazenados, mas exige acesso ao futuro da sequência.</p>",
+    "id": 26
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "O sistema y[n] = x²[n] é melhor descrito como:",
+    "o": [
+      "Não linear e necessariamente instável.",
+      "Linear, causal e sem memória.",
+      "Linear, não causal e com memória.",
+      "Não linear, causal e sem memória."
+    ],
+    "a": 3,
+    "e": "<p>O quadrado depende somente de x[n], portanto o sistema é causal e sem memória. Entretanto, ele não satisfaz homogeneidade: para entrada 2x[n], a saída é 4x²[n], e não 2x²[n]. Isso basta para demonstrar que é não linear.</p><p><b>Para consolidar:</b> Não linearidade não implica instabilidade. Se a entrada tem módulo limitado por M, a saída tem módulo limitado por M². Assim, este sistema é BIBO estável, embora não seja linear.</p>",
+    "id": 27
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "Considere y[n] = n·x[n]. Qual alternativa é correta?",
+    "o": [
+      "É linear, invariante no tempo e BIBO estável.",
+      "É causal apenas para n≥0 e sempre estável.",
+      "É não linear e invariante no tempo.",
+      "É linear, variante no tempo e não é BIBO estável."
+    ],
+    "a": 3,
+    "e": "<p>Multiplicar por n preserva combinações lineares de entradas, então o sistema é linear. Contudo, atrasar a entrada gera n·x[n−n₀], enquanto atrasar a saída original gera (n−n₀)x[n−n₀]. A diferença mostra que o sistema é variante no tempo.</p><p><b>Para consolidar:</b> A entrada limitada x[n]=1 produz y[n]=n, que cresce sem limite. Esse contraexemplo prova a falta de estabilidade BIBO. O sistema continua causal e sem memória, pois utiliza apenas a entrada no mesmo índice.</p>",
+    "id": 28
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "Para um sistema LTI discreto, qual condição em h[n] caracteriza estabilidade BIBO?",
+    "o": [
+      "h[n] precisa ter exatamente duas amostras.",
+      "Σ|h[n]| < ∞.",
+      "h[n] precisa ser periódico.",
+      "Σh[n] = 0 obrigatoriamente."
+    ],
+    "a": 1,
+    "e": "<p>Para um SLIT discreto, estabilidade BIBO equivale à convergência de Σ|h[n]|, somada sobre todos os índices inteiros. Se |x[n]|≤M, a convolução satisfaz |y[n]|≤MΣ|h[k]|. Uma soma absoluta finita fornece um limite para toda saída.</p><p><b>Para consolidar:</b> Somar h[n] sem módulo pode esconder cancelamentos e não é o critério correto. Causalidade também não basta para garantir estabilidade. Um acumulador causal, por exemplo, tem h[n]=u[n] e não é BIBO estável.</p>",
+    "id": 29
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Básica",
+    "q": "Um SLIT discreto cuja resposta ao impulso h[n] possui duração finita é classificado como:",
+    "o": [
+      "Necessariamente não linear.",
+      "Necessariamente não causal.",
+      "FIR.",
+      "IIR."
+    ],
+    "a": 2,
+    "e": "<p>FIR significa resposta ao impulso de duração finita. Em um SLIT discreto, isso significa que h[n] é diferente de zero apenas em um conjunto finito de índices. A classificação depende da resposta ao impulso, e não apenas da aparência da equação de implementação.</p><p><b>Para consolidar:</b> Um FIR pode ser causal ou não causal, dependendo de onde estão seus coeficientes. Uma implementação recursiva também pode realizar um FIR se houver cancelamentos exatos, sob condições iniciais adequadas.</p>",
+    "id": 30
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "Para y[n] = 0,5y[n−1] + x[n], com condições iniciais nulas, a resposta ao impulso é:",
+    "o": [
+      "u[n−1]−u[n−2]",
+      "n·u[n]",
+      "δ[n]−δ[n−1]",
+      "(0,5)ⁿu[n]"
+    ],
+    "a": 3,
+    "e": "<p>Com repouso inicial e entrada δ[n], temos h[0]=1. Depois do impulso, a entrada volta a zero, mas a realimentação mantém h[1]=0,5, h[2]=0,25 e assim por diante. Portanto, h[n]=(0,5)ⁿu[n].</p><p><b>Para consolidar:</b> A resposta dura infinitamente, classificando o sistema como IIR. Mesmo assim, ela é absolutamente somável: 1+0,5+0,25+…=2. Logo, o sistema é BIBO estável. Duração infinita não significa amplitude crescente.</p>",
+    "id": 31
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "O sistema y[n] = x[n] − x[n−1] tem resposta ao impulso:",
+    "o": [
+      "h[n]=u[n]",
+      "h[n]=(1/2)ⁿu[n]",
+      "h[n]=δ[n]+δ[n−1]",
+      "h[n]=δ[n]−δ[n−1]"
+    ],
+    "a": 3,
+    "e": "<p>A resposta ao impulso é obtida substituindo a entrada por δ[n]. Assim, h[n]=δ[n]−δ[n−1], com h[0]=1, h[1]=−1 e zero nos demais índices. Os sinais e atrasos dos termos da entrada são preservados nessa substituição.</p><p><b>Para consolidar:</b> Não se deve trocar o sinal negativo por positivo. Essa troca transformaria uma diferença em uma soma e alteraria o comportamento do filtro. A diferença anula entradas constantes, enquanto a soma as reforça.</p>",
+    "id": 32
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Básica",
+    "q": "Qual identidade representa corretamente o degrau unitário discreto?",
+    "o": [
+      "u[n] = δ[n]−δ[n−1]",
+      "u[n] = Σ(k=−∞ até n) δ[k]",
+      "u[n] = δ[n]+δ[n+1] apenas",
+      "u[n] = nδ[n]"
+    ],
+    "a": 1,
+    "e": "<p>O impulso discreto δ[k] vale 1 apenas em k=0. Se n&lt;0, a soma de k=−∞ até n ainda não inclui esse índice e vale zero. Para n≥0, ela passa a incluir δ[0] e vale 1. Esse é exatamente o degrau u[n].</p><p><b>Para consolidar:</b> O resultado não cresce indefinidamente porque só há um termo não nulo na soma. A operação inversa é a primeira diferença: u[n]−u[n−1]=δ[n]. Essa relação também conecta respostas ao degrau e ao impulso de um SLIT.</p>",
+    "id": 33
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Conceitual",
+    "q": "Qual afirmação sobre o índice de um sinal é correta?",
+    "o": [
+      "(n+1)x[n] é a mesma coisa que x[n+1].",
+      "x[n+1] representa um avanço de uma amostra.",
+      "Multiplicar x[n] por n desloca o sinal no tempo.",
+      "x[n−1] representa um avanço de uma amostra."
+    ],
+    "a": 1,
+    "e": "<p>Em x[n+1], o argumento acessa a amostra situada uma posição à frente. Por exemplo, um pico originalmente em n=0 passa a aparecer em n=−1. Assim, a sequência é avançada de uma amostra.</p><p><b>Para consolidar:</b> Em x[n−1], o pico vai para n=1, caracterizando atraso. Já (n+1)x[n] multiplica a amplitude de cada amostra e mantém seu índice. Alterar o argumento e multiplicar a amplitude são operações distintas.</p>",
+    "id": 34
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Gráfica",
+    "q": "A resposta ao impulso abaixo é diferente de zero somente para n=0,1,2,3. O sistema LTI é:",
+    "o": [
+      "FIR.",
+      "Necessariamente instável.",
+      "IIR.",
+      "Necessariamente não causal."
+    ],
+    "a": 0,
+    "e": "<p>O enunciado estabelece que h[n] é nulo fora de n=0,1,2,3. Portanto, há apenas quatro posições potencialmente não nulas e a resposta ao impulso é finita. O sistema é FIR.</p><p><b>Para consolidar:</b> Como os índices não nulos são não negativos, ele também é causal. Além disso, a soma dos módulos é 1+0,7+0,35+0,1=2,15, que é finita. Isso garante estabilidade BIBO. A figura mostra o suporte, e o enunciado define sua continuação.</p>",
+    "v": {
+      "kind": "stem",
+      "start": 0,
+      "values": [
+        1,
+        0.7,
+        0.35,
+        0.1,
+        0,
+        0
+      ]
+    },
+    "id": 35
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Gráfica",
+    "q": "A resposta ao impulso h[n]=(0,6)ⁿu[n] decai sem nunca se tornar exatamente zero. Como classificar o sistema LTI?",
+    "o": [
+      "IIR e BIBO estável.",
+      "FIR e instável.",
+      "IIR e necessariamente instável.",
+      "FIR e BIBO estável."
+    ],
+    "a": 0,
+    "e": "<p>A potência (0,6)ⁿ permanece diferente de zero em todo n≥0, embora diminua. A resposta tem duração infinita, classificando o sistema como IIR. Sua soma absoluta é a série geométrica 1/(1−0,6)=2,5, portanto é BIBO estável.</p><p><b>Para consolidar:</b> Uma curva parecer encostar no eixo não significa que seus valores se tornaram exatamente zero. O gráfico é um trecho da sequência. O que garante a estabilidade é a convergência da soma absoluta, não a duração finita.</p>",
+    "v": {
+      "kind": "stem",
+      "start": 0,
+      "values": [
+        1,
+        0.6,
+        0.36,
+        0.216,
+        0.13,
+        0.078,
+        0.047,
+        0.028
+      ]
+    },
+    "id": 36
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Básica",
+    "q": "Para um sistema LTI, a relação entrada–saída é y[n]=x[n]*h[n]. Qual expressão corresponde à convolução discreta?",
+    "o": [
+      "y[n]=x[n]+h[n]",
+      "y[n]=Σ x[k]h[n−k]",
+      "y[n]=x[n]h[n]",
+      "y[n]=Σ x[n]h[k] sem deslocamento"
+    ],
+    "a": 1,
+    "e": "<p>A convolução discreta é y[n]=Σₖx[k]h[n−k], com k percorrendo todos os inteiros. Para cada n fixo, somamos a contribuição de cada amostra de entrada, que pondera uma cópia deslocada da resposta ao impulso.</p><p><b>Para consolidar:</b> O produto x[n]h[n] considera apenas valores no mesmo índice e é outra operação. Na convolução, o argumento n−k é essencial: ele seleciona o deslocamento correto de cada contribuição para a saída no índice n.</p>",
+    "id": 37
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "Se x[n] é não nulo de n=0 a 5 e h[n] é não nulo de n=0 a 2, em que intervalo y[n]=x[n]*h[n] pode ser não nulo?",
+    "o": [
+      "0 ≤ n ≤ 5",
+      "0 ≤ n ≤ 7",
+      "0 ≤ n ≤ 3",
+      "2 ≤ n ≤ 5"
+    ],
+    "a": 1,
+    "e": "<p>A primeira possível contribuição aparece quando os primeiros índices se somam: 0+0=0. A última aparece em 5+2=7. Portanto, a convolução só pode ser não nula em 0≤n≤7.</p><p><b>Para consolidar:</b> Esse intervalo inclui oito índices. Valores internos podem ser nulos por cancelamento, dependendo das amplitudes, mas não há contribuições fora dos extremos somados. Não se usa a interseção dos suportes para determinar a duração da convolução.</p>",
+    "id": 38
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "Uma sequência de comprimento 6 é convoluída com outra de comprimento 3. Qual é o comprimento máximo da convolução linear?",
+    "o": [
+      "9",
+      "18",
+      "6",
+      "8"
+    ],
+    "a": 3,
+    "e": "<p>A convolução linear de sequências finitas com comprimentos L₁ e L₂ ocupa no máximo L₁+L₂−1 amostras. Aqui, 6+3−1=8. Se ambas começam em zero, os últimos índices são 5 e 2, e a saída termina em 7.</p><p><b>Para consolidar:</b> Os índices de 0 a 7 correspondem a oito posições, não sete. Multiplicar os comprimentos não fornece o comprimento da saída. Essa regra é para convolução linear, diferente da convolução circular com tamanho previamente fixado.</p>",
+    "id": 39
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "Se x[n]=[1,1] para n=0,1 e h[n]=[1,1,1] para n=0,1,2, qual é y[n]?",
+    "o": [
+      "[1,1,1,1,1]",
+      "[2,2,2]",
+      "[1,2,2,1]",
+      "[1,3,1]"
+    ],
+    "a": 2,
+    "e": "<p>Podemos escrever x[n]=δ[n]+δ[n−1], de modo que y[n]=h[n]+h[n−1]. Somando as duas cópias do retângulo de três amostras, obtemos y[0]=1, y[1]=2, y[2]=2 e y[3]=1.</p><p><b>Para consolidar:</b> Nos extremos há apenas uma contribuição. Nos dois índices centrais, há duas amostras unitárias sobrepostas. O comprimento 2+3−1=4 também ajuda a verificar se a alternativa tem o número correto de posições.</p>",
+    "id": 40
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "Se x[n]=δ[n]+2δ[n−2], então x[n]*h[n] é:",
+    "o": [
+      "h[n−2]+2h[n]",
+      "h²[n]",
+      "h[n]+2h[n−2]",
+      "2h[n−1]"
+    ],
+    "a": 2,
+    "e": "<p>A convolução com δ[n] devolve h[n]. A convolução com δ[n−2] devolve h[n−2], atrasada duas amostras. Pela linearidade, o peso 2 do segundo impulso é preservado, resultando em y[n]=h[n]+2h[n−2].</p><p><b>Para consolidar:</b> O peso pertence à cópia atrasada, e não à primeira. Além disso, deslocar não significa elevar ao quadrado nem multiplicar ponto a ponto. Cada impulso cria uma cópia de h com seu próprio deslocamento e peso.</p>",
+    "id": 41
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "Se h[n]=u[n−3]−u[n−6], para quais índices h[n]=1?",
+    "o": [
+      "0≤n≤2",
+      "3≤n≤6",
+      "6≤n",
+      "3≤n≤5"
+    ],
+    "a": 3,
+    "e": "<p>Para n&lt;3, ambos os degraus são zero. De n=3 até n=5, u[n−3]=1 e u[n−6]=0, então h[n]=1. Em n=6 e daí em diante, ambos valem 1 e se cancelam. Logo, h[n]=1 exatamente em n=3,4,5.</p><p><b>Para consolidar:</b> O índice n=6 não está incluído no trecho unitário. Na convenção discreta u[0]=1, a subtração já entra em ação nesse índice. Há três amostras não nulas, e não quatro.</p>",
+    "id": 42
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Avançada",
+    "q": "Se x[n]=1 para 0≤n≤9 e 0 caso contrário; h[n]=1 para 0≤n≤N e 0 caso contrário, com N≤9 inteiro. Sabendo que y=x*h, y[4]=5 e y[14]=0, qual é N?",
+    "o": [
+      "9",
+      "3",
+      "4",
+      "5"
+    ],
+    "a": 2,
+    "e": "<p>Em n=4, cinco produtos unitários só podem contribuir se o segundo retângulo tiver pelo menos cinco amostras. Isso exige N≥4. Em n=14, os suportes se sobrepõem se 14−N≤9, ou seja, N≥5.</p><p><b>Para consolidar:</b> Como y[14]=0 e todos os produtos possíveis são positivos, não pode haver essa sobreposição. Portanto, N&lt;5. Reunindo N≥4 e N&lt;5, com N inteiro, obtemos N=4. O comprimento de h é N+1=5.</p>",
+    "id": 43
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Gráfica",
+    "q": "Duas sequências retangulares valem 1: x[n] para 0≤n≤4 e h[n] para 0≤n≤2. Qual é o valor máximo de y[n]=x*h?",
+    "o": [
+      "2",
+      "1",
+      "5",
+      "3"
+    ],
+    "a": 3,
+    "e": "<p>O retângulo menor tem três amostras unitárias. O maior valor da convolução ocorre quando essas três amostras estão completamente sobrepostas ao retângulo de cinco amostras. A soma então vale 1+1+1=3.</p><p><b>Para consolidar:</b> A convolução conta sobreposições neste caso particular porque todos os valores são 1. O resultado completo é [1,2,3,3,3,2,1]. O comprimento maior determina a duração do platô, mas não aumenta seu pico acima de três.</p>",
+    "v": {
+      "kind": "convshape",
+      "values": [
+        1,
+        2,
+        3,
+        3,
+        3,
+        2,
+        1
+      ]
+    },
+    "id": 44
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Gráfica",
+    "q": "O gráfico de y[n] abaixo foi obtido pela convolução de dois retângulos unitários de comprimentos 5 e 3, ambos iniciados em n=0. Em quais índices ocorre o platô máximo?",
+    "o": [
+      "n=2,3,4",
+      "n=0 até n=6",
+      "Somente em n=0",
+      "n=1 e n=5"
+    ],
+    "a": 0,
+    "e": "<p>Os retângulos começam em n=0. A convolução gera [1,2,3,3,3,2,1] nos índices 0 a 6. O retângulo menor fica completamente sobreposto ao maior nos índices n=2,3,4, formando o platô de amplitude 3.</p><p><b>Para consolidar:</b> É necessário distinguir o valor máximo dos índices em que ele ocorre. Antes de n=2 a sobreposição está aumentando. Depois de n=4 ela começa a diminuir. Não há apenas um pico isolado porque os comprimentos são diferentes.</p>",
+    "v": {
+      "kind": "stem",
+      "start": 0,
+      "values": [
+        1,
+        2,
+        3,
+        3,
+        3,
+        2,
+        1
+      ]
+    },
+    "id": 45
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "Se h[n]=δ[n]−δ[n−1] e x[n] é constante em um intervalo longo, o que y[n]=x*h destaca principalmente?",
+    "o": [
+      "Somente a componente DC.",
+      "A média global do sinal.",
+      "Mudanças entre amostras consecutivas.",
+      "Regiões constantes, com grande valor."
+    ],
+    "a": 2,
+    "e": "<p>Com essa resposta ao impulso, y[n]=x[n]−x[n−1]. Em um trecho constante, as duas amostras são iguais e a saída é zero. Em uma subida, a diferença tende a ser positiva. Em uma descida, tende a ser negativa.</p><p><b>Para consolidar:</b> O sistema destaca variações locais, não a média ou a componente constante. A expressão é uma primeira diferença discreta. Para aproximar uma derivada em relação ao tempo, normalmente também se divide pelo intervalo de amostragem.</p>",
+    "id": 46
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Gráfica",
+    "q": "O sinal discreto abaixo entra em um sistema com h[n]=δ[n−1]. Como fica a saída?",
+    "o": [
+      "É x[n] multiplicado por n.",
+      "É x[n] atrasado de 1 amostra.",
+      "É a derivada de x[n].",
+      "É x[n] avançado de 1 amostra."
+    ],
+    "a": 1,
+    "e": "<p>A propriedade x[n]*δ[n−n₀]=x[n−n₀] mostra que h[n]=δ[n−1] gera y[n]=x[n−1]. Todo valor da entrada aparece uma amostra mais tarde, com a mesma amplitude e a mesma forma.</p><p><b>Para consolidar:</b> No gráfico, as amostras não nulas da entrada em n=0,1,2 passam a ocupar n=1,2,3. O deslocamento para a direita é um atraso. Não há diferenciação, mudança de amplitude ou inversão temporal.</p>",
+    "v": {
+      "kind": "stem",
+      "start": -1,
+      "values": [
+        0,
+        1,
+        2,
+        1,
+        0
+      ]
+    },
+    "id": 47
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Conceitual",
+    "q": "Qual propriedade da convolução permite escrever x[n]*h[n] = h[n]*x[n]?",
+    "o": [
+      "Associatividade.",
+      "Causalidade.",
+      "Comutatividade.",
+      "Distributividade."
+    ],
+    "a": 2,
+    "e": "<p>A comutatividade estabelece que x[n]*h[n]=h[n]*x[n], sempre que a convolução em questão está bem definida. Trocar a ordem das sequências não altera os valores nem os índices da saída.</p><p><b>Para consolidar:</b> Associatividade trata do agrupamento de três convoluções. Distributividade trata da convolução com uma soma. Causalidade é uma propriedade de sistemas e não é o nome da regra que permite trocar os dois fatores.</p>",
+    "id": 48
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "Considere o sistema discreto <span class='math'>y[n] = x[n] + x[n-2] + 0,5x[n-3]</span>. Qual é a resposta impulsiva <span class='math'>h[n]</span> e qual é a causalidade do sistema?",
+    "o": [
+      "<span class='math'>h[n] = δ[n] + δ[n-2] + 0,5δ[n-3]</span> e o sistema é causal.",
+      "<span class='math'>h[n] = δ[n] + δ[n+2] + 0,5δ[n+3]</span> e o sistema é causal.",
+      "<span class='math'>h[n] = δ[n] - δ[n-2] + 0,5δ[n-3]</span> e o sistema é causal.",
+      "<span class='math'>h[n] = δ[n] + δ[n-2] + 0,5δ[n-3]</span> e o sistema não é causal."
+    ],
+    "a": 0,
+    "e": "<p>Aplicando x[n]=δ[n], a saída é h[n]=δ[n]+δ[n−2]+0,5δ[n−3]. Portanto, h[0]=1, h[2]=1 e h[3]=0,5. O coeficiente em n=1 é zero, pois não existe termo x[n−1].</p><p><b>Para consolidar:</b> O sistema é causal porque só utiliza o presente e o passado. Trocar n−2 por n+2 na resposta impulsiva criaria um avanço e mudaria o sistema. Os sinais e os deslocamentos devem acompanhar exatamente a equação.</p>",
+    "v": {
+      "kind": "stem",
+      "start": 0,
+      "values": [
+        1,
+        0,
+        1,
+        0.5,
+        0,
+        0
+      ]
+    },
+    "id": 49
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Básica",
+    "q": "No sistema <span class='math'>y[n] = x[n] + x[n-2] + 0,5x[n-3]</span>, a saída depende de quais amostras de entrada?",
+    "o": [
+      "Apenas de <span class='math'>x[n+1]</span> e <span class='math'>x[n+3]</span>.",
+      "Apenas de <span class='math'>x[n], x[n-2]</span> e <span class='math'>x[n-3]</span>.",
+      "Somente de <span class='math'>x[n-1]</span>.",
+      "De todas as amostras passadas até <span class='math'>-∞</span>."
+    ],
+    "a": 1,
+    "e": "<p>A equação é uma soma de três contribuições: x[n], x[n−2] e 0,5x[n−3]. O fator 0,5 altera o peso da última amostra, mas não seu índice. Nenhuma outra amostra contribui diretamente para y[n].</p><p><b>Para consolidar:</b> Por exemplo, y[10]=x[10]+x[8]+0,5x[7]. A amostra x[9] não é utilizada. O maior atraso é de três amostras, mas isso não significa que todos os atrasos intermediários tenham coeficientes diferentes de zero.</p>",
+    "id": 50
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "O sistema <span class='math'>y[n] = x[n] + x[n-2] + 0,5x[n-3]</span> deve ser classificado como: ",
+    "o": [
+      "FIR e anti-causal.",
+      "IIR e causal.",
+      "FIR e causal.",
+      "IIR e não causal."
+    ],
+    "a": 2,
+    "e": "<p>A resposta ao impulso tem valores não nulos apenas em n=0,2,3. Portanto, sua duração é finita e o sistema é FIR. Todos os termos dependem de amostras presentes ou passadas, então ele também é causal.</p><p><b>Para consolidar:</b> Há três coeficientes não nulos, mas o suporte vai de 0 a 3, abrangendo quatro posições. O coeficiente intermediário n=1 vale zero. Esse detalhe não altera a classificação FIR nem a causalidade.</p>",
+    "id": 51
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "Se a entrada do sistema <span class='math'>y[n] = x[n] + x[n-2] + 0,5x[n-3]</span> for <span class='math'>x[n]=δ[n]</span>, qual será a saída?",
+    "o": [
+      "<span class='math'>u[n]</span>",
+      "<span class='math'>δ[n] + δ[n-2] + 0,5δ[n-3]</span>",
+      "<span class='math'>δ[n-1] + δ[n-2]</span>",
+      "<span class='math'>δ[n] - δ[n-3]</span>"
+    ],
+    "a": 1,
+    "e": "<p>A entrada impulso vale 1 em n=0 e zero nos demais índices. Substituindo-a na equação, resulta y[n]=δ[n]+δ[n−2]+0,5δ[n−3]. A saída apresenta, portanto, valores 1, 1 e 0,5 em n=0,2,3.</p><p><b>Para consolidar:</b> Em um SLIT, essa saída é h[n], a resposta ao impulso. A entrada impulso é útil porque revela diretamente os coeficientes e atrasos do sistema, sem precisar calcular a resposta para uma entrada extensa.</p>",
+    "id": 52
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Gráfica",
+    "q": "Nos gráficos, <span class='math'>x[n]</span> possui impulsos unitários em <span class='math'>n=0</span> e <span class='math'>n=4</span>, e <span class='math'>h[n]</span> vale 1 em <span class='math'>n=-1</span> e <span class='math'>n=0</span>, e 0,5 em <span class='math'>n=1</span>. Qual é a expressão correta para <span class='math'>y[n]=x[n]*h[n]</span>? Considere ambas as sequências nulas fora de seus suportes indicados.",
+    "o": [
+      "<span class='math'>y[n]=2h[n]</span>",
+      "<span class='math'>y[n]=h[n]+h[n+4]</span>",
+      "<span class='math'>y[n]=h[n]+h[n-4]</span>",
+      "<span class='math'>y[n]=x[n]+h[n]</span>"
+    ],
+    "a": 2,
+    "e": "<p>A entrada possui dois impulsos: x[n]=δ[n]+δ[n−4]. Cada impulso gera uma cópia da resposta h[n]. O primeiro produz h[n], enquanto o segundo produz h[n−4], atrasada quatro amostras. Somando, y[n]=h[n]+h[n−4].</p><p><b>Para consolidar:</b> O atraso mantém o formato e as amplitudes de h. Ele não produz h[n+4], que seria um avanço. Também não resulta em 2h[n], pois os dois impulsos estão em instantes diferentes.</p>",
+    "v": {
+      "kind": "dualstem",
+      "xstart": -1,
+      "xvalues": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "hstart": -2,
+      "hvalues": [
+        0,
+        1,
+        1,
+        0.5,
+        0
+      ]
+    },
+    "id": 53
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Gráfica",
+    "q": "Considere <span class='math'>x[n]=δ[n]+δ[n-4]</span> e <span class='math'>h[-1]=1, h[0]=1, h[1]=0,5</span>, com <span class='math'>h[n]=0</span> nos demais índices. Quais são os valores não nulos de <span class='math'>y[n]=x[n]*h[n]</span>?",
+    "o": [
+      "<span class='math'>y[-1]=1, y[0]=1, y[1]=0,5, y[3]=1, y[4]=1, y[5]=0,5</span>",
+      "<span class='math'>y[-1]=1, y[0]=1, y[1]=1, y[3]=1, y[4]=1, y[5]=1</span>",
+      "<span class='math'>y[-1]=0,5, y[0]=1, y[1]=1</span>",
+      "<span class='math'>y[0]=1, y[1]=0,5, y[4]=1, y[5]=0,5</span>"
+    ],
+    "a": 0,
+    "e": "<p>A primeira cópia de h ocupa n=−1,0,1, com valores 1,1,0,5. A segunda é atrasada quatro amostras e ocupa n=3,4,5, com os mesmos valores. Como os dois suportes não se sobrepõem, há seis amostras não nulas na saída.</p><p><b>Para consolidar:</b> A mudança de posição não altera os pesos. Em particular, o valor 0,5 aparece em n=1 e n=5. A convolução não obriga a saída a começar em zero quando h possui uma amostra em índice negativo.</p>",
+    "id": 54
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Gráfica",
+    "q": "Considere <span class='math'>x[n]=δ[n]+δ[n-4]</span> e <span class='math'>h[-1]=1, h[0]=1, h[1]=0,5</span>, com <span class='math'>h[n]=0</span> nos demais índices. Qual é o valor de <span class='math'>y[5]</span>?",
+    "o": [
+      "0",
+      "1",
+      "0,5",
+      "1,5"
+    ],
+    "a": 2,
+    "e": "<p>Usando y[n]=h[n]+h[n−4], em n=5 obtemos y[5]=h[5]+h[1]. Como h é nulo fora de −1,0,1, temos h[5]=0 e h[1]=0,5. Portanto, y[5]=0,5.</p><p><b>Para consolidar:</b> A contribuição vem apenas da cópia atrasada quatro amostras. Escrever explicitamente os dois termos evita somar uma amostra que não existe ou confundir o índice de saída com o índice consultado em h.</p>",
+    "id": 55
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Gráfica",
+    "q": "Considere <span class='math'>x(t)=δ(t-2)+2δ(t-7)</span> e <span class='math'>h(t)=rect(t/2)</span>. Qual é a convolução <span class='math'>y(t)=x(t)*h(t)</span>?",
+    "o": [
+      "<span class='math'>y(t)=rect(t/2)+2 rect(t/7)</span>",
+      "<span class='math'>y(t)=rect((t-2)/2)+2 rect((t-7)/2)</span>",
+      "<span class='math'>y(t)=δ(t-2)+2δ(t-7)</span>",
+      "<span class='math'>y(t)=3 rect(t/2)</span>"
+    ],
+    "a": 1,
+    "e": "<p>Na convolução contínua, δ(t−t₀)*h(t)=h(t−t₀). Assim, o impulso de peso 1 em t=2 gera rect((t−2)/2). O impulso de peso 2 em t=7 gera 2rect((t−7)/2). A saída é a soma dessas duas cópias.</p><p><b>Para consolidar:</b> O deslocamento deve ocorrer dentro de todo o argumento da função. Os números 2 e 7 determinam os centros dos pulsos, enquanto o denominador 2 determina sua largura. O peso de um impulso contínuo representa sua área.</p>",
+    "v": {
+      "kind": "ctimpulses",
+      "times": [
+        2,
+        7
+      ],
+      "amps": [
+        1,
+        2
+      ]
+    },
+    "id": 56
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "No caso <span class='math'>y(t)=rect((t-2)/2)+2 rect((t-7)/2)</span>, em quais instantes estão centrados os dois pulsos retangulares?",
+    "o": [
+      "Em <span class='math'>t=2</span> e <span class='math'>t=7</span>.",
+      "Em <span class='math'>t=1</span> e <span class='math'>t=6</span>.",
+      "Em <span class='math'>t=-2</span> e <span class='math'>t=-7</span>.",
+      "Em <span class='math'>t=0</span> e <span class='math'>t=2</span>."
+    ],
+    "a": 0,
+    "e": "<p>Uma função rect((t−t₀)/2) é centrada onde seu argumento vale zero, isto é, em t=t₀. Portanto, os dois pulsos têm centros em t=2 e t=7. Cada um possui largura total 2.</p><p><b>Para consolidar:</b> O primeiro se estende de t=1 a t=3 e o segundo de t=6 a t=8, conforme a convenção adotada nas bordas. Os instantes 1 e 6 são bordas de início, não os centros dos pulsos.</p>",
+    "id": 57
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "Ainda para <span class='math'>x(t)=δ(t-2)+2δ(t-7)</span> e <span class='math'>h(t)=rect(t/2)</span>, qual é a amplitude do segundo pulso em sua região central?",
+    "o": [
+      "0,5",
+      "4",
+      "2",
+      "1"
+    ],
+    "a": 2,
+    "e": "<p>O segundo impulso da entrada tem peso 2. Pela linearidade da convolução, ele produz uma cópia de h(t) com amplitude multiplicada por 2. Como rect(t/2) vale 1 no interior, o segundo pulso vale 2 em sua região central.</p><p><b>Para consolidar:</b> Os pulsos estão separados e não se sobrepõem. Assim, não existe contribuição do primeiro na região central do segundo. O deslocamento para t=7 altera a posição, mas não modifica esse ganho de amplitude.</p>",
+    "id": 58
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Para <span class='math'>x(t)=cos(2π 10000t)cos(2π 2000t)</span>, qual decomposição trigonométrica está correta?",
+    "o": [
+      "<span class='math'>x(t)=½cos(2π 12000t)+½cos(2π 8000t)</span>",
+      "<span class='math'>x(t)=cos(2π 12000t)+cos(2π 8000t)</span>",
+      "<span class='math'>x(t)=sin(2π 12000t)+sin(2π 8000t)</span>",
+      "<span class='math'>x(t)=½cos(2π 10000t)+½cos(2π 2000t)</span>"
+    ],
+    "a": 0,
+    "e": "<p>A identidade cos A cos B=½cos(A+B)+½cos(A−B) transforma o produto em soma. As frequências são 10+2=12 kHz e 10−2=8 kHz, ambas com amplitude 1/2.</p><p><b>Para consolidar:</b> Não se deve manter amplitude 1 em cada componente, pois a identidade inclui o fator 1/2. No espectro bilateral X(f), cada cosseno de amplitude 1/2 gera dois impulsos de peso 1/4, um em cada frequência simétrica.</p>",
+    "v": {
+      "kind": "freqsticks",
+      "freqs": [
+        -12,
+        -8,
+        8,
+        12
+      ],
+      "amps": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "unit": "kHz",
+      "label": "X(f)"
+    },
+    "id": 59
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Gráfica",
+    "q": "No espectro do sinal <span class='math'>x(t)=cos(2π 10000t)cos(2π 2000t)</span>, em quais frequências estão as linhas espectrais?",
+    "o": [
+      "<span class='math'>± 8 kHz</span> e <span class='math'>± 12 kHz</span>",
+      "Apenas em 8 kHz.",
+      "Apenas em 10 kHz.",
+      "<span class='math'>± 2 kHz</span> e <span class='math'>± 10 kHz</span>"
+    ],
+    "a": 0,
+    "e": "<p>O produto de cossenos produz componentes em 8 kHz e 12 kHz. Na transformada de Fourier bilateral em f, cada cosseno aparece como um par de impulsos nas frequências positiva e negativa. Assim, há linhas em −12,−8,8 e 12 kHz.</p><p><b>Para consolidar:</b> Cada cosseno tem amplitude 1/2, e cada linha bilateral tem peso 1/4. Não confunda o peso de uma linha com a amplitude da cossenoide. As frequências originais de 10 e 2 kHz não permanecem como componentes isoladas do produto.</p>",
+    "v": {
+      "kind": "freqsticks",
+      "freqs": [
+        -12,
+        -8,
+        8,
+        12
+      ],
+      "amps": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "unit": "kHz",
+      "label": "X(f)"
+    },
+    "id": 60
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Se <span class='math'>x(t)=cos(2π·10000t)cos(2π·2000t)</span> for amostrado com <span class='math'>f_s=21 kHz</span>, quais são as frequências angulares discretas equivalentes às componentes de 8 kHz e 12 kHz no intervalo <span class='math'>[0,π]</span>?",
+    "o": [
+      "<span class='math'>ω_1=8π/21</span> e <span class='math'>ω_2=8π/7</span>",
+      "<span class='math'>ω_1=π/2</span> e <span class='math'>ω_2=π</span>",
+      "<span class='math'>ω_1=16π/21</span> e <span class='math'>ω_2=6π/7</span>",
+      "<span class='math'>ω_1=2π/21</span> e <span class='math'>ω_2=4π/21</span>"
+    ],
+    "a": 2,
+    "e": "<p>Para 8 kHz, Ω₁=2π·8/21=16π/21 rad/amostra, já dentro de [0,π]. Para 12 kHz, Ω₂=2π·12/21=8π/7, acima de π. Subtraindo 2π, obtemos −6π/7 e, pela simetria do cosseno, podemos usar 6π/7.</p><p><b>Para consolidar:</b> A reflexão positiva vale para a representação dessas cossenoides de fase zero. Frequências complexas com sinais opostos não são, em geral, a mesma sequência. A componente rebatida corresponde a 9 kHz na escala analógica equivalente.</p>",
+    "id": 61
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Avançada",
+    "q": "Considere <span class='math'>x(t)=cos(2π·10000t)cos(2π·2000t)</span> amostrado com <span class='math'>f_s=21 kHz</span>. Qual conjunto de afirmações é verdadeiro? I) o sinal possui cossenoides em 8 e 12 kHz, cada uma com amplitude 1/2; II) as frequências angulares discretas equivalentes no intervalo <span class='math'>[0,π]</span> são <span class='math'>16π/21</span> e <span class='math'>6π/7</span>; III) após reconstrução ideal em banda base aparecem componentes em 8 e 9 kHz; IV) a sequência discreta resultante possui período fundamental de 21 amostras.",
+    "o": [
+      "Apenas I e II",
+      "Apenas II e IV",
+      "I, II, III e IV",
+      "Apenas I, II e III"
+    ],
+    "a": 2,
+    "e": "<p>A identidade do produto confirma I: há cossenoides de amplitude 1/2 em 8 e 12 kHz. A amostragem gera Ω=16π/21 e, após reflexão do cosseno, 6π/7, confirmando II. Na reconstrução em banda base, elas correspondem a 8 e 9 kHz, confirmando III.</p><p><b>Para consolidar:</b> Para IV, as razões em ciclos/amostra são 8/21 e 3/7, com períodos 21 e 7. Como as componentes são distintas e não se cancelam, o período fundamental da soma é mmc(21,7)=21. Portanto, todas as afirmações são verdadeiras.</p>",
+    "id": 62
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Qual frequência analógica surge por aliasing a partir da componente de 12 kHz quando <span class='math'>f_s=21 kHz</span>?",
+    "o": [
+      "1 kHz",
+      "3 kHz",
+      "9 kHz",
+      "10,5 kHz"
+    ],
+    "a": 2,
+    "e": "<p>A faixa de Nyquist termina em 21/2=10,5 kHz. A componente de 12 kHz fica acima desse limite. Subtraindo uma frequência de amostragem, encontramos 12−21=−9 kHz, cuja representação cossenoidal positiva é 9 kHz.</p><p><b>Para consolidar:</b> O valor 10,5 kHz é o limite da faixa, não a frequência do alias. A frequência equivalente deve gerar o mesmo avanço de fase nas amostras, levando em conta múltiplos de fₛ e a simetria do cosseno.</p>",
+    "id": 63
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "O sinal <span class='math'>x(t)=cos(2π·10000t)cos(2π·2000t)</span> é amostrado a <span class='math'>f_s=21 kHz</span>. Após conversão D/A ideal e reconstrução passa-baixas ideal em banda base, quais frequências aparecem na saída?",
+    "o": [
+      "Apenas 8 kHz",
+      "8 kHz e 12 kHz",
+      "8 kHz e 9 kHz",
+      "9 kHz e 12 kHz"
+    ],
+    "a": 2,
+    "e": "<p>Após a decomposição do produto, existem componentes em 8 e 12 kHz. A de 8 kHz está abaixo de Nyquist, 10,5 kHz, e é preservada. A de 12 kHz produz um alias em 9 kHz. O passa-baixas ideal de reconstrução seleciona essas componentes em banda base.</p><p><b>Para consolidar:</b> A reconstrução ideal recupera o sinal de banda base compatível com as amostras. Ela não desfaz aliasing já ocorrido. Por isso, a componente original de 12 kHz não reaparece na saída desse reconstrutor.</p>",
+    "id": 64
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Avançada",
+    "q": "Considere a amostragem ideal xₚ(t)=Σₙx(nTₛ)δ(t−nTₛ), com Fₛ=1/Tₛ, e um sinal limitado em banda. Selecionando a banda central com um passa-baixas ideal, em qual condição é garantida a reconstrução completa de x(t)?",
+    "o": [
+      "Sim. Basta selecionar a réplica central, independentemente de aliasing e do ganho do filtro.",
+      "Sim, desde que não tenha ocorrido aliasing e que o filtro de reconstrução tenha ganho <span class='math'>1/F_s</span> na banda passante.",
+      "Não. Como o trem de impulsos possui espectro infinito, nenhum filtro passa-baixas pode recuperar <span class='math'>x(t)</span>.",
+      "Não. A multiplicação do espectro por <span class='math'>F_s</span> torna a reconstrução impossível mesmo sem aliasing."
+    ],
+    "a": 1,
+    "e": "<p>Na convenção explícita xₚ(t)=Σx(nTₛ)δ(t−nTₛ), o espectro amostrado é Xₚ(f)=FₛΣX(f−kFₛ). Sem sobreposição, a parte central é FₛX(f). Um filtro ideal que selecione essa banda e tenha ganho Tₛ=1/Fₛ recupera X(f).</p><p><b>Para consolidar:</b> Esse ganho depende da normalização do trem de impulsos. Se o trem incluísse um fator Tₛ, a compensação seria diferente. Além do ganho correto, é indispensável evitar aliasing para garantir reconstrução de um sinal arbitrário nessa banda.</p>",
+    "id": 65
+  },
+  {
+    "cat": "Reconstrução e D/A",
+    "diff": "Gráfica",
+    "q": "O sinal contínuo de saída de um D/A com ZOH (segurador de ordem zero) é uma escada no tempo. No domínio da frequência, qual efeito o ZOH introduz?",
+    "o": [
+      "Somente um ganho constante igual a 2.",
+      "Nenhum efeito: a magnitude permanece plana em toda a banda.",
+      "Transforma toda senoide em impulso de Dirac.",
+      "Uma envoltória do tipo sinc multiplicando o espectro, além de um atraso efetivo de <span class='math'>T_s/2</span>."
+    ],
+    "a": 3,
+    "e": "<p>O núcleo do ZOH é um retângulo de duração Tₛ iniciado em zero. Sua transformada é H₀(f)=Tₛsinc(fTₛ)e<sup>−jπfTₛ</sup>, usando sinc(u)=sin(πu)/(πu). A magnitude relativa é |sinc(fTₛ)| e o fator exponencial corresponde a atraso Tₛ/2.</p><p><b>Para consolidar:</b> Na banda base, a magnitude diminui à medida que a frequência aumenta. O ZOH, portanto, modifica amplitudes e fase. Além disso, seus zeros isolados não eliminam todas as imagens espectrais, como faria um passa-baixas ideal.</p>",
+    "v": {
+      "kind": "zoh",
+      "ys": [
+        0,
+        0,
+        0.08,
+        0.48,
+        1,
+        0.48,
+        -0.12,
+        -0.12,
+        0.08,
+        0.08,
+        0,
+        0
+      ]
+    },
+    "id": 66
+  },
+  {
+    "cat": "Reconstrução e D/A",
+    "diff": "Intermediária",
+    "q": "Considere Xₚ(f) como o espectro do trem de impulsos ponderados pelas amostras e sinc(u)=sin(πu)/(πu). Qual expressão descreve o espectro da saída de um D/A com ZOH de duração Tₛ?",
+    "o": [
+      "<span class='math'>X_{ZOH}(f)=X_p(f)+δ(f)</span>",
+      "<span class='math'>X_ZOH(f)=X_p(f)/sinc(fT_s)</span>",
+      "<span class='math'>X_{ZOH}(f)=X_p(f)</span>",
+      "<span class='math'>X_{ZOH}(f)=X_p(f) T_s sinc(fT_s)e^{-jπ fT_s}</span>"
+    ],
+    "a": 3,
+    "e": "<p>O ZOH atua por convolução no tempo entre o trem de impulsos Xₚ e um núcleo retangular de duração Tₛ. No domínio da frequência, convolução se transforma em multiplicação. Assim, X_ZOH(f)=Xₚ(f)Tₛsinc(fTₛ)e<sup>−jπfTₛ</sup>.</p><p><b>Para consolidar:</b> O fator sinc modifica a magnitude e a exponencial introduz fase de atraso. Não se soma um impulso em DC nem se divide pela sinc para descrever a saída do ZOH. Uma divisão corresponderia a uma tentativa de compensação, não à retenção.</p>",
+    "id": 67
+  },
+  {
+    "cat": "Reconstrução e D/A",
+    "diff": "Intermediária",
+    "q": "Na banda base 0≤f≤fₛ/2, comparado ao ganho em DC, o ZOH tende a:",
+    "o": [
+      "Tornar o sinal necessariamente não causal.",
+      "Eliminar completamente a componente DC.",
+      "Realçar cada vez mais as altas frequências.",
+      "Atenuar as altas frequências, produzindo droop de magnitude."
+    ],
+    "a": 3,
+    "e": "<p>Na banda base, de DC até fₛ/2, o ganho relativo do ZOH é |sinc(f/fₛ)|. Ele parte de 1 em DC e cai até 2/π≈0,637 no limite de Nyquist. Essa redução progressiva é chamada droop de magnitude.</p><p><b>Para consolidar:</b> A componente DC não é eliminada. A afirmação de queda monotônica refere-se à banda base, pois a sinc possui zeros e lóbulos em frequências maiores. O ZOH não tem magnitude plana como o reconstrutor ideal na banda de passagem.</p>",
+    "id": 68
+  },
+  {
+    "cat": "Casos aplicados",
+    "diff": "Intermediária",
+    "q": "Um alarme possui fundamental de 1200 Hz e 3ª harmônica significativa em 3600 Hz. Se o sinal é amostrado com <span class='math'>f_s=3 kHz</span>, para qual frequência a 3ª harmônica sofre aliasing?",
+    "o": [
+      "600 Hz",
+      "1800 Hz",
+      "1200 Hz",
+      "300 Hz"
+    ],
+    "a": 0,
+    "e": "<p>Com fₛ=3000 Hz, a faixa de Nyquist vai até 1500 Hz. Subtraindo fₛ da terceira harmônica, obtemos 3600−3000=600 Hz, já dentro dessa faixa. Portanto, a harmônica aparece como uma componente equivalente de 600 Hz.</p><p><b>Para consolidar:</b> Não é necessário subtrair diretamente o limite de Nyquist. A regra geral é procurar uma frequência equivalente por múltiplos de fₛ e, para a representação positiva de cossenos, considerar também a reflexão de sinal.</p>",
+    "id": 69
+  },
+  {
+    "cat": "Casos aplicados",
+    "diff": "Intermediária",
+    "q": "Um alarme contém apenas a fundamental de 1200 Hz e 3ª harmônica significativa em 3600 Hz. Ele é amostrado a 3 kHz e reconstruído com passa-baixas ideal de 1500 Hz. Quais frequências aparecem na saída?",
+    "o": [
+      "1200 Hz e 600 Hz",
+      "600 Hz e 3600 Hz",
+      "1200 Hz e 1500 Hz",
+      "Apenas 1200 Hz"
+    ],
+    "a": 0,
+    "e": "<p>A componente de 1200 Hz está abaixo do corte de 1500 Hz e é mantida. A de 3600 Hz é representada nas amostras por uma componente de 600 Hz. Como 600 Hz também está na banda de passagem do reconstrutor, a saída contém 1200 e 600 Hz.</p><p><b>Para consolidar:</b> O filtro ideal de reconstrução não consegue identificar que o componente de 600 Hz teve origem em 3600 Hz. Essa informação já se tornou ambígua na amostragem. A nova frequência é inferior à fundamental original.</p>",
+    "id": 70
+  },
+  {
+    "cat": "Casos aplicados",
+    "diff": "Conceitual",
+    "q": "Um alarme contém componentes em 1200 Hz e 3600 Hz e será amostrado a 3 kHz. Um filtro analógico antes do ADC poderia evitar que a componente de 3600 Hz origine, por aliasing, um novo tom grave?",
+    "o": [
+      "Sim, mas apenas se for digital e aplicado após o ADC.",
+      "Não, porque qualquer filtro antes do ADC obrigatoriamente remove também 1200 Hz.",
+      "Sim, se atenuar suficientemente a componente de 3600 Hz antes da amostragem.",
+      "Não, porque filtros analógicos não alteram aliasing."
+    ],
+    "a": 2,
+    "e": "<p>Um filtro analógico antes do ADC pode atenuar a componente de 3600 Hz antes de ela gerar o alias em 600 Hz. A componente de 1200 Hz pode ser mantida se estiver na banda de passagem do filtro. Assim, o filtro reduz o tom espúrio na aquisição.</p><p><b>Para consolidar:</b> Em um filtro real, a atenuação é finita e reduz o alias a um nível aceitável, sem necessariamente zerá-lo. Essa estratégia também remove informação da harmônica original. Para preservá-la, seria necessário aumentar a taxa de amostragem.</p>",
+    "id": 71
+  },
+  {
+    "cat": "Casos aplicados",
+    "diff": "Intermediária",
+    "q": "Qual frequência de amostragem seria mais adequada para registrar sem aliasing tanto a fundamental de 1200 Hz quanto a 3ª harmônica de 3600 Hz?",
+    "o": [
+      "4 kHz",
+      "3 kHz",
+      "6 kHz",
+      "8 kHz"
+    ],
+    "a": 3,
+    "e": "<p>A maior frequência a preservar é 3600 Hz. Pela condição estrita de Nyquist, fₛ deve superar 7200 Hz. Entre as alternativas, somente 8000 Hz satisfaz essa condição, oferecendo limite de Nyquist de 4000 Hz.</p><p><b>Para consolidar:</b> Escolher a taxa apenas a partir da fundamental de 1200 Hz perderia a terceira harmônica. A taxa deve considerar a maior componente que se pretende conservar e, em um projeto real, a transição do filtro anti-aliasing.</p>",
+    "id": 72
+  },
+  {
+    "cat": "Casos aplicados",
+    "diff": "Avançada",
+    "q": "Em um ensaio de vibração, a informação útil está entre 0 e 100 Hz, mas há ruído branco significativo até vários kHz. Apenas escolher <span class='math'>f_s > 200 Hz</span> garante uma boa aquisição?",
+    "o": [
+      "Sim, porque basta satisfazer Nyquist da banda útil.",
+      "Não, porque o ruído de alta frequência pode sofrer aliasing para dentro da banda útil.",
+      "Sim, se o ADC tiver 16 bits ou mais.",
+      "Não, porque qualquer sinal com ruído branco é impossível de amostrar."
+    ],
+    "a": 1,
+    "e": "<p>A condição fₛ&gt;200 Hz considera apenas a banda útil de até 100 Hz. Se ruído de vários quilohertz também chega ao amostrador, parte dele pode ser deslocada para dentro da banda útil pelas réplicas espectrais. Assim, a taxa sozinha não garante boa aquisição.</p><p><b>Para consolidar:</b> Mais bits melhoram a resolução de amplitude, mas não evitam aliasing. É necessário limitar o conteúdo que chega ao ADC, geralmente com um filtro analógico e uma taxa compatível com sua banda de transição.</p>",
+    "id": 73
+  },
+  {
+    "cat": "Casos aplicados",
+    "diff": "Intermediária",
+    "q": "No caso do ensaio de vibração com ruído amplo em frequência, onde deve ser colocado o filtro anti-aliasing principal?",
+    "o": [
+      "Antes do ADC, como filtro analógico.",
+      "Tanto faz: a posição é irrelevante.",
+      "Somente depois do DAC.",
+      "Depois do ADC, como filtro digital."
+    ],
+    "a": 0,
+    "e": "<p>O filtro anti-aliasing principal deve agir antes da amostragem, no caminho analógico de entrada do ADC. Sua função é atenuar componentes que poderiam se tornar indistinguíveis da banda útil após a criação das réplicas espectrais.</p><p><b>Para consolidar:</b> Um filtro digital posterior pode reduzir ruído que permaneceu fora da banda útil, mas não separar componentes já misturadas dentro dela. A ordem das operações é essencial: primeiro limitar a banda, depois amostrar.</p>",
+    "id": 74
+  },
+  {
+    "cat": "Casos aplicados",
+    "diff": "Avançada",
+    "q": "Um passa-baixas analógico Butterworth de 6ª ordem deve atenuar no máximo 1,5 dB em 100 Hz e pelo menos 40 dB em fₛ/2. Considerando f_c como a frequência de −3 dB, qual combinação atende aos dois requisitos?",
+    "o": [
+      "<span class='math'>f_c= 1 kHz</span> e <span class='math'>f_s= 2,2 kHz</span>",
+      "<span class='math'>f_c= 300 Hz</span> e <span class='math'>f_s= 500 Hz</span>",
+      "<span class='math'>f_c= 100 Hz</span> e <span class='math'>f_s= 220 Hz</span>",
+      "<span class='math'>f_c= 110 Hz</span> e <span class='math'>f_s= 500 Hz</span>"
+    ],
+    "a": 3,
+    "e": "<p>Para um Butterworth de 6ª ordem, a atenuação é A(f)=10log₁₀[1+(f/f_c)¹²] dB. Com f_c=110 Hz e fₛ=500 Hz, Nyquist fica em 250 Hz e A(250)≈42,8 dB. Em 100 Hz, a atenuação é aproximadamente 1,2 dB, atendendo aos dois limites do enunciado.</p><p><b>Para consolidar:</b> Com f_c=100 Hz e fₛ=220 Hz, a atenuação em Nyquist é só cerca de 6,2 dB. Um corte de 300 Hz deixa 250 Hz praticamente na banda passante. A escolha correta resulta do compromisso quantitativo entre preservar a banda útil e rejeitar altas frequências.</p>",
+    "id": 75
+  },
+  {
+    "cat": "Casos aplicados",
+    "diff": "Conceitual",
+    "q": "Um passa-baixas digital de 100 Hz, aplicado somente depois do ADC, pode substituir completamente o filtro anti-aliasing analógico do ensaio de vibração?",
+    "o": [
+      "Não, porque ele não desfaz a sobreposição espectral causada antes da digitalização.",
+      "Sim, porque a filtragem digital é sempre suficiente.",
+      "Não, porque filtros digitais não funcionam abaixo de 1 kHz.",
+      "Sim, desde que o processador seja rápido."
+    ],
+    "a": 0,
+    "e": "<p>O filtro digital recebe dados após a amostragem. Se ruído de alta frequência já se somou à banda de 0–100 Hz por aliasing, ele ocupa as mesmas frequências das componentes úteis. Um passa-baixas digital de 100 Hz preservará ambas.</p><p><b>Para consolidar:</b> Um processador mais rápido não recupera informação perdida nessa mistura. A filtragem digital continua útil para outras tarefas, mas não substitui a limitação analógica de banda exigida antes da aquisição.</p>",
+    "id": 76
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Gráfica",
+    "q": "Pela definição mostrada para <span class='math'>rect(t/T)</span>, qual valor a função assume exatamente em <span class='math'>t=± T/2</span>?",
+    "o": [
+      "1/4",
+      "1",
+      "0",
+      "1/2"
+    ],
+    "a": 3,
+    "e": "<p>A convenção apresentada define rect(t/T)=1 no interior, 0 no exterior e 1/2 exatamente em t=−T/2 e t=T/2. Os pontos preenchidos no gráfico indicam os valores incluídos na função. Assim, nas duas bordas o valor é 1/2.</p><p><b>Para consolidar:</b> Outras convenções de valor na descontinuidade existem. Alterar apenas esses pontos isolados não muda a transformada de Fourier usual do pulso. Para responder a esta questão, vale a definição explícita na figura.</p>",
+    "v": {
+      "kind": "rectcts",
+      "T": 1
+    },
+    "id": 77
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Gráfica",
+    "q": "Para a função <span class='math'>rect(t/T)</span>, em que intervalo ela vale 1?",
+    "o": [
+      "<span class='math'>|t|>T/2</span>",
+      "<span class='math'>|t|≤ T</span>",
+      "Somente em <span class='math'>t=0</span>",
+      "<span class='math'>|t| &lt; T/2</span>"
+    ],
+    "a": 3,
+    "e": "<p>O pulso rect(t/T), com T&gt;0, é centrado em zero e tem largura total T. Seu interior vai de −T/2 a T/2, sem incluir as bordas. Portanto, ele vale 1 quando |t|&lt;T/2.</p><p><b>Para consolidar:</b> Na convenção mostrada, as bordas valem 1/2. Por isso a desigualdade para o trecho de valor unitário é estrita. O intervalo |t|≤T descreveria uma largura duas vezes maior e incluiria regiões em que o pulso vale zero.</p>",
+    "v": {
+      "kind": "rectcts",
+      "T": 1
+    },
+    "id": 78
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Intermediária",
+    "q": "Se <span class='math'>h(t)=rect(t/2)</span>, qual é a largura total do pulso?",
+    "o": [
+      "Depende da amplitude",
+      "4",
+      "2",
+      "1"
+    ],
+    "a": 2,
+    "e": "<p>Na forma rect(t/T), as bordas ficam em −T/2 e T/2. Para T=2, elas estão em −1 e 1. A distância entre as bordas é 1−(−1)=2, que é a largura total do pulso.</p><p><b>Para consolidar:</b> O denominador escala o tempo, não a amplitude. O pulso continua com valor unitário no interior. A largura é expressa na mesma unidade usada para t, por exemplo, segundos se t estiver em segundos.</p>",
+    "id": 79
+  },
+  {
+    "cat": "Reconstrução e D/A",
+    "diff": "Gráfica",
+    "q": "Observando um sinal de saída em escada produzido por ZOH, qual é a melhor descrição no tempo?",
+    "o": [
+      "Entre duas amostras consecutivas, a saída permanece constante até a próxima atualização.",
+      "A saída é uma sequência de impulsos de Dirac.",
+      "Entre amostras, a saída interpola linearmente sempre.",
+      "A saída é necessariamente senoidal."
+    ],
+    "a": 0,
+    "e": "<p>Durante cada intervalo nTₛ≤t&lt;(n+1)Tₛ, o ZOH mantém a saída igual à amostra x[n]. A atualização ocorre no início do próximo intervalo. Esse funcionamento produz os patamares horizontais característicos da escada.</p><p><b>Para consolidar:</b> Embora seja originada em amostras discretas, a saída do ZOH é definida continuamente no tempo. Ela não é um trem de impulsos nem uma interpolação por retas entre os valores. Pode apresentar saltos nas atualizações.</p>",
+    "v": {
+      "kind": "zoh",
+      "ys": [
+        0,
+        0,
+        0.05,
+        0.5,
+        1,
+        0.45,
+        -0.12,
+        -0.12,
+        0.08,
+        0.08,
+        0,
+        0
+      ]
+    },
+    "id": 80
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Após uma aquisição a <span class='math'>f<sub>s</sub>=320 Hz</span>, o espectro da sequência apresenta uma componente equivalente a <span class='math'>90 Hz</span> na faixa de Nyquist. Considerando cossenoides analógicas de amplitude unitária e fase zero, qual par de frequências abaixo pode gerar exatamente a mesma sequência de amostras?",
+    "o": [
+      "<span class='math'>90 Hz</span> e <span class='math'>160 Hz</span>.",
+      "<span class='math'>90 Hz</span> e <span class='math'>230 Hz</span>.",
+      "<span class='math'>90 Hz</span> e <span class='math'>180 Hz</span>.",
+      "<span class='math'>90 Hz</span> e <span class='math'>250 Hz</span>."
+    ],
+    "a": 1,
+    "e": "<p>Com fₛ=320 Hz, 230 Hz corresponde a Ω=2π·230/320. Subtraindo 2π, obtemos −2π·90/320. Pela paridade do cosseno, isso gera a mesma sequência que 90 Hz, considerando amplitude unitária e fase zero.</p><p><b>Para consolidar:</b> O espectro observado em banda base, sozinho, não permite decidir qual dessas duas frequências estava presente antes da amostragem. A igualdade vale para as fases especificadas. A família de frequências equivalentes é kfₛ±90 Hz.</p>",
+    "v": {
+      "kind": "freqsticks",
+      "freqs": [
+        -90,
+        90
+      ],
+      "amps": [
+        1,
+        1
+      ],
+      "unit": "Hz",
+      "label": "frequência equivalente"
+    },
+    "id": 81
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Intermediária",
+    "q": "Uma senoide contínua <span class='math'>x<sub>c</sub>(t)=2cos(2π·75t)</span> é registrada com <span class='math'>f<sub>s</sub>=240 Hz</span>. Sem reescrever o sinal em Hz, qual alternativa fornece corretamente <span class='math'>Ω</span>, o período fundamental <span class='math'>N</span> e o valor de <span class='math'>x[4]</span>?",
+    "o": [
+      "<span class='math'>Ω=5π/8</span> rad/amostra, <span class='math'>N=16</span> e <span class='math'>x[4]=0</span>.",
+      "<span class='math'>Ω=3π/8</span> rad/amostra, <span class='math'>N=16</span> e <span class='math'>x[4]=−2</span>.",
+      "<span class='math'>Ω=5π/8</span> rad/amostra, <span class='math'>N=16</span> e <span class='math'>x[4]=2</span>.",
+      "<span class='math'>Ω=5π/4</span> rad/amostra, <span class='math'>N=8</span> e <span class='math'>x[4]=0</span>."
+    ],
+    "a": 0,
+    "e": "<p>A substituição t=n/240 gera x[n]=2cos((5π/8)n), portanto Ω=5π/8 rad/amostra. Como Ω/(2π)=5/16 está irredutível, o período fundamental é N=16. Em n=4, x[4]=2cos(5π/2)=0.</p><p><b>Para consolidar:</b> Usar apenas o denominador 8 de Ω/π levaria ao período errado. Após oito amostras, a fase aumenta 5π e o sinal se inverte. A condição de periodicidade usa voltas de 2π, não de π.</p>",
+    "id": 82
+  },
+  {
+    "cat": "Sinais e periodicidade",
+    "diff": "Avançada",
+    "q": "Considere <span class='math'>x[n]=cos(17πn/12)+cos(πn/4)</span>. Ao representar ambas as componentes na faixa <span class='math'>0≤Ω≤π</span>, qual descrição é correta?",
+    "o": [
+      "As componentes são <span class='math'>7π/12</span> e <span class='math'>3π/4</span>, e a soma tem período fundamental <span class='math'>8</span>.",
+      "As componentes são <span class='math'>7π/12</span> e <span class='math'>π/4</span>, e a soma tem período fundamental <span class='math'>48</span>.",
+      "As componentes são <span class='math'>7π/12</span> e <span class='math'>π/4</span>, e a soma tem período fundamental <span class='math'>24</span>.",
+      "As componentes são <span class='math'>5π/12</span> e <span class='math'>π/4</span>, e a soma tem período fundamental <span class='math'>24</span>."
+    ],
+    "a": 2,
+    "e": "<p>A frequência 17π/12 está acima de π. Para o cosseno de fase zero, sua representação positiva em [0,π] é 2π−17π/12=7π/12. A outra frequência, π/4, já pertence à faixa. Suas razões em ciclos/amostra são 7/24 e 1/8.</p><p><b>Para consolidar:</b> Os períodos são 24 e 8. Como as componentes são distintas e não se cancelam, a soma tem período fundamental 24. Quarenta e oito também é um período, mas não o menor. A reflexão não altera a segunda componente.</p>",
+    "id": 83
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Avançada",
+    "q": "Antes de um conversor A/D, aparece o sinal <span class='math'>x(t)=cos(2π·9000t)cos(2π·2000t)+0,5cos(2π·3000t)</span>. Ele é amostrado a <span class='math'>f<sub>s</sub>=16 kHz</span>. Quais frequências aparecem na faixa <span class='math'>0≤f≤8 kHz</span> da sequência amostrada?",
+    "o": [
+      "<span class='math'>2 kHz, 3 kHz e 9 kHz</span>.",
+      "<span class='math'>3 kHz, 5 kHz e 7 kHz</span>.",
+      "<span class='math'>3 kHz, 5 kHz e 11 kHz</span>.",
+      "<span class='math'>3 kHz, 7 kHz e 11 kHz</span>."
+    ],
+    "a": 1,
+    "e": "<p>O produto gera ½cos(2π·11000t)+½cos(2π·7000t). A ele se soma a componente de 3 kHz. Com fₛ=16 kHz, o limite de Nyquist é 8 kHz. As componentes de 3 e 7 kHz permanecem na faixa, enquanto 11 kHz rebate para 16−11=5 kHz.</p><p><b>Para consolidar:</b> A saída amostrada tem frequências equivalentes de 3,5 e 7 kHz. Cada cosseno tem amplitude 1/2 e não há colisão entre essas três frequências. Manter 11 kHz na faixa pedida seria incompatível com o limite de 8 kHz.</p>",
+    "v": {
+      "kind": "freqsticks",
+      "freqs": [
+        -11,
+        -7,
+        -3,
+        3,
+        7,
+        11
+      ],
+      "amps": [
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "unit": "kHz",
+      "label": "X(f) antes da amostragem"
+    },
+    "id": 84
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Gráfica",
+    "q": "O espectro contínuo mostrado é nulo fora de <span class='math'>|f|≤220 Hz</span>. O sinal é amostrado a <span class='math'>f<sub>s</sub>=500 Hz</span>. Qual é a separação, em Hz, entre o fim da réplica central e o início da réplica imediatamente à direita?",
+    "o": [
+      "<span class='math'>30 Hz</span>.",
+      "<span class='math'>280 Hz</span>.",
+      "<span class='math'>220 Hz</span>.",
+      "<span class='math'>60 Hz</span>."
+    ],
+    "a": 3,
+    "e": "<p>A réplica central ocupa de −220 a 220 Hz. A cópia centrada em +500 Hz ocupa de 500−220=280 Hz até 500+220=720 Hz. A separação entre elas é 280−220=60 Hz.</p><p><b>Para consolidar:</b> O valor 30 Hz é a margem entre a borda de 220 Hz e Nyquist, em 250 Hz. A distância total entre as duas réplicas é o dobro dessa margem. O valor 280 Hz indica onde a réplica vizinha começa, não a separação.</p>",
+    "v": {
+      "kind": "bandrect",
+      "B": 220,
+      "label": "X(j2πf)"
+    },
+    "id": 85
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Gráfica",
+    "q": "Um sinal limitado a <span class='math'>|f|≤280 Hz</span> é amostrado a <span class='math'>f<sub>s</sub>=500 Hz</span>. Considerando a réplica central e a réplica centrada em <span class='math'>+500 Hz</span>, em qual intervalo elas se sobrepõem?",
+    "o": [
+      "De <span class='math'>−280 a −220 Hz</span> apenas.",
+      "De <span class='math'>220 a 280 Hz</span>.",
+      "De <span class='math'>0 a 60 Hz</span>.",
+      "De <span class='math'>280 a 500 Hz</span>."
+    ],
+    "a": 1,
+    "e": "<p>O espectro central ocupa [−280,280] Hz. A cópia deslocada para +500 Hz ocupa [220,780] Hz, pois seus extremos são 500±280. O intervalo comum aos dois é [220,280] Hz.</p><p><b>Para consolidar:</b> Também existe uma sobreposição simétrica do lado negativo com a cópia centrada em −500 Hz. Porém, a pergunta especifica a réplica positiva. O comprimento da sobreposição solicitada é 60 Hz, não o intervalo de 0 a 60 Hz.</p>",
+    "v": {
+      "kind": "bandrect",
+      "B": 280,
+      "label": "X(j2πf)"
+    },
+    "id": 86
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Gráfica",
+    "q": "O espectro triangular mostrado possui pico unitário e suporte em <span class='math'>|f|≤140 Hz</span>. O sinal é multiplicado por um trem de impulsos unitários Σₙδ(t−nT), com <span class='math'>T=1/480 s</span>. Como fica especificamente a réplica correspondente a <span class='math'>a=+1</span>?",
+    "o": [
+      "Centro em <span class='math'>480 Hz</span>, pico 480 e suporte de <span class='math'>340 a 620 Hz</span>.",
+      "Centro em <span class='math'>240 Hz</span>, pico 480 e suporte de <span class='math'>100 a 380 Hz</span>.",
+      "Centro em <span class='math'>480 Hz</span>, pico 1 e suporte de <span class='math'>340 a 620 Hz</span>.",
+      "Centro em <span class='math'>620 Hz</span>, pico 480 e suporte de <span class='math'>480 a 760 Hz</span>."
+    ],
+    "a": 0,
+    "e": "<p>A amostragem por impulsos unitários tem espectro Xₛ(f)=(1/T)ΣX(f−a/T). Com T=1/480 s, a réplica a=+1 é centrada em 480 Hz e seu pico é multiplicado por 480. O suporte original [−140,140] passa a [340,620] Hz.</p><p><b>Para consolidar:</b> O deslocamento preserva a forma e a largura do triângulo. O fator 480 vem da normalização do trem de impulsos, não de uma mudança na duração do sinal. Esse fator deve ser compensado na reconstrução ideal.</p>",
+    "v": {
+      "kind": "trianglespectrum",
+      "B": 140,
+      "label": "X(j2πf)"
+    },
+    "id": 87
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "O espectro de um sinal é nulo para <span class='math'>|f|&gt;175 Hz</span>. Entre as taxas propostas, qual é a menor que satisfaz a condição estrita <span class='math'>f<sub>s</sub>&gt;2f<sub>máx</sub></span>, deixando separação entre réplicas espectrais adjacentes?",
+    "o": [
+      "<span class='math'>360 Hz</span>.",
+      "<span class='math'>350 Hz</span>.",
+      "<span class='math'>525 Hz</span>.",
+      "<span class='math'>300 Hz</span>."
+    ],
+    "a": 0,
+    "e": "<p>O maior módulo de frequência é 175 Hz. A condição exigida é fₛ&gt;350 Hz. Entre as taxas propostas, a menor que atende a ela é 360 Hz. A separação entre réplicas é então 360−2·175=10 Hz.</p><p><b>Para consolidar:</b> A taxa de 350 Hz não satisfaz a desigualdade estrita. Para esse espectro triangular, os extremos têm amplitude zero, mas a questão pede explicitamente separação positiva entre os suportes. Uma taxa maior também serve, porém não seria a menor opção.</p>",
+    "v": {
+      "kind": "trianglespectrum",
+      "B": 175,
+      "label": "X(j2πf)"
+    },
+    "id": 88
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Gráfica",
+    "q": "Os gráficos mostram <span class='math'>x[n]</span> e <span class='math'>h[n]</span>, ambos nulos fora dos índices exibidos. Sem calcular todo o vetor de saída, determine apenas <span class='math'>y[2]</span> em <span class='math'>y[n]=x[n]*h[n]</span>.",
+    "o": [
+      "<span class='math'>−1</span>.",
+      "<span class='math'>−3</span>.",
+      "<span class='math'>3</span>.",
+      "<span class='math'>1</span>."
+    ],
+    "a": 1,
+    "e": "<p>Pelos valores indicados, x[0]=1, x[1]=2, x[2]=−1 e h[0]=1, h[1]=−1. Na soma y[2]=Σx[k]h[2−k], apenas k=1 e k=2 contribuem. Logo, y[2]=2·(−1)+(−1)·1=−3.</p><p><b>Para consolidar:</b> O termo k=0 é zero porque h[2]=0. É essencial ler as amplitudes dos dois painéis pelos rótulos, sem comparar somente as alturas desenhadas. Como verificação, a convolução completa é [1,1,−3,1].</p>",
+    "v": {
+      "kind": "dualstem",
+      "xstart": 0,
+      "xvalues": [
+        1,
+        2,
+        -1
+      ],
+      "hstart": 0,
+      "hvalues": [
+        1,
+        -1
+      ]
+    },
+    "id": 89
+  },
+  {
+    "cat": "Convolução",
+    "diff": "Intermediária",
+    "q": "Uma entrada é escrita como <span class='math'>x[n]=δ[n+1]−2δ[n−2]</span>. Para um SLIT de resposta ao impulso <span class='math'>h[n]</span>, qual expressão permite obter a saída sem executar explicitamente a soma de convolução?",
+    "o": [
+      "<span class='math'>y[n]=2h[n+1]−h[n−2]</span>.",
+      "<span class='math'>y[n]=h[n−1]−2h[n+2]</span>.",
+      "<span class='math'>y[n]=h[n]+2h[n−1]</span>.",
+      "<span class='math'>y[n]=h[n+1]−2h[n−2]</span>."
+    ],
+    "a": 3,
+    "e": "<p>O impulso δ[n+1] está localizado em n=−1 e gera h[n+1], uma cópia avançada. O impulso −2δ[n−2] está em n=2 e gera −2h[n−2], uma cópia atrasada e escalada. Pela superposição, y[n]=h[n+1]−2h[n−2].</p><p><b>Para consolidar:</b> Cada termo preserva seu próprio peso e deslocamento. O sinal negativo fora do impulso inverte a amplitude da cópia. Já o sinal dentro do argumento determina a posição temporal. Essas duas funções do sinal “menos” não devem ser confundidas.</p>",
+    "id": 90
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "Um sistema causal em repouso satisfaz <span class='math'>y[n]−0,4y[n−1]=x[n]</span>. Qual alternativa combina corretamente a natureza da resposta impulsiva e o valor de <span class='math'>h[2]</span>?",
+    "o": [
+      "O sistema é IIR, BIBO estável e <span class='math'>h[2]=0</span>.",
+      "O sistema é IIR, instável e <span class='math'>h[2]=0,4</span>.",
+      "O sistema é FIR, BIBO estável e <span class='math'>h[2]=0,16</span>.",
+      "O sistema é IIR, BIBO estável e <span class='math'>h[2]=0,16</span>."
+    ],
+    "a": 3,
+    "e": "<p>Com entrada impulso e repouso inicial, h[0]=1. A partir de n=1, a recorrência é h[n]=0,4h[n−1], produzindo 0,4, 0,16, 0,064,… Assim, h[2]=0,16 e h[n]=(0,4)ⁿu[n], de duração infinita.</p><p><b>Para consolidar:</b> O sistema é IIR, mas BIBO estável: a soma absoluta converge para 1/(1−0,4)=5/3. A realimentação deste exemplo produz uma cauda que decai, não uma saída crescente. A duração infinita não deve ser confundida com instabilidade.</p>",
+    "id": 91
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Avançada",
+    "q": "Considere o sistema causal, inicialmente em repouso, <span class='math'>y[n]−0,5y[n−1]=x[n]−0,5x[n−1]</span>. Qual é sua resposta ao impulso?",
+    "o": [
+      "<span class='math'>h[n]=u[n]</span>.",
+      "<span class='math'>h[n]=(0,5)^n u[n]</span>.",
+      "<span class='math'>h[n]=δ[n]</span>.",
+      "<span class='math'>h[n]=δ[n]−0,5δ[n−1]</span>."
+    ],
+    "a": 2,
+    "e": "<p>Com x[n]=δ[n] e repouso inicial, h[0]=1. Em n=1, a equação dá h[1]−0,5h[0]=−0,5, portanto h[1]=0. Nos índices seguintes, não há entrada e a recorrência mantém h[n]=0. Logo, h[n]=δ[n].</p><p><b>Para consolidar:</b> Os mesmos fatores de dinâmica na entrada e na saída se cancelam exatamente. A resposta externa é a identidade y[n]=x[n], um FIR de uma amostra, apesar da forma recursiva. A hipótese de repouso inicial é necessária para essa conclusão direta.</p>",
+    "id": 92
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Gráfica",
+    "q": "O gráfico mostra a resposta ao degrau s[n] de um SLIT causal, inicialmente em repouso. Ela vale zero para n<0 e permanece em 1 para todo n≥3. Qual é a resposta ao impulso correspondente?",
+    "o": [
+      "<span class='math'>h[n]=0,2δ[n]+0,4δ[n−1]+0,1δ[n−2]+0,3δ[n−3]</span>.",
+      "<span class='math'>h[n]=0,2δ[n]+0,4δ[n−1]+0,3δ[n−2]+0,1δ[n−3]</span>.",
+      "<span class='math'>h[n]=δ[n]−0,2δ[n−1]</span>.",
+      "<span class='math'>h[n]=0,2δ[n]+0,6δ[n−1]+0,9δ[n−2]+δ[n−3]</span>."
+    ],
+    "a": 1,
+    "e": "<p>Como s[n]=h[n]*u[n] e u[n]−u[n−1]=δ[n], a primeira diferença fornece h[n]=s[n]−s[n−1]. Com s[−1]=0, as diferenças são 0,2, 0,6−0,2=0,4, 0,9−0,6=0,3 e 1−0,9=0,1.</p><p><b>Para consolidar:</b> A resposta ao degrau permanece em 1 para n≥3, então as diferenças seguintes são zero. Não se deve usar diretamente os valores acumulados de s como coeficientes de h. A soma dos coeficientes encontrados vale 1, coerente com o patamar final.</p>",
+    "v": {
+      "kind": "stem",
+      "start": 0,
+      "values": [
+        0.2,
+        0.6,
+        0.9,
+        1,
+        1,
+        1
+      ]
+    },
+    "id": 93
+  },
+  {
+    "cat": "Sistemas",
+    "diff": "Intermediária",
+    "q": "Um FIR causal possui <span class='math'>h[0]=0,3</span>, <span class='math'>h[1]=0,2</span> e <span class='math'>h[2]=0,5</span>. Considere h[n]=0 nos demais índices e repouso inicial. Se a entrada é o degrau unitário <span class='math'>u[n]</span>, qual valor a saída assume para <span class='math'>n≥2</span>?",
+    "o": [
+      "<span class='math'>0,7</span>.",
+      "<span class='math'>0,5</span>.",
+      "<span class='math'>1</span>.",
+      "<span class='math'>1,5</span>."
+    ],
+    "a": 2,
+    "e": "<p>A resposta ao degrau acumula os coeficientes de h. Assim, y[0]=0,3, y[1]=0,3+0,2=0,5 e y[2]=0,3+0,2+0,5=1. Como h é nulo nos demais índices, a soma não recebe novos termos e permanece em 1 para todo n≥2.</p><p><b>Para consolidar:</b> O valor final é a soma dos coeficientes, que também é o ganho em DC. Não é apenas h[2]=0,5. A hipótese de que os demais coeficientes são nulos é indispensável para determinar o patamar a partir desses três valores.</p>",
+    "v": {
+      "kind": "stem",
+      "start": 0,
+      "values": [
+        0.3,
+        0.2,
+        0.5,
+        0,
+        0
+      ]
+    },
+    "id": 94
+  },
+  {
+    "cat": "Reconstrução e D/A",
+    "diff": "Avançada",
+    "q": "Um DAC opera a <span class='math'>f<sub>s</sub>=1 kHz</span> e utiliza um retentor de ordem zero. Considerando <span class='math'>|H<sub>0</sub>(j2πf)|/|H<sub>0</sub>(0)|=|sinc(fT)|</span>, qual é aproximadamente o ganho relativo em <span class='math'>f=500 Hz</span>? Use sinc(u)=sin(πu)/(πu).",
+    "o": [
+      "<span class='math'>1</span>.",
+      "<span class='math'>2/π≈0,637</span>.",
+      "<span class='math'>1/π≈0,318</span>.",
+      "<span class='math'>0</span>."
+    ],
+    "a": 1,
+    "e": "<p>Com fₛ=1000 Hz, temos T=0,001 s. Em 500 Hz, fT=0,5. Usando sinc(u)=sin(πu)/(πu), o ganho relativo é sinc(0,5)=sin(π/2)/(π/2)=2/π≈0,637.</p><p><b>Para consolidar:</b> Isso corresponde a cerca de −3,92 dB em relação a DC. O primeiro zero do ZOH ocorre em f=fₛ=1000 Hz, não em fₛ/2. O cálculo avalia a resposta do retentor, sem afirmar reconstrução universal de sinais exatamente no limite de Nyquist.</p>",
+    "id": 95
+  },
+  {
+    "cat": "Reconstrução e D/A",
+    "diff": "Intermediária",
+    "q": "A resposta em frequência do ZOH contém o fator <span class='math'>e<sup>−jπfT</sup></span>. Qual fase esse fator introduz exatamente em <span class='math'>f=f<sub>s</sub>/2</span>?",
+    "o": [
+      "<span class='math'>+π/2</span> rad.",
+      "<span class='math'>−π/2</span> rad.",
+      "<span class='math'>−π</span> rad.",
+      "<span class='math'>0</span> rad."
+    ],
+    "a": 1,
+    "e": "<p>A fase do fator e<sup>−jπfT</sup> é −πfT. Substituindo f=fₛ/2 e T=1/fₛ, obtemos −π/2 rad, equivalente a −90°. O expoente também pode ser escrito como −j2πf(T/2), mostrando o atraso T/2.</p><p><b>Para consolidar:</b> O sinal negativo indica atraso. A questão pede a fase desse fator exponencial. Em frequências em que a sinc muda de sinal, a fase total do ZOH ainda inclui essa mudança, mas isso não ocorre no ponto de Nyquist considerado.</p>",
+    "id": 96
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Uma sequência é x[n]=cos(0,6πn), obtida a fₛ=200 Hz. Qual par de frequências f₁ e f₂ faz com que ambos os sinais cos(2πf₁t) e cos(2πf₂t) reproduzam exatamente essa sequência?",
+    "o": [
+      "<span class='math'>30 Hz</span> e <span class='math'>170 Hz</span>.",
+      "<span class='math'>60 Hz</span> e <span class='math'>100 Hz</span>.",
+      "<span class='math'>60 Hz</span> e <span class='math'>140 Hz</span>.",
+      "<span class='math'>40 Hz</span> e <span class='math'>160 Hz</span>."
+    ],
+    "a": 2,
+    "e": "<p>Para reproduzir x[n]=cos(0,6πn), a frequência em banda base deve ser f=(0,6π/2π)·200=60 Hz. Outra possibilidade é 200−60=140 Hz, pois cos(1,4πn)=cos(−0,6πn)=cos(0,6πn).</p><p><b>Para consolidar:</b> Outros pares, como 30 e 170 Hz, também são equivalentes entre si, mas produzem uma sequência diferente da especificada. Por isso o enunciado exige que ambos os sinais reproduzam exatamente x[n], com amplitude unitária e fase zero.</p>",
+    "id": 97
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Intermediária",
+    "q": "Uma linha espectral contínua está em <span class='math'>ω=900π rad/s</span>. O sinal é amostrado a <span class='math'>f<sub>s</sub>=1200 Hz</span>. Qual par representa corretamente essa mesma componente antes e depois da amostragem?",
+    "o": [
+      "<span class='math'>f=900π Hz</span> e <span class='math'>Ω=3π/4 rad/amostra</span>.",
+      "<span class='math'>f=900 Hz</span> e <span class='math'>Ω=3π/2 rad/amostra</span>.",
+      "<span class='math'>f=450 Hz</span> e <span class='math'>Ω=3π/2 rad/amostra</span>.",
+      "<span class='math'>f=450 Hz</span> e <span class='math'>Ω=3π/4 rad/amostra</span>."
+    ],
+    "a": 3,
+    "e": "<p>A conversão de frequência angular contínua para hertz é f=ω/(2π). Portanto, ω=900π rad/s corresponde a 450 Hz. Após amostrar a 1200 Hz, Ω=ω/fₛ=900π/1200=3π/4 rad/amostra.</p><p><b>Para consolidar:</b> ω mede radianos por segundo. Ω mede radianos por amostra. O intervalo Tₛ transforma uma na outra: Ω=ωTₛ. O resultado também pode ser verificado por Ω=2πf/fₛ, usando f em hertz.</p>",
+    "id": 98
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Conceitual",
+    "q": "Uma componente analógica de <span class='math'>480 Hz</span> foi adquirida a <span class='math'>f<sub>s</sub>=800 Hz</span>, aparecendo na sequência como uma componente equivalente a <span class='math'>320 Hz</span>. Sabendo que o sinal na entrada do amostrador não tem componentes acima de 480 Hz, qual ação permite uma nova medição sem esse rebatimento?",
+    "o": [
+      "Refazer a aquisição com <span class='math'>f<sub>s</sub>=1,2 kHz</span>.",
+      "Interpolar numericamente a sequência para 3,2 kHz.",
+      "Manter <span class='math'>f<sub>s</sub>=800 Hz</span> e registrar por mais tempo.",
+      "Aplicar um passa-baixas digital depois da aquisição, mantendo os mesmos dados."
+    ],
+    "a": 0,
+    "e": "<p>A aquisição original tem Nyquist em 400 Hz, abaixo de 480 Hz. Por isso a componente aparece como 800−480=320 Hz. Em uma nova aquisição a 1200 Hz, Nyquist passa a 600 Hz e a componente de 480 Hz fica dentro da faixa sem rebatimento.</p><p><b>Para consolidar:</b> Registrar por mais tempo ou acrescentar zeros pode melhorar a resolução ou a visualização espectral, mas não recupera a informação perdida. Interpolação também não cria novas medições. A nova taxa resolve o caso sob a hipótese de banda analógica limitada especificada.</p>",
+    "id": 99
+  },
+  {
+    "cat": "Amostragem e reconstrução",
+    "diff": "Avançada",
+    "q": "Um sinal contínuo é limitado a <span class='math'>|ω|≤2000 rad/s</span> e é amostrado com <span class='math'>ω<sub>s</sub>=5000 rad/s</span>. Qual alternativa descreve corretamente a réplica espectral imediatamente à direita da central?",
+    "o": [
+      "Ela é centrada em <span class='math'>5000 rad/s</span>, ocupa de <span class='math'>3000 a 7000 rad/s</span> e não se sobrepõe à réplica central.",
+      "Ela é centrada em <span class='math'>2500 rad/s</span>, ocupa de 500 a 4500 rad/s e se sobrepõe à central.",
+      "Ela é centrada em <span class='math'>5000 rad/s</span>, ocupa de 2000 a 5000 rad/s e toca a réplica central.",
+      "Ela é centrada em <span class='math'>2000 rad/s</span>, ocupa de 0 a 4000 rad/s e se sobrepõe à central."
+    ],
+    "a": 0,
+    "e": "<p>A réplica imediatamente à direita é deslocada de +ωₛ=5000 rad/s. Partindo do intervalo [−2000,2000], seus extremos passam a 3000 e 7000 rad/s. A central termina em 2000 rad/s, deixando uma separação de 1000 rad/s.</p><p><b>Para consolidar:</b> A frequência de amostragem determina o centro da réplica, enquanto a banda original determina sua meia largura. Misturar esses papéis produz intervalos incorretos. Como todas as grandezas estão em rad/s, não há necessidade de converter para hertz.</p>",
+    "id": 100
+  }
 ];
-const EXTRA_Q = [{"cat": "Sistemas", "diff": "Intermediária", "q": "Considere o sistema discreto <span class='math'>y[n] = x[n] + x[n-2] + 0,5x[n-3]</span>. Qual é a resposta impulsiva <span class='math'>h[n]</span> e qual é a causalidade do sistema?", "o": ["<span class='math'>h[n] = δ[n] + δ[n-2] + 0,5δ[n-3]</span> e o sistema é causal.", "<span class='math'>h[n] = δ[n] + δ[n+2] + 0,5δ[n+3]</span> e o sistema é causal.", "<span class='math'>h[n] = δ[n] + δ[n-2] + 0,5δ[n-3]</span> e o sistema não é causal.", "<span class='math'>h[n] = δ[n] - δ[n-2] + 0,5δ[n-3]</span> e o sistema é causal."], "a": 0, "e": "Para um sistema LTI, basta observar os atrasos da entrada. Logo <span class='math'>h[n]</span> é a soma de impulsos ponderados nos instantes 0, 2 e 3. Como só há termos presentes e passados, o sistema é causal.", "v": {"kind": "stem", "start": 0, "values": [1, 0, 1, 0.5, 0, 0]}}, {"cat": "Sistemas", "diff": "Básica", "q": "No sistema <span class='math'>y[n] = x[n] + x[n-2] + 0,5x[n-3]</span>, a saída depende de quais amostras de entrada?", "o": ["Apenas de <span class='math'>x[n], x[n-2]</span> e <span class='math'>x[n-3]</span>.", "Apenas de <span class='math'>x[n+1]</span> e <span class='math'>x[n+3]</span>.", "De todas as amostras passadas até <span class='math'>-∞</span>.", "Somente de <span class='math'>x[n-1]</span>."], "a": 0, "e": "A própria equação de diferença mostra explicitamente as amostras que contribuem para a saída naquele índice n."}, {"cat": "Sistemas", "diff": "Intermediária", "q": "O sistema <span class='math'>y[n] = x[n] + x[n-2] + 0,5x[n-3]</span> deve ser classificado como: ", "o": ["FIR e causal.", "IIR e não causal.", "FIR e anti-causal.", "IIR e causal."], "a": 0, "e": "A resposta ao impulso possui comprimento finito, então o sistema é FIR. Além disso, só usa amostras presentes e passadas, logo é causal."}, {"cat": "Sistemas", "diff": "Intermediária", "q": "Se a entrada do sistema <span class='math'>y[n] = x[n] + x[n-2] + 0,5x[n-3]</span> for <span class='math'>x[n]=δ[n]</span>, qual será a saída?", "o": ["<span class='math'>δ[n] + δ[n-2] + 0,5δ[n-3]</span>", "<span class='math'>δ[n-1] + δ[n-2]</span>", "<span class='math'>u[n]</span>", "<span class='math'>δ[n] - δ[n-3]</span>"], "a": 0, "e": "Em um sistema LTI, a resposta à entrada impulso é justamente a resposta impulsiva <span class='math'>h[n]</span>."}, {"cat": "Convolução", "diff": "Gráfica", "q": "No gráfico, <span class='math'>x[n]</span> possui impulsos unitários em <span class='math'>n=0</span> e <span class='math'>n=4</span>, e <span class='math'>h[n]</span> vale 1 em <span class='math'>n=-1</span> e <span class='math'>n=0</span>, e 0,5 em <span class='math'>n=1</span>. Qual é a expressão correta para <span class='math'>y[n]=x[n]*h[n]</span>?", "o": ["<span class='math'>y[n]=h[n]+h[n-4]</span>", "<span class='math'>y[n]=h[n]+h[n+4]</span>", "<span class='math'>y[n]=2h[n]</span>", "<span class='math'>y[n]=x[n]+h[n]</span>"], "a": 0, "e": "Como <span class='math'>x[n]=δ[n]+δ[n-4]</span>, a convolução resulta em <span class='math'>y[n]=h[n]+h[n-4]</span>.", "v": {"kind": "stem", "start": -2, "values": [0, 0, 1, 0, 0, 0, 1, 0, 0]}}, {"cat": "Convolução", "diff": "Gráfica", "q": "Considere <span class='math'>x[n]=δ[n]+δ[n-4]</span> e <span class='math'>h[-1]=1, h[0]=1, h[1]=0,5</span>, com <span class='math'>h[n]=0</span> nos demais índices. Quais são os valores não nulos de <span class='math'>y[n]=x[n]*h[n]</span>?", "o": ["<span class='math'>y[-1]=1, y[0]=1, y[1]=0,5, y[3]=1, y[4]=1, y[5]=0,5</span>", "<span class='math'>y[-1]=1, y[0]=1, y[1]=1, y[3]=1, y[4]=1, y[5]=1</span>", "<span class='math'>y[0]=1, y[1]=0,5, y[4]=1, y[5]=0,5</span>", "<span class='math'>y[-1]=0,5, y[0]=1, y[1]=1</span>"], "a": 0, "e": "A primeira cópia de <span class='math'>h[n]</span> aparece centrada em 0 e a segunda é deslocada para a direita em 4 amostras, gerando exatamente esses seis valores não nulos."}, {"cat": "Convolução", "diff": "Gráfica", "q": "Considere <span class='math'>x[n]=δ[n]+δ[n-4]</span> e <span class='math'>h[-1]=1, h[0]=1, h[1]=0,5</span>, com <span class='math'>h[n]=0</span> nos demais índices. Qual é o valor de <span class='math'>y[5]</span>?", "o": ["0", "0,5", "1", "1,5"], "a": 1, "e": "A única contribuição em <span class='math'>n=5</span> vem da cópia deslocada de <span class='math'>h[n-4]</span>, cujo valor em <span class='math'>n=5</span> corresponde a <span class='math'>h[1]=0,5</span>."}, {"cat": "Convolução", "diff": "Gráfica", "q": "Considere <span class='math'>x(t)=δ(t-2)+2δ(t-7)</span> e <span class='math'>h(t)=rect(t/2)</span>. Qual é a convolução <span class='math'>y(t)=x(t)*h(t)</span>?", "o": ["<span class='math'>y(t)=rect((t-2)/2)+2 rect((t-7)/2)</span>", "<span class='math'>y(t)=rect(t/2)+2 rect(t/7)</span>", "<span class='math'>y(t)=3 rect(t/2)</span>", "<span class='math'>y(t)=δ(t-2)+2δ(t-7)</span>"], "a": 0, "e": "Convoluir com um impulso apenas desloca a função. O fator 2 do segundo impulso também escala a segunda cópia de <span class='math'>h(t)</span>.", "v": {"kind": "ctimpulses", "times": [2, 7], "amps": [1, 2]}}, {"cat": "Convolução", "diff": "Intermediária", "q": "No caso <span class='math'>y(t)=rect((t-2)/2)+2 rect((t-7)/2)</span>, em quais instantes estão centrados os dois pulsos retangulares?", "o": ["Em <span class='math'>t=2</span> e <span class='math'>t=7</span>.", "Em <span class='math'>t=0</span> e <span class='math'>t=2</span>.", "Em <span class='math'>t=-2</span> e <span class='math'>t=-7</span>.", "Em <span class='math'>t=1</span> e <span class='math'>t=6</span>."], "a": 0, "e": "Cada termo <span class='math'>rect((t-t_0)/2)</span> gera um retângulo de largura 2 centrado em <span class='math'>t_0</span>."}, {"cat": "Convolução", "diff": "Intermediária", "q": "Ainda para <span class='math'>x(t)=δ(t-2)+2δ(t-7)</span> e <span class='math'>h(t)=rect(t/2)</span>, qual é a amplitude do segundo pulso em sua região central?", "o": ["0,5", "1", "2", "4"], "a": 2, "e": "O segundo impulso tem peso 2, portanto a segunda cópia do retângulo aparece com amplitude dobrada, isto é, igual a 2 em seu interior."}, {"cat": "Amostragem e reconstrução", "diff": "Intermediária", "q": "Para <span class='math'>x(t)=cos(2π 10000t)cos(2π 2000t)</span>, qual decomposição trigonométrica está correta?", "o": ["<span class='math'>x(t)=½cos(2π 12000t)+½cos(2π 8000t)</span>", "<span class='math'>x(t)=cos(2π 12000t)+cos(2π 8000t)</span>", "<span class='math'>x(t)=½cos(2π 10000t)+½cos(2π 2000t)</span>", "<span class='math'>x(t)=sin(2π 12000t)+sin(2π 8000t)</span>"], "a": 0, "e": "Usa-se a identidade <span class='math'>cos A · cos B = ½[cos(A+B)+cos(A−B)]</span>, gerando componentes em 12 kHz e 8 kHz.", "v": {"kind": "freqsticks", "freqs": [-12, -8, 8, 12], "amps": [0.25, 0.25, 0.25, 0.25], "unit": "kHz", "label": "X(f)"}}, {"cat": "Amostragem e reconstrução", "diff": "Gráfica", "q": "No espectro do sinal <span class='math'>x(t)=cos(2π 10000t)cos(2π 2000t)</span>, em quais frequências estão as linhas espectrais?", "o": ["<span class='math'>± 8 kHz</span> e <span class='math'>± 12 kHz</span>", "<span class='math'>± 2 kHz</span> e <span class='math'>± 10 kHz</span>", "Apenas em 10 kHz.", "Apenas em 8 kHz."], "a": 0, "e": "A multiplicação no tempo se decompõe em duas cossenoides de amplitude 1/2, em 8 kHz e 12 kHz. Na CTFT bilateral, isso gera linhas em ±8 kHz e ±12 kHz, cada uma com peso 1/4.", "v": {"kind": "freqsticks", "freqs": [-12, -8, 8, 12], "amps": [0.25, 0.25, 0.25, 0.25], "unit": "kHz", "label": "X(f)"}}, {"cat": "Amostragem e reconstrução", "diff": "Intermediária", "q": "Se <span class='math'>x(t)=cos(2π·10000t)cos(2π·2000t)</span> for amostrado com <span class='math'>f_s=21 kHz</span>, quais são as frequências angulares discretas equivalentes às componentes de 8 kHz e 12 kHz no intervalo <span class='math'>[0,π]</span>?", "o": ["<span class='math'>ω_1=16π/21</span> e <span class='math'>ω_2=6π/7</span>", "<span class='math'>ω_1=8π/21</span> e <span class='math'>ω_2=8π/7</span>", "<span class='math'>ω_1=2π/21</span> e <span class='math'>ω_2=4π/21</span>", "<span class='math'>ω_1=π/2</span> e <span class='math'>ω_2=π</span>"], "a": 0, "e": "Para 8 kHz, <span class='math'>ω=2π(8000/21000)=16π/21</span>. Para 12 kHz, a frequência amostrada é <span class='math'>8π/7</span>, equivalente a <span class='math'>6π/7</span> no intervalo principal."}, {"cat": "Amostragem e reconstrução", "diff": "Avançada", "q": "Considere <span class='math'>x(t)=cos(2π·10000t)cos(2π·2000t)</span> amostrado com <span class='math'>f_s=21 kHz</span>. Qual conjunto de afirmações é verdadeiro? I) o sinal possui cossenoides em 8 e 12 kHz, cada uma com amplitude 1/2; II) as frequências angulares discretas equivalentes no intervalo <span class='math'>[0,π]</span> são <span class='math'>16π/21</span> e <span class='math'>6π/7</span>; III) após reconstrução ideal em banda base aparecem componentes em 8 e 9 kHz; IV) a sequência discreta resultante possui período fundamental de 21 amostras.", "o": ["Apenas I e II", "Apenas I, II e III", "Apenas II e IV", "I, II, III e IV"], "a": 3, "e": "Todas as afirmações são corretas: 12 kHz sofre alias para 9 kHz após amostragem/reconstrução, e o período total da sequência é o mmc dos períodos 21 e 7, isto é, 21."}, {"cat": "Amostragem e reconstrução", "diff": "Intermediária", "q": "Qual frequência analógica surge por aliasing a partir da componente de 12 kHz quando <span class='math'>f_s=21 kHz</span>?", "o": ["1 kHz", "3 kHz", "9 kHz", "10,5 kHz"], "a": 2, "e": "A réplica cai em <span class='math'>|12-21|=9 kHz</span>, que fica dentro da banda base e aparece após a reconstrução."}, {"cat": "Amostragem e reconstrução", "diff": "Intermediária", "q": "O sinal <span class='math'>x(t)=cos(2π·10000t)cos(2π·2000t)</span> é amostrado a <span class='math'>f_s=21 kHz</span>. Após conversão D/A ideal e reconstrução passa-baixas ideal em banda base, quais frequências aparecem na saída?", "o": ["8 kHz e 12 kHz", "8 kHz e 9 kHz", "9 kHz e 12 kHz", "Apenas 8 kHz"], "a": 1, "e": "A componente de 8 kHz é preservada. A de 12 kHz viola Nyquist e reaparece como alias em 9 kHz."}, {"cat": "Amostragem e reconstrução", "diff": "Avançada", "q": "Ao selecionar apenas a réplica central do espectro amostrado usando um passa-baixas ideal, é possível reconstruir completamente o sinal original <span class='math'>x(t)</span>?", "o": ["Sim. Basta selecionar a réplica central, independentemente de aliasing e do ganho do filtro.", "Sim, desde que não tenha ocorrido aliasing e que o filtro de reconstrução tenha ganho <span class='math'>1/F_s</span> na banda passante.", "Não. A multiplicação do espectro por <span class='math'>F_s</span> torna a reconstrução impossível mesmo sem aliasing.", "Não. Como o trem de impulsos possui espectro infinito, nenhum filtro passa-baixas pode recuperar <span class='math'>x(t)</span>."], "a": 1, "e": "A reconstrução ideal requer duas condições: réplicas sem sobreposição e compensação do fator de escala introduzido pela amostragem por impulsos, usualmente via ganho <span class='math'>1/F_s</span>."}, {"cat": "Reconstrução e D/A", "diff": "Gráfica", "q": "O sinal contínuo de saída de um D/A com ZOH (segurador de ordem zero) é uma escada no tempo. No domínio da frequência, qual efeito o ZOH introduz?", "o": ["Nenhum efeito: a magnitude permanece plana em toda a banda.", "Uma envoltória do tipo sinc multiplicando o espectro, além de um atraso efetivo de <span class='math'>T_s/2</span>.", "Somente um ganho constante igual a 2.", "Transforma toda senoide em impulso de Dirac."], "a": 1, "e": "O ZOH tem resposta em frequência <span class='math'>H_{ZOH}(f)=T_s sinc(fT_s)e^{-jπ fT_s}</span> (até convenções de sinc), produzindo atenuação crescente com a frequência e fase linear.", "v": {"kind": "zoh", "ys": [0, 0, 0.08, 0.48, 1.0, 0.48, -0.12, -0.12, 0.08, 0.08, 0, 0]}}, {"cat": "Reconstrução e D/A", "diff": "Intermediária", "q": "Qual expressão descreve melhor o espectro do sinal de saída de um D/A ZOH?", "o": ["<span class='math'>X_{ZOH}(f)=X_p(f)</span>", "<span class='math'>X_{ZOH}(f)=X_p(f) T_s sinc(fT_s)e^{-jπ fT_s}</span>", "<span class='math'>X_{ZOH}(f)=X_p(f)+δ(f)</span>", "<span class='math'>X_ZOH(f)=X_p(f)/sinc(fT_s)</span>"], "a": 1, "e": "O ZOH é um sistema contínuo com resposta em frequência do tipo sinc. Assim, a saída no domínio da frequência é o produto do espectro de entrada por essa resposta do segurador."}, {"cat": "Reconstrução e D/A", "diff": "Intermediária", "q": "Em comparação com a reconstrução ideal, o ZOH tende a: ", "o": ["Realçar cada vez mais as altas frequências.", "Atenuar as altas frequências, produzindo droop de magnitude.", "Eliminar completamente a componente DC.", "Tornar o sinal necessariamente não causal."], "a": 1, "e": "A magnitude do ZOH segue uma envoltória sinc, portanto cai com a frequência e provoca atenuação nas componentes mais altas."}, {"cat": "Casos aplicados", "diff": "Intermediária", "q": "Um alarme possui fundamental de 1200 Hz e 3ª harmônica significativa em 3600 Hz. Se o sinal é amostrado com <span class='math'>f_s=3 kHz</span>, para qual frequência a 3ª harmônica sofre aliasing?", "o": ["300 Hz", "600 Hz", "1200 Hz", "1800 Hz"], "a": 1, "e": "Como <span class='math'>3600 Hz</span> está acima de Nyquist (1500 Hz), ela se dobra para <span class='math'>|3600-3000|=600 Hz</span> na banda base."}, {"cat": "Casos aplicados", "diff": "Intermediária", "q": "Um alarme possui fundamental de 1200 Hz e 3ª harmônica significativa em 3600 Hz. Ele é amostrado a 3 kHz e reconstruído com passa-baixas ideal de 1500 Hz. Quais frequências aparecem na saída?", "o": ["Apenas 1200 Hz", "1200 Hz e 1500 Hz", "1200 Hz e 600 Hz", "600 Hz e 3600 Hz"], "a": 2, "e": "A fundamental de 1200 Hz é preservada. A 3ª harmônica de 3600 Hz reaparece como componente espúria em 600 Hz, percebida como tom grave."}, {"cat": "Casos aplicados", "diff": "Conceitual", "q": "Um alarme contém componentes em 1200 Hz e 3600 Hz e será amostrado a 3 kHz. Um filtro analógico antes do ADC poderia evitar que a componente de 3600 Hz origine, por aliasing, um novo tom grave?", "o": ["Não, porque filtros analógicos não alteram aliasing.", "Sim, se atenuar suficientemente a componente de 3600 Hz antes da amostragem.", "Não, porque qualquer filtro antes do ADC obrigatoriamente remove também 1200 Hz.", "Sim, mas apenas se for digital e aplicado após o ADC."], "a": 1, "e": "Um anti-aliasing analógico colocado antes da amostragem pode impedir que a componente de 3600 Hz chegue ao conversor e se replique para 600 Hz."}, {"cat": "Casos aplicados", "diff": "Intermediária", "q": "Qual frequência de amostragem seria mais adequada para registrar sem aliasing tanto a fundamental de 1200 Hz quanto a 3ª harmônica de 3600 Hz?", "o": ["3 kHz", "4 kHz", "6 kHz", "8 kHz"], "a": 3, "e": "É necessário amostrar acima do dobro da maior frequência de interesse, isto é, acima de 7200 Hz. Entre as alternativas, 8 kHz é a adequada."}, {"cat": "Casos aplicados", "diff": "Avançada", "q": "Em um ensaio de vibração, a informação útil está entre 0 e 100 Hz, mas há ruído branco significativo até vários kHz. Apenas escolher <span class='math'>f_s > 200 Hz</span> garante uma boa aquisição?", "o": ["Sim, porque basta satisfazer Nyquist da banda útil.", "Não, porque o ruído de alta frequência pode sofrer aliasing para dentro da banda útil.", "Sim, se o ADC tiver 16 bits ou mais.", "Não, porque qualquer sinal com ruído branco é impossível de amostrar."], "a": 1, "e": "Mesmo que o conteúdo útil esteja abaixo de 100 Hz, componentes de ruído acima de Nyquist podem se dobrar para a banda de interesse se não forem filtradas antes do ADC."}, {"cat": "Casos aplicados", "diff": "Intermediária", "q": "No caso do ensaio de vibração com ruído amplo em frequência, onde deve ser colocado o filtro anti-aliasing principal?", "o": ["Depois do ADC, como filtro digital.", "Antes do ADC, como filtro analógico.", "Tanto faz: a posição é irrelevante.", "Somente depois do DAC."], "a": 1, "e": "O filtro precisa atuar antes da amostragem. Depois que o aliasing ocorre, um filtro digital não consegue separar o que já se sobrepôs à banda útil."}, {"cat": "Casos aplicados", "diff": "Avançada", "q": "Qual combinação é mais razoável para preservar aproximadamente 0–100 Hz e obter pelo menos cerca de 40 dB de atenuação próximo à frequência de Nyquist usando um Butterworth de 6ª ordem?", "o": ["<span class='math'>f_c≈ 100 Hz</span> e <span class='math'>f_s≈ 220 Hz</span>", "<span class='math'>f_c≈ 110 Hz</span> e <span class='math'>f_s≈ 500 Hz</span>", "<span class='math'>f_c≈ 300 Hz</span> e <span class='math'>f_s≈ 500 Hz</span>", "<span class='math'>f_c≈ 1 kHz</span> e <span class='math'>f_s≈ 2,2 kHz</span>"], "a": 1, "e": "Uma escolha em torno de <span class='math'>f_c≈ 110 Hz</span> e <span class='math'>f_s≈ 500 Hz</span> preserva a banda útil com folga moderada e oferece forte atenuação perto de Nyquist para um filtro de 6ª ordem."}, {"cat": "Casos aplicados", "diff": "Conceitual", "q": "Um passa-baixas digital de 100 Hz, aplicado somente depois do ADC, pode substituir completamente o filtro anti-aliasing analógico do ensaio de vibração?", "o": ["Sim, porque a filtragem digital é sempre suficiente.", "Não, porque ele não desfaz a sobreposição espectral causada antes da digitalização.", "Sim, desde que o processador seja rápido.", "Não, porque filtros digitais não funcionam abaixo de 1 kHz."], "a": 1, "e": "O filtro digital pode limpar parte do conteúdo já amostrado, mas não consegue recuperar a separação entre banda útil e ruído que já sofreu aliasing."}, {"cat": "Sinais e periodicidade", "diff": "Gráfica", "q": "Pela definição mostrada para <span class='math'>rect(t/T)</span>, qual valor a função assume exatamente em <span class='math'>t=± T/2</span>?", "o": ["0", "1/4", "1/2", "1"], "a": 2, "e": "Na convenção mostrada, a função retangular vale 1 no interior, 0 fora e 1/2 exatamente nos pontos de descontinuidade.", "v": {"kind": "rectcts", "T": 1}}, {"cat": "Sinais e periodicidade", "diff": "Gráfica", "q": "Para a função <span class='math'>rect(t/T)</span>, em que intervalo ela vale 1?", "o": ["<span class='math'>|t| &lt; T/2</span>", "<span class='math'>|t|≤ T</span>", "<span class='math'>|t|>T/2</span>", "Somente em <span class='math'>t=0</span>"], "a": 0, "e": "Pela definição padrão da função retangular, o valor é unitário no interior do pulso, isto é, para <span class='math'>|t| &lt; T/2</span>.", "v": {"kind": "rectcts", "T": 1}}, {"cat": "Sinais e periodicidade", "diff": "Intermediária", "q": "Se <span class='math'>h(t)=rect(t/2)</span>, qual é a largura total do pulso?", "o": ["1", "2", "4", "Depende da amplitude"], "a": 1, "e": "Em <span class='math'>rect(t/T)</span>, a largura total do pulso é <span class='math'>T</span>. Portanto, em <span class='math'>rect(t/2)</span> a largura é 2."}, {"cat": "Reconstrução e D/A", "diff": "Gráfica", "q": "Observando um sinal de saída em escada produzido por ZOH, qual é a melhor descrição no tempo?", "o": ["Entre duas amostras consecutivas, a saída permanece constante até a próxima atualização.", "Entre amostras, a saída interpola linearmente sempre.", "A saída é uma sequência de impulsos de Dirac.", "A saída é necessariamente senoidal."], "a": 0, "e": "O segurador de ordem zero mantém o último valor amostrado constante até a chegada da amostra seguinte.", "v": {"kind": "zoh", "ys": [0, 0, 0.05, 0.5, 1, 0.45, -0.12, -0.12, 0.08, 0.08, 0, 0]}}];
-Q.push(...EXTRA_Q);
 
 const letters=['A','B','C','D'];
 let filtered=[...Q], idx=0, selected=null;
@@ -173,14 +1848,16 @@ function escapeAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quo
 
 function renderVisual(v){
   if(!v) return '';
-  const W=680,H=235,p=38, mid=H/2;
+  const W=680,H=235,p=56, mid=H/2;
+  const fmt=n=>String(Number(n.toFixed(3))).replace(".",",");
   if(v.kind==='stem'){
     const vals=v.values, start=v.start||0, max=Math.max(1,...vals.map(x=>Math.abs(x)));
     const minN=start, maxN=start+vals.length-1, span=Math.max(1,maxN-minN);
     let s=`<svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="gráfico de sequência discreta">`;
-    s+=`<line x1="${p}" y1="${mid}" x2="${W-p}" y2="${mid}" stroke="#98a2b3" stroke-width="1.5"/><line x1="${p}" y1="20" x2="${p}" y2="${H-20}" stroke="#98a2b3" stroke-width="1.5"/>`;
-    vals.forEach((val,i)=>{const n=start+i; const x=p+(n-minN)/span*(W-2*p); const y=mid-val/max*72; s+=`<line x1="${x}" y1="${mid}" x2="${x}" y2="${y}" stroke="#2357d8" stroke-width="3"/><circle cx="${x}" cy="${y}" r="5" fill="#2357d8"/><text x="${x}" y="${mid+22}" text-anchor="middle" font-size="12" fill="#667085">${n}</text>`;});
-    s+=`<text x="${W-p+6}" y="${mid+4}" font-size="13" fill="#667085">n</text><text x="${p+6}" y="28" font-size="13" fill="#667085">amplitude</text></svg>`;return s;
+    s+=`<line x1="${p}" y1="${mid}" x2="${W-p}" y2="${mid}" stroke="#98a2b3" stroke-width="1.5"/><line x1="${p+(0-minN)/span*(W-2*p)}" y1="20" x2="${p+(0-minN)/span*(W-2*p)}" y2="${H-20}" stroke="#98a2b3" stroke-width="1.5"/>`;
+    vals.forEach((val,i)=>{const n=start+i; const x=p+(n-minN)/span*(W-2*p); const y=mid-val/max*72; s+=`<line x1="${x}" y1="${mid}" x2="${x}" y2="${y}" stroke="#2357d8" stroke-width="3"/><circle cx="${x}" cy="${y}" r="5" fill="#2357d8"/><text x="${x}" y="${H-12}" text-anchor="middle" font-size="12" fill="#667085">${n}</text>`;});
+    vals.forEach((val,i)=>{if(val!==0){const x=p+i/span*(W-2*p),y=mid-val/max*72;s+=`<text x="${x}" y="${val>0?y-10:y+18}" text-anchor="middle" font-size="13" fill="#172033">${fmt(val)}</text>`;}});
+    s+=`<text x="${W-p+6}" y="${mid+4}" font-size="13" fill="#667085">n</text><text x="${p+6}" y="16" font-size="13" fill="#667085">amplitude</text></svg>`;return s;
   }
   if(v.kind==='ctsine'){
     const xmin=v.xmin,xmax=v.xmax,A=v.A,T=v.T; let pts=[]; for(let i=0;i<=500;i++){let t=xmin+(xmax-xmin)*i/500;let val=A*Math.cos(2*Math.PI*t/T);let x=p+i/500*(W-2*p);let y=mid-val*75;pts.push(`${x},${y}`)}
@@ -202,7 +1879,7 @@ function renderVisual(v){
   }
   if(v.kind==='convshape'){
     const vals=v.values,max=Math.max(...vals), start=0,span=vals.length-1; let s=`<svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="forma da convolução discreta"><line x1="${p}" y1="${H-42}" x2="${W-p}" y2="${H-42}" stroke="#98a2b3"/>`;
-    vals.forEach((val,i)=>{const x=p+i/span*(W-2*p),y=H-42-val/max*140;s+=`<line x1="${x}" y1="${H-42}" x2="${x}" y2="${y}" stroke="#2357d8" stroke-width="3"/><circle cx="${x}" cy="${y}" r="5" fill="#2357d8"/><text x="${x}" y="${H-20}" text-anchor="middle" font-size="12" fill="#667085">${i}</text>`}); s+=`</svg>`; return s;
+    vals.forEach((val,i)=>{const x=p+i/span*(W-2*p),y=H-42-val/max*140;s+=`<line x1="${x}" y1="${H-42}" x2="${x}" y2="${y}" stroke="#2357d8" stroke-width="3"/><circle cx="${x}" cy="${y}" r="5" fill="#2357d8"/><text x="${x}" y="${H-20}" text-anchor="middle" font-size="12" fill="#667085">${i}</text>`}); vals.forEach((val,i)=>{s+=`<text x="${p+i/span*(W-2*p)}" y="${H-42-val/max*140-10}" text-anchor="middle" font-size="13" fill="#172033">${fmt(val)}</text>`}); s+=`<text x="${W-p+8}" y="${H-38}" font-size="13">n</text></svg>`; return s;
   }
 
   if(v.kind==='freqsticks'){
@@ -235,51 +1912,149 @@ function renderVisual(v){
     const times=v.times||[], amps=v.amps||times.map(_=>1); const minT=Math.min(0,...times)-1, maxT=Math.max(...times)+1; const span=Math.max(1,maxT-minT);
     let s=`<svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="impulsos em tempo contínuo"><line x1="${p}" y1="${H-42}" x2="${W-p}" y2="${H-42}" stroke="#98a2b3" stroke-width="1.5"/><line x1="${p}" y1="20" x2="${p}" y2="${H-22}" stroke="#98a2b3" stroke-width="1.5"/>`;
     times.forEach((t,i)=>{const x=p+(t-minT)/span*(W-2*p), y=H-42-(amps[i]/Math.max(...amps))*125; s+=`<line x1="${x}" y1="${H-42}" x2="${x}" y2="${y}" stroke="#2357d8" stroke-width="4"/><polygon points="${x},${y-10} ${x-6},${y+4} ${x+6},${y+4}" fill="#2357d8"/><text x="${x}" y="${H-18}" text-anchor="middle" font-size="12" fill="#667085">${t}</text><text x="${x+9}" y="${y-4}" font-size="12" fill="#667085">${amps[i]}</text>`});
-    s+=`<text x="${W-p+4}" y="${H-38}" font-size="13" fill="#667085">t</text><text x="${p+3}" y="28" font-size="13" fill="#667085">amplitude</text></svg>`; return s;
+    s+=`<text x="${W-p+4}" y="${H-38}" font-size="13" fill="#667085">t</text><text x="${p+3}" y="28" font-size="13" fill="#667085">peso (área)</text></svg>`; return s;
+  }
+
+  if(v.kind==='dualstem'){
+    const drawPanel=(vals,start,yTop,yBottom,label)=>{
+      const left=p+18,right=W-p-18, axis=(yTop+yBottom)/2;
+      const max=Math.max(1,...vals.map(x=>Math.abs(x))); const span=Math.max(1,vals.length-1);
+      let z=`<line x1="${left}" y1="${axis}" x2="${right}" y2="${axis}" stroke="#98a2b3" stroke-width="1.3"/><text x="${left-40}" y="${yTop+16}" font-size="14" font-weight="700" fill="#172033">${label}</text>`;
+      vals.forEach((val,i)=>{const n=start+i,x=left+i/span*(right-left),y=axis-val/max*((yBottom-yTop)*0.30);z+=`<line x1="${x}" y1="${axis}" x2="${x}" y2="${y}" stroke="#2357d8" stroke-width="3"/><circle cx="${x}" cy="${y}" r="4.5" fill="#2357d8"/><text x="${x}" y="${yBottom+2}" text-anchor="middle" font-size="11" fill="#667085">${n}</text>`});
+      vals.forEach((val,i)=>{if(val!==0){const x=left+i/span*(right-left),y=axis-val/max*((yBottom-yTop)*0.30);z+=`<text x="${x}" y="${val>0?y-9:y+17}" text-anchor="middle" font-size="13" fill="#172033">${fmt(val)}</text>`;}});
+      z+=`<text x="${right+14}" y="${axis+4}" font-size="12" fill="#667085">n</text>`;
+      return z;
+    };
+    let s=`<svg class="plot" viewBox="0 0 ${W} ${H+80}" role="img" aria-label="gráficos de x[n] e h[n]">`;
+    s+=drawPanel(v.xvalues||[],v.xstart||0,8,145,'x[n]');
+    s+=drawPanel(v.hvalues||[],v.hstart||0,150,H+65,'h[n]');
+    s+=`</svg>`; return s;
+  }
+  if(v.kind==='bandrect'){
+    const B=v.B||1, y0=H-44,y1=66,xl=p+105,xr=W-p-105;
+    let s=`<svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="espectro contínuo limitado em banda"><line x1="${p}" y1="${y0}" x2="${W-p}" y2="${y0}" stroke="#98a2b3" stroke-width="1.5"/><line x1="${W/2}" y1="24" x2="${W/2}" y2="${y0}" stroke="#cdd3dd" stroke-dasharray="5 5"/>`;
+    s+=`<path d="M ${p+22} ${y0} H ${xl} V ${y1} H ${xr} V ${y0} H ${W-p-22}" fill="none" stroke="#2357d8" stroke-width="3"/>`;
+    s+=`<text x="${xl}" y="${H-18}" text-anchor="middle" font-size="12" fill="#667085">−${B}</text><text x="${W/2}" y="${H-18}" text-anchor="middle" font-size="12" fill="#667085">0</text><text x="${xr}" y="${H-18}" text-anchor="middle" font-size="12" fill="#667085">${B}</text><text x="${W-p+4}" y="${y0+4}" font-size="13" fill="#667085">f (Hz)</text><text x="${p+2}" y="24" font-size="13" fill="#667085">${v.label||'X(j2πf)'}</text></svg>`; return s;
+  }
+  if(v.kind==='trianglespectrum'){
+    const B=v.B||1,y0=H-44,peak=58,xl=p+95,xr=W-p-95;
+    let s=`<svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="espectro triangular contínuo"><line x1="${p}" y1="${y0}" x2="${W-p}" y2="${y0}" stroke="#98a2b3" stroke-width="1.5"/><line x1="${W/2}" y1="24" x2="${W/2}" y2="${y0}" stroke="#cdd3dd" stroke-dasharray="5 5"/><polyline points="${xl},${y0} ${W/2},${peak} ${xr},${y0}" fill="none" stroke="#2357d8" stroke-width="3"/>`;
+    s+=`<text x="${xl}" y="${H-18}" text-anchor="middle" font-size="12" fill="#667085">−${B}</text><text x="${W/2}" y="${H-18}" text-anchor="middle" font-size="12" fill="#667085">0</text><text x="${xr}" y="${H-18}" text-anchor="middle" font-size="12" fill="#667085">${B}</text><text x="${W-p+4}" y="${y0+4}" font-size="13" fill="#667085">f (Hz)</text><text x="${p+2}" y="24" font-size="13" fill="#667085">${v.label||'X(j2πf)'}</text><text x="${W/2+8}" y="${peak-5}" font-size="12" fill="#667085">1</text></svg>`; return s;
   }
   return '';
 }
 
+const STORAGE_KEY='ptc3361-study-v3';
+let game={xp:0,streak:0,best:0,earned:[]};
+let storageOK=true, rewardTimer=null;
+const levels=[{at:0,name:'Explorador'},{at:150,name:'Investigador'},{at:400,name:'Analista'},{at:800,name:'Especialista'},{at:1300,name:'Mestre dos sinais'}];
+function saveProgress(){
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify({game,answers:[...state].map(([q,s])=>({id:q.id,...s}))}));}catch(_){storageOK=false;}
+  el('saveStatus').textContent=storageOK?'Seu progresso é salvo automaticamente neste navegador.':'O navegador não permitiu salvar. O treino funciona nesta sessão, mas o progresso pode ser perdido ao fechar.';
+}
+function loadProgress(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(raw){const data=JSON.parse(raw);if(data.game&&Number.isFinite(data.game.xp)&&Array.isArray(data.game.earned)){
+      game={xp:Math.max(0,data.game.xp),streak:Math.max(0,Number(data.game.streak)||0),best:Math.max(0,Number(data.game.best)||0),earned:[...new Set(data.game.earned.filter(id=>Q.some(q=>q.id===id)))]};
+      for(const a of data.answers||[]){const q=Q.find(q=>q.id===a.id);if(q&&Number.isInteger(a.choice)&&a.choice>=0&&a.choice<4)state.set(q,{choice:a.choice,checked:!!a.checked,correct:!!a.checked&&a.choice===q.a});}
+    }}
+  }catch(_){storageOK=false;}
+}
+function currentLevel(){return levels.filter(l=>game.xp>=l.at).at(-1)}
+function updateGame(){
+  const level=currentLevel(),nextLevel=levels.find(l=>l.at>game.xp);
+  el('xpValue').textContent=`${game.xp} XP`;
+  el('streakValue').textContent=`${game.streak} ${game.streak===1?'acerto':'acertos'}`;
+  el('levelValue').textContent=level.name;
+  el('xpBar').style.width=nextLevel?`${Math.min(100,100*(game.xp-level.at)/(nextLevel.at-level.at))}%`:'100%';
+  el('levelHint').textContent=nextLevel?`${nextLevel.at-game.xp} XP para ${nextLevel.name} · ${game.earned.length}/100 questões conquistadas`:`Nível máximo · ${game.earned.length}/100 questões conquistadas`;
+  const badges=[['★ Primeiro acerto',game.earned.length>=1],['⚡ Sequência de 5',game.best>=5],['◆ 25 questões',game.earned.length>=25],['✦ 50 questões',game.earned.length>=50],['🏆 100 questões',game.earned.length>=100]];
+  el('achievements').innerHTML=badges.map(([name,yes])=>`<span class="achievement ${yes?'earned':''}" title="${yes?'Conquistada':'Ainda não conquistada'}">${yes?'✓ ':''}${name}</span>`).join('');
+}
+function reward(gain){
+  clearTimeout(rewardTimer);
+  const titles=['Muito bem!','Raciocínio confirmado!','Mais um conceito dominado!','Boa resolução!'];
+  const title=titles[Math.floor(Math.random()*titles.length)];
+  const box=el('reward');box.classList.remove('show');
+  box.innerHTML=`${title}<span>${gain?`+${gain} XP · `:'Conhecimento reforçado · '}${game.streak} na sequência</span>`;
+  void box.offsetWidth;box.classList.add('show');
+  const conf=el('confetti');conf.replaceChildren();
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!reduced){
+    for(let i=0;i<22;i++){const bit=document.createElement('i');bit.className='confetto';bit.style.setProperty('--c',['#2357d8','#14a87a','#f4b63b','#93b3ff'][i%4]);bit.style.setProperty('--dx',`${(Math.random()-.5)*Math.min(window.innerWidth*.8,520)}px`);bit.style.setProperty('--dy',`${90+Math.random()*190}px`);bit.style.setProperty('--rot',`${Math.random()*700-350}deg`);conf.appendChild(bit);}
+    const card=document.querySelector('.card');card.classList.remove('celebrate');void card.offsetWidth;card.classList.add('celebrate');
+  }
+  rewardTimer=setTimeout(()=>{box.classList.remove('show');conf.replaceChildren();document.querySelector('.card').classList.remove('celebrate');},2200);
+}
+function cancelReward(){clearTimeout(rewardTimer);el('reward').classList.remove('show');el('confetti').replaceChildren();document.querySelector('.card').classList.remove('celebrate');}
 function applyFilter(){
   const cat=categorySelect.value;
   filtered=cat==='Todas'?[...Q]:Q.filter(q=>q.cat===cat);
   if(orderSelect.value==='shuffle') filtered=shuffle([...filtered]);
-  idx=0; selected=null; render();
+  idx=0;selected=null;render();
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function counts(){let checked=0,correct=0; filtered.forEach(q=>{const s=state.get(q); if(s?.checked){checked++; if(s.correct)correct++;}}); return {checked,correct}}
+function counts(){let checked=0,correct=0;filtered.forEach(q=>{const s=state.get(q);if(s?.checked){checked++;if(s.correct)correct++;}});return {checked,correct}}
+function updateCounts(){
+  const c=counts();
+  el('progressText').textContent=`Questão ${idx+1} de ${filtered.length} · ${c.checked} respondidas`;
+  el('progressBar').style.width=`${100*c.checked/filtered.length}%`;
+  el('scoreTop').textContent=c.correct;
+  el('navIndex').textContent=`${idx+1} / ${filtered.length}`;el('navScore').textContent=`${c.correct} certas`;
+}
 function render(){
   if(!filtered.length)return;
-  el('quizArea').style.display='block'; el('summary').classList.remove('show'); el('navbar').style.display='block';
-  const q=filtered[idx], s=state.get(q); selected=s?.choice ?? null;
-  el('categoryBadge').textContent=q.cat; el('difficulty').textContent=q.diff;
-  el('questionText').innerHTML=q.q; el('visual').innerHTML=renderVisual(q.v);
-  el('options').innerHTML=q.o.map((opt,i)=>`<button class="option" data-i="${i}"><span class="letter">${letters[i]}</span><span class="label">${opt}</span></button>`).join('');
-  document.querySelectorAll('.option').forEach(btn=>{btn.onclick=()=>selectOption(+btn.dataset.i);});
-  el('feedback').className='feedback'; el('feedback').innerHTML='';
-  if(s?.checked) showChecked(q,s); else if(selected!==null) markSelected();
-  const c=counts();
-  el('progressText').textContent=`Questão ${idx+1} de ${filtered.length}`; el('progressBar').style.width=`${((idx+1)/filtered.length)*100}%`; el('scoreTop').textContent=c.correct;
-  el('navIndex').textContent=`${idx+1} / ${filtered.length}`; el('navScore').textContent=`${c.correct} certas`;
-  el('prevBtn').disabled=idx===0; el('nextBtn').textContent=idx===filtered.length-1?'Finalizar':'Próxima →';
-  el('checkBtn').disabled=(selected===null)||!!s?.checked; el('resetQ').disabled=!!s?.checked || selected===null;
+  cancelReward();
+  el('quizArea').style.display='block';el('summary').classList.remove('show');el('navbar').style.display='block';
+  const q=filtered[idx],s=state.get(q);selected=s?.choice??null;
+  el('categoryBadge').textContent=q.cat;el('difficulty').textContent=`#${String(q.id).padStart(3,'0')} · ${q.diff}`;
+  el('questionText').innerHTML=q.q;el('visual').innerHTML=renderVisual(q.v);
+  el('options').innerHTML=q.o.map((opt,i)=>`<button class="option" data-i="${i}" aria-pressed="false"><span class="letter">${letters[i]}</span><span class="label">${opt}</span></button>`).join('');
+  document.querySelectorAll('.option').forEach(btn=>{btn.onclick=()=>selectOption(+btn.dataset.i)});
+  el('feedback').className='feedback';el('feedback').innerHTML='';
+  if(s?.checked)showChecked(q,s);else if(selected!==null)markSelected();
+  updateCounts();updateGame();
+  el('prevBtn').disabled=idx===0;el('nextBtn').textContent=idx===filtered.length-1?'Finalizar':'Próxima →';
+  el('checkBtn').disabled=(selected===null)||!!s?.checked;el('resetQ').disabled=!!s?.checked||selected===null;
 }
-function selectOption(i){const q=filtered[idx],s=state.get(q); if(s?.checked)return; selected=i; state.set(q,{choice:i,checked:false,correct:false}); markSelected(); el('checkBtn').disabled=false; el('resetQ').disabled=false}
-function markSelected(){document.querySelectorAll('.option').forEach((b,i)=>b.classList.toggle('selected',i===selected))}
-function showChecked(q,s){document.querySelectorAll('.option').forEach((b,i)=>{b.disabled=true;b.classList.remove('selected');if(i===q.a)b.classList.add('correct');if(i===s.choice&&i!==q.a)b.classList.add('wrong')}); const ok=s.choice===q.a; const fb=el('feedback');fb.className=`feedback show ${ok?'ok':'bad'}`;fb.innerHTML=`<strong>${ok?'Resposta correta.':'Resposta incorreta.'}</strong>${q.e}`;el('checkBtn').disabled=true;el('resetQ').disabled=true}
-function check(){const q=filtered[idx]; if(selected===null)return; const s={choice:selected,checked:true,correct:selected===q.a}; state.set(q,s); showChecked(q,s); const c=counts();el('scoreTop').textContent=c.correct;el('navScore').textContent=`${c.correct} certas`}
-function next(){if(idx===filtered.length-1){finish();return;} idx++;selected=null;render();window.scrollTo({top:0,behavior:'smooth'})}
-function prev(){if(idx>0){idx--;selected=null;render();window.scrollTo({top:0,behavior:'smooth'})}}
+function selectOption(i){const q=filtered[idx],s=state.get(q);if(s?.checked)return;selected=i;state.set(q,{choice:i,checked:false,correct:false});markSelected();el('checkBtn').disabled=false;el('resetQ').disabled=false;saveProgress()}
+function markSelected(){document.querySelectorAll('.option').forEach((b,i)=>{b.classList.toggle('selected',i===selected);b.setAttribute('aria-pressed',String(i===selected))})}
+function showChecked(q,s){
+  document.querySelectorAll('.option').forEach((b,i)=>{b.disabled=true;b.classList.remove('selected');b.setAttribute('aria-pressed',String(i===s.choice));if(i===q.a)b.classList.add('correct');if(i===s.choice&&i!==q.a)b.classList.add('wrong')});
+  const ok=s.choice===q.a,fb=el('feedback');fb.className=`feedback show ${ok?'ok':'bad'}`;
+  fb.innerHTML=`<strong>${ok?'✓ Resposta correta':'Vamos rever o raciocínio'}</strong><p class="answer-key">Gabarito: <b>${letters[q.a]}</b> — ${q.o[q.a]}</p>${q.e}`;
+  el('checkBtn').disabled=true;el('resetQ').disabled=true;
+}
+function check(){
+  const q=filtered[idx];if(selected===null||state.get(q)?.checked)return;
+  const s={choice:selected,checked:true,correct:selected===q.a};state.set(q,s);
+  let gain=0;
+  if(s.correct){game.streak++;game.best=Math.max(game.best,game.streak);if(!game.earned.includes(q.id)){gain=10+Math.min(10,Math.max(0,game.streak-1)*2);game.xp+=gain;game.earned.push(q.id)}}else{game.streak=0}
+  showChecked(q,s);updateCounts();updateGame();saveProgress();
+  el('feedback').focus({preventScroll:true});
+  if(s.correct)reward(gain);
+}
+function topScroll(){window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'})}
+function next(){if(idx===filtered.length-1){finish();return;}idx++;selected=null;render();topScroll()}
+function prev(){if(idx>0){idx--;selected=null;render();topScroll()}}
 function finish(){
-  const total=filtered.length,c=counts(),pct=Math.round(100*c.correct/total); let by={};filtered.forEach(q=>{by[q.cat]??={n:0,c:0};by[q.cat].n++; if(state.get(q)?.correct)by[q.cat].c++});
-  el('quizArea').style.display='none'; el('navbar').style.display='none'; const sum=el('summary');sum.classList.add('show');sum.innerHTML=`<h2>Resultado do treino</h2><div class="score-big">${c.correct}/${total}</div><p>${pct}% de acertos. Questões não respondidas são contabilizadas como não acertadas.</p><div class="cat-list">${Object.entries(by).map(([k,v])=>`<div class="cat-row"><span>${k}</span><strong>${v.c}/${v.n}</strong></div>`).join('')}</div><div class="summary-actions"><button class="btn primary" onclick="restart(false)">Refazer este bloco</button><button class="btn secondary" onclick="reviewWrong()">Revisar erradas/não respondidas</button></div>`;window.scrollTo({top:0,behavior:'smooth'})
+  cancelReward();
+  const total=filtered.length,c=counts(),pct=Math.round(100*c.correct/total);let by={};filtered.forEach(q=>{by[q.cat]??={n:0,c:0};by[q.cat].n++;if(state.get(q)?.correct)by[q.cat].c++});
+  el('quizArea').style.display='none';el('navbar').style.display='none';const sum=el('summary');sum.classList.add('show');
+  sum.innerHTML=`<h2>Resultado do treino</h2><div class="score-big">${c.correct}/${total}</div><p>${pct}% do bloco respondido corretamente. Você respondeu ${c.checked} questões e deixou ${total-c.checked} em aberto.</p><p><b>${game.xp} XP · ${currentLevel().name}</b><br>Melhor sequência: ${game.best} acertos. Questões conquistadas: ${game.earned.length}/100.</p><div class="cat-list">${Object.entries(by).map(([k,v])=>`<div class="cat-row"><span>${k}</span><strong>${v.c}/${v.n}</strong></div>`).join('')}</div><p>O estudo continua na explicação: volte às questões para acompanhar o raciocínio e revisar os conceitos.</p><div class="summary-actions"><button class="btn primary" onclick="reviewWrong()" ${c.correct===total?'disabled':''}>Praticar erradas e não respondidas</button><button class="btn secondary" onclick="returnToStudy()">Consultar respostas e explicações</button><button class="btn secondary" onclick="restart(false)">Refazer este bloco</button><button class="btn secondary" onclick="backToBank()">Voltar ao banco completo</button></div>`;topScroll();
 }
-window.restart=function(clearAll){if(clearAll)state.clear(); else filtered.forEach(q=>state.delete(q));idx=0;selected=null;render();}
-window.reviewWrong=function(){const wrong=filtered.filter(q=>!state.get(q)?.correct); if(!wrong.length){alert('Nenhuma questão errada neste bloco.');return;} filtered=wrong; idx=0; selected=null; filtered.forEach(q=>state.delete(q)); render();}
-
-el('checkBtn').onclick=check;el('nextBtn').onclick=next;el('prevBtn').onclick=prev;el('resetQ').onclick=()=>{const q=filtered[idx];state.delete(q);selected=null;render()};
+window.restart=function(clearAll){if(clearAll)state.clear();else filtered.forEach(q=>state.delete(q));game.streak=0;idx=0;selected=null;saveProgress();render();topScroll()};
+window.reviewWrong=function(){const wrong=filtered.filter(q=>!state.get(q)?.correct);if(!wrong.length)return;filtered=wrong;idx=0;selected=null;game.streak=0;filtered.forEach(q=>state.delete(q));saveProgress();render();topScroll()};
+window.returnToStudy=function(){idx=0;render();topScroll()};
+window.backToBank=function(){categorySelect.value='Todas';applyFilter();topScroll()};
+el('clearProgress').onclick=()=>{if(!confirm('Apagar todas as respostas, pontos e conquistas deste navegador?'))return;state.clear();game={xp:0,streak:0,best:0,earned:[]};saveProgress();render()};
+el('checkBtn').onclick=check;el('nextBtn').onclick=next;el('prevBtn').onclick=prev;
+el('resetQ').onclick=()=>{const q=filtered[idx];if(state.get(q)?.checked)return;state.delete(q);selected=null;saveProgress();render()};
 categorySelect.onchange=applyFilter;orderSelect.onchange=applyFilter;
-initCategories();render();
+initCategories();loadProgress();render();saveProgress();
+
 </script>
-</body>
-</html>
+
+
+</body></html>
