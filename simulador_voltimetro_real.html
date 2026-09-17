@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Simulador — Voltímetro Real</title>
+<style>
+  :root{
+    --bg:#f4f6f8;
+    --card:#ffffff;
+    --ink:#111827;
+    --muted:#6b7280;
+    --line:#d1d5db;
+    --red:#dc2626;
+    --black:#111827;
+    --yellow:#f6c63d;
+    --meter:#3f4146;
+    --lcd:#dceef0;
+    --green:#22c55e;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;
+    min-height:100dvh;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    display:flex;
+    justify-content:center;
+  }
+  .app{
+    width:min(100%,520px);
+    padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+  }
+  .top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+  }
+  h1{
+    font-size:18px;
+    line-height:1;
+    margin:0;
+    font-weight:800;
+    letter-spacing:-.02em;
+  }
+  .chip{
+    border:0;
+    border-radius:999px;
+    background:#e5e7eb;
+    color:#374151;
+    font-weight:800;
+    padding:8px 11px;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .tabs{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:4px;
+    padding:4px;
+    background:#e5e7eb;
+    border-radius:14px;
+    margin-bottom:12px;
+  }
+  .tabs button{
+    border:0;
+    border-radius:11px;
+    padding:11px 8px;
+    font-weight:800;
+    font-size:14px;
+    color:#4b5563;
+    background:transparent;
+    cursor:pointer;
+  }
+  .tabs button.active{
+    background:#fff;
+    color:#111827;
+    box-shadow:0 1px 5px rgba(0,0,0,.10);
+  }
+  .card{
+    background:var(--card);
+    border:1px solid #e5e7eb;
+    border-radius:20px;
+    box-shadow:0 7px 22px rgba(17,24,39,.06);
+  }
+
+  /* multimeter */
+  .meterWrap{
+    display:grid;
+    grid-template-columns:1fr;
+    place-items:center;
+    padding:14px 10px 8px;
+  }
+  .meter{
+    width:220px;
+    height:310px;
+    background:var(--yellow);
+    border-radius:35px 35px 28px 28px;
+    padding:12px;
+    box-shadow:
+      inset 0 0 0 3px rgba(0,0,0,.13),
+      0 9px 22px rgba(0,0,0,.14);
+  }
+  .meterBody{
+    height:100%;
+    background:var(--meter);
+    border-radius:27px 27px 22px 22px;
+    padding:13px;
+    position:relative;
+    overflow:hidden;
+  }
+  .lcd{
+    height:74px;
+    background:var(--lcd);
+    border-radius:16px;
+    box-shadow:inset 0 0 0 5px #c3d7db;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:5px 10px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:29px;
+    font-weight:700;
+    letter-spacing:-1.7px;
+    color:#17222a;
+    white-space:nowrap;
+  }
+  .dial{
+    width:112px;
+    height:112px;
+    border-radius:50%;
+    background:
+      radial-gradient(circle at 38% 34%,#9ca3af 0 7%,#60646c 8% 55%,#24262b 56% 100%);
+    margin:18px auto 0;
+    box-shadow:0 4px 10px rgba(0,0,0,.45);
+    position:relative;
+  }
+  .dial:after{
+    content:"V";
+    position:absolute;
+    top:10px;
+    left:0; right:0;
+    text-align:center;
+    color:#fff;
+    font-size:14px;
+    font-weight:900;
+  }
+  .dialPointer{
+    position:absolute;
+    width:7px;
+    height:49px;
+    border-radius:5px;
+    background:#dedede;
+    left:calc(50% - 3.5px);
+    top:8px;
+    transform-origin:50% 48px;
+    transform:rotate(26deg);
+    box-shadow:0 1px 2px rgba(0,0,0,.35);
+  }
+  .ports{
+    position:absolute;
+    left:0;right:0;bottom:15px;
+    display:flex;
+    justify-content:center;
+    gap:42px;
+  }
+  .port{
+    width:30px;height:30px;border-radius:50%;
+    border:5px solid #222;
+    background:#0c0c0c;
+    box-shadow:inset 0 0 0 5px #111;
+    position:relative;
+  }
+  .port.red{ background:#c91c1c; box-shadow:inset 0 0 0 5px #b91c1c; }
+  .portLabel{
+    position:absolute;
+    top:-23px;
+    left:50%;
+    transform:translateX(-50%);
+    color:#fff;
+    font-size:11px;
+    font-weight:800;
+  }
+
+  .wireArea{
+    width:100%;
+    max-width:330px;
+    height:118px;
+    position:relative;
+    margin-top:2px;
+  }
+  .lead{
+    position:absolute;
+    top:3px;
+    width:6px;
+    height:66px;
+    border-radius:999px;
+    box-shadow:0 2px 6px rgba(0,0,0,.12);
+  }
+  .lead.black{left:98px;background:var(--black);transform:rotate(10deg);transform-origin:top}
+  .lead.red{right:98px;background:var(--red);transform:rotate(-10deg);transform-origin:top}
+  .probe{
+    position:absolute;
+    top:56px;
+    width:16px;height:34px;
+    border-radius:9px 9px 6px 6px;
+    box-shadow:0 2px 7px rgba(0,0,0,.14);
+  }
+  .probe.black{left:91px;background:var(--black);transform:rotate(10deg)}
+  .probe.red{right:91px;background:var(--red);transform:rotate(-10deg)}
+  .node{
+    position:absolute;
+    bottom:32px;
+    width:26px;height:26px;
+    border-radius:50%;
+    border:4px solid #f9fafb;
+    background:#fff;
+    box-shadow:0 0 0 2px #9ca3af;
+  }
+  .node:after{
+    content:"";
+    position:absolute;
+    inset:5px;
+    border-radius:50%;
+  }
+  .node.black{left:86px}
+  .node.red{right:86px}
+  .node.black:after{background:#111827}
+  .node.red:after{background:#dc2626}
+  .contactRow{
+    width:100%;
+    max-width:340px;
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    gap:10px;
+    margin-top:-4px;
+    margin-bottom:2px;
+  }
+  .contactPill{
+    min-height:38px;
+    border-radius:999px;
+    background:#f3f4f6;
+    border:1px solid #e5e7eb;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:8px 12px;
+    font-size:12px;
+    font-weight:900;
+    color:#1f2937;
+    box-shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  .contactPill.left{justify-self:start}
+  .contactPill.right{justify-self:end}
+  .contactTag{
+    font-weight:900;
+    letter-spacing:-.01em;
+  }
+  .nodeValue{
+    font-variant-numeric:tabular-nums;
+    color:#374151;
+    white-space:nowrap;
+  }
+
+  .controls{
+    margin-top:12px;
+    padding:15px;
+  }
+  .row{
+    display:grid;
+    grid-template-columns:50px 1fr 76px;
+    align-items:center;
+    gap:10px;
+    min-height:48px;
+  }
+  .label{
+    font-size:13px;
+    font-weight:900;
+    color:#374151;
+  }
+  .val{
+    text-align:right;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:13px;
+    font-weight:800;
+    color:#111827;
+  }
+  input[type=range]{
+    width:100%;
+    height:34px;
+    margin:0;
+    background:transparent;
+    touch-action:pan-y;
+  }
+  input[type=range]::-webkit-slider-runnable-track{
+    height:7px;
+    background:#d1d5db;
+    border-radius:10px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:28px;height:28px;
+    margin-top:-10.5px;
+    border-radius:50%;
+    background:#111827;
+    border:4px solid #fff;
+    box-shadow:0 1px 6px rgba(0,0,0,.25);
+  }
+  input[type=range]::-moz-range-track{
+    height:7px;
+    background:#d1d5db;
+    border-radius:10px;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:24px;height:24px;
+    border-radius:50%;
+    background:#111827;
+    border:4px solid #fff;
+    box-shadow:0 1px 6px rgba(0,0,0,.25);
+  }
+  .advanced{
+    display:none;
+    border-top:1px solid #e5e7eb;
+    padding-top:8px;
+    margin-top:7px;
+  }
+  .advanced.show{display:block}
+  .tiny{
+    text-align:center;
+    margin-top:8px;
+    font-size:11px;
+    color:#9ca3af;
+    font-variant-numeric:tabular-nums;
+    min-height:16px;
+  }
+  .modeHint{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:#f3f4f6;
+    border-radius:999px;
+    padding:5px 9px;
+    font-size:11px;
+    font-weight:800;
+    color:#4b5563;
+    margin-top:5px;
+  }
+  .dot{
+    width:7px;height:7px;border-radius:50%;background:var(--green);
+  }
+  @media (max-height:720px){
+    .meter{width:188px;height:264px}
+    .lcd{height:62px;font-size:25px}
+    .dial{width:92px;height:92px;margin-top:12px}
+    .dialPointer{height:40px;transform-origin:50% 39px}
+    .wireArea{height:104px}
+    .lead{height:54px}
+    .probe{top:48px}
+    .node{bottom:28px}
+    .contactRow{gap:8px}
+    .contactPill{font-size:11px;padding:7px 10px}
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="top">
+    <h1>Voltímetro real</h1>
+    <button class="chip" id="realBtn" aria-expanded="false">CMRR 80 dB</button>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Modo">
+    <button id="tabDiff" class="active" role="tab" aria-selected="true">Diferencial</button>
+    <button id="tabCm" role="tab" aria-selected="false">Modo comum</button>
+  </div>
+
+  <section class="card meterWrap">
+    <div class="meter" aria-label="Multímetro">
+      <div class="meterBody">
+        <div class="lcd" id="lcd">1.4993 V</div>
+        <div class="dial"><div class="dialPointer"></div></div>
+        <div class="ports">
+          <div class="port"><div class="portLabel">COM</div></div>
+          <div class="port red"><div class="portLabel">V Ω</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wireArea" aria-hidden="true">
+      <div class="lead black"></div>
+      <div class="lead red"></div>
+      <div class="probe black"></div>
+      <div class="probe red"></div>
+      <div class="node black"></div>
+      <div class="node red"></div>
+    </div>
+    <div class="contactRow">
+      <div class="contactPill left"><span class="contactTag">V−</span><span class="nodeValue" id="vmNode">−0.750 V</span></div>
+      <div class="modeHint"><span class="dot"></span><span id="hint">V<sub>d</sub> = V+ − V−</span></div>
+      <div class="contactPill right"><span class="contactTag">V+</span><span class="nodeValue" id="vpNode">+0.750 V</span></div>
+    </div>
+  </section>
+
+  <section class="card controls">
+    <div class="row" id="mainRow">
+      <div class="label" id="mainLabel">Vd</div>
+      <input id="mainSlider" type="range" min="-5" max="5" step="0.01" value="1.5" />
+      <div class="val" id="mainVal">1.50 V</div>
+    </div>
+
+    <div class="row" id="cmRow">
+      <div class="label">Vcm</div>
+      <input id="cmSlider" type="range" min="-10" max="10" step="0.05" value="0" />
+      <div class="val" id="cmVal">0.00 V</div>
+    </div>
+
+    <div class="advanced" id="advanced">
+      <div class="row">
+        <div class="label">CMRR</div>
+        <input id="cmrrSlider" type="range" min="40" max="120" step="1" value="80" />
+        <div class="val" id="cmrrVal">80 dB</div>
+      </div>
+      <div class="row">
+        <div class="label">Gd</div>
+        <input id="gdSlider" type="range" min="0.995" max="1.005" step="0.0001" value="0.9995" />
+        <div class="val" id="gdVal">0.9995</div>
+      </div>
+    </div>
+
+    <div class="tiny" id="tiny"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const tabDiff = $('tabDiff');
+  const tabCm = $('tabCm');
+  const mainSlider = $('mainSlider');
+  const cmSlider = $('cmSlider');
+  const cmrrSlider = $('cmrrSlider');
+  const gdSlider = $('gdSlider');
+  const mainLabel = $('mainLabel');
+  const mainVal = $('mainVal');
+  const cmVal = $('cmVal');
+  const cmrrVal = $('cmrrVal');
+  const gdVal = $('gdVal');
+  const lcd = $('lcd');
+  const vpNode = $('vpNode');
+  const vmNode = $('vmNode');
+  const hint = $('hint');
+  const tiny = $('tiny');
+  const realBtn = $('realBtn');
+  const advanced = $('advanced');
+  const cmRow = $('cmRow');
+
+  let mode = 'diff';
+
+  function signed(v, decimals=3){
+    const x = Math.abs(v) < 0.5*Math.pow(10,-decimals) ? 0 : v;
+    return `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(decimals)} V`;
+  }
+
+  function meterText(v){
+    const a = Math.abs(v);
+    if(a >= 1) return `${v.toFixed(4)} V`;
+    if(a >= 0.001) return `${(v*1000).toFixed(2)} mV`;
+    if(a >= 0.000001) return `${(v*1e6).toFixed(1)} µV`;
+    return `${(v*1e6).toFixed(2)} µV`;
+  }
+
+  function setMode(next){
+    mode = next;
+    const diff = mode === 'diff';
+
+    tabDiff.classList.toggle('active', diff);
+    tabCm.classList.toggle('active', !diff);
+    tabDiff.setAttribute('aria-selected', diff ? 'true' : 'false');
+    tabCm.setAttribute('aria-selected', diff ? 'false' : 'true');
+
+    if(diff){
+      mainLabel.textContent = 'Vd';
+      mainSlider.min = -5;
+      mainSlider.max = 5;
+      mainSlider.step = 0.01;
+      mainSlider.value = 1.5;
+      cmSlider.value = 0;
+      cmRow.style.display = 'grid';
+      hint.innerHTML = 'V<sub>d</sub> = V+ − V−';
+    }else{
+      mainLabel.textContent = 'Vcm';
+      mainSlider.min = -10;
+      mainSlider.max = 10;
+      mainSlider.step = 0.05;
+      mainSlider.value = 1.5;
+      cmRow.style.display = 'none';
+      hint.innerHTML = 'V+ = V−';
+    }
+    update();
+  }
+
+  function update(){
+    const Gd = parseFloat(gdSlider.value);
+    const cmrr = parseFloat(cmrrSlider.value);
+    const Acm = Gd / Math.pow(10, cmrr/20);
+
+    let Vd, Vcm;
+    if(mode === 'diff'){
+      Vd = parseFloat(mainSlider.value);
+      Vcm = parseFloat(cmSlider.value);
+      mainVal.textContent = `${Vd.toFixed(2)} V`;
+      cmVal.textContent = `${Vcm.toFixed(2)} V`;
+    }else{
+      Vd = 0;
+      Vcm = parseFloat(mainSlider.value);
+      mainVal.textContent = `${Vcm.toFixed(2)} V`;
+    }
+
+    const Vp = Vcm + Vd/2;
+    const Vm = Vcm - Vd/2;
+
+    // Voltímetro real: ganho diferencial finito + ganho de modo comum não nulo.
+    const Vout = Gd * Vd + Acm * Vcm;
+
+    lcd.textContent = meterText(Vout);
+    vpNode.textContent = signed(Vp);
+    vmNode.textContent = signed(Vm);
+
+    cmrrVal.textContent = `${cmrr.toFixed(0)} dB`;
+    gdVal.textContent = Gd.toFixed(4);
+    realBtn.textContent = `CMRR ${cmrr.toFixed(0)} dB`;
+    tiny.textContent = `Acm = ${Acm.toExponential(2)}  ·  Vmed = Gd·Vd + Acm·Vcm`;
+  }
+
+  tabDiff.addEventListener('click', () => setMode('diff'));
+  tabCm.addEventListener('click', () => setMode('cm'));
+
+  [mainSlider,cmSlider,cmrrSlider,gdSlider].forEach(el => {
+    el.addEventListener('input', update);
+  });
+
+  realBtn.addEventListener('click', () => {
+    advanced.classList.toggle('show');
+    realBtn.setAttribute('aria-expanded', advanced.classList.contains('show') ? 'true' : 'false');
+  });
+
+  setMode('diff');
+})();
+</script>
+</body>
+</html>
